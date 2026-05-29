@@ -33,6 +33,8 @@
     "diff": "^8.0.4",
     "dotenv": "^17.3.1",
     "exa-js": "^2.10.1",
+    "fast-xml-parser": "^5.8.0",
+    "fflate": "^0.8.3",
     "gray-matter": "^4.0.3",
     "langsmith": "^0.4.12",
     "linkedom": "^0.18.12",

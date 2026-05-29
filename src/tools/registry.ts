@@ -11,6 +11,7 @@ import { readFileTool, READ_FILE_DESCRIPTION } from './filesystem/read-file.js';
 import { writeFileTool, WRITE_FILE_DESCRIPTION } from './filesystem/write-file.js';
 import { editFileTool, EDIT_FILE_DESCRIPTION } from './filesystem/edit-file.js';
 import { GET_FINANCIALS_DESCRIPTION } from './finance/get-financials.js';
+import { createGetFinancialsKr, GET_FINANCIALS_KR_DESCRIPTION } from './finance-kr/get-financials-kr.js';
 import { GET_MARKET_DATA_DESCRIPTION } from './finance/get-market-data.js';
 import { READ_FILINGS_DESCRIPTION } from './finance/read-filings.js';
 import { SCREEN_STOCKS_DESCRIPTION } from './finance/screen-stocks.js';
@@ -174,6 +175,16 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       tool: createWebSearchTool(orderedProviders),
       description: WEB_SEARCH_DESCRIPTION,
       compactDescription: 'Search the web for current information. Returns titles, URLs, and snippets.',
+      concurrencySafe: true,
+    });
+  }
+
+  if (process.env.DART_API_KEY && !process.env.DART_API_KEY.startsWith('your-')) {
+    tools.push({
+      name: 'get_financials_kr',
+      tool: createGetFinancialsKr(model),
+      description: GET_FINANCIALS_KR_DESCRIPTION,
+      compactDescription: 'Korean stocks (6-digit tickers like 005930). DART 사업·반기·분기보고서 (K-IFRS).',
       concurrencySafe: true,
     });
   }

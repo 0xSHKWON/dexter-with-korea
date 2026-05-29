@@ -71,7 +71,7 @@ function summarizeToolResult(tool: string, args: Record<string, unknown>, result
       }
       if (typeof parsed.data === 'object') {
         const keys = Object.keys(parsed.data).filter((key) => !key.startsWith('_'));
-        if (tool === 'get_financials' || tool === 'get_market_data' || tool === 'stock_screener') {
+        if (tool === 'get_financials' || tool === 'get_financials_kr' || tool === 'get_market_data' || tool === 'stock_screener') {
           if (keys.length === 0) return 'Done';
           return keys.length === 1 ? 'Called 1 data source' : `Called ${keys.length} data sources`;
         }

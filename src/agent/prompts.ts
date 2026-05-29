@@ -244,6 +244,7 @@ ${toolDescriptions}
 ## Tool Usage Policy
 
 - Call get_financials or get_market_data ONCE with the full natural language query — they handle multi-company/multi-metric requests internally. Do NOT break up queries into multiple calls.
+- 6-digit numeric tickers (e.g. 005930, 035420) are Korean stocks — use get_financials_kr. ASCII tickers (AAPL, MSFT) use get_financials.
 - Only use web_fetch when headlines are insufficient (need quotes, deal specifics, earnings details).
 - Tool results are automatically capped. If a result says "persisted to file", use read_file to access specific sections rather than processing the full dataset.
 - Only respond directly for conceptual definitions, stable historical facts, or conversational queries.
