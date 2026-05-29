@@ -34,9 +34,9 @@ Each step below states **US default** and, where it differs, a **🇰🇷 KR ove
 
 **US path** — call the `get_financials` tool with these queries:
 
-> **🇰🇷 KR override:** Call `get_financials_kr` instead (it routes to DART 사업/반기/분기보고서). One natural-language query is enough, e.g. `"005930 최근 5년 연결 재무제표 현금흐름·손익·재무상태표"`. Then use `get_market_data` for the current price if it returns Korean tickers; otherwise fall back to `web_search`/`get_foreign_ownership_kr` for the latest close.
+> **🇰🇷 KR override:** 대신 `get_financials_kr`를 호출한다(DART 사업/반기/분기보고서로 라우팅). 자연어 쿼리 하나면 충분하다. 예: `"005930 최근 5년 연결 재무제표 현금흐름·손익·재무상태표"`. 그다음 현재가는 `get_market_data`가 한국 티커를 반환하면 그걸 쓰고, 아니면 `web_search`/`get_foreign_ownership_kr`로 최근 종가를 보완한다.
 >
-> DART account labels (`account_nm`) vary by company and year — **never exact-match**. 영업수익 vs 매출액, 당기순이익(손실) suffixes, etc. Match on substrings / the standardized `account_id` where present, and reconcile across periods.
+> DART 계정 라벨(`account_nm`)은 회사·연도마다 다르다 — **정확 일치 금지**. 영업수익 vs 매출액, 당기순이익(손실) 접미사 등. 부분 문자열 / 표준 `account_id`(있을 때)로 매칭하고 기간 간 정합성을 맞춘다.
 
 ### 1.1 Cash Flow History
 **Query:** `"[TICKER] annual cash flow statements for the last 5 years"`
@@ -73,7 +73,7 @@ Call the `get_financials` tool:
 
 **Use:** Determine appropriate WACC range from [sector-wacc.md](sector-wacc.md)
 
-> **🇰🇷 KR override:** `get_financials_kr` does not return a US-style `sector` field. Infer the sector from the company's main business (반도체, 자동차, 2차전지, 바이오, 금융, 통신, 유틸리티, 소비재 …) and read its WACC range from [sector-wacc-kr.md](sector-wacc-kr.md) instead.
+> **🇰🇷 KR override:** `get_financials_kr`는 미국식 `sector` 필드를 반환하지 않는다. 회사의 주력 사업(반도체, 자동차, 2차전지, 바이오, 금융, 통신, 유틸리티, 소비재 …)으로 섹터를 추론하고 [sector-wacc-kr.md](sector-wacc-kr.md)에서 WACC 레인지를 읽어라.
 
 ## Step 2: Calculate FCF Growth Rate
 
@@ -96,11 +96,11 @@ Calculate 5-year FCF CAGR from cash flow history.
 
 Calculate WACC using `debt_to_equity` for capital structure weights.
 
-> **🇰🇷 KR override — use Korean market inputs:**
-> - Risk-free rate: **~3%** (10Y Korean Treasury Bond / 국고채), not 4%
-> - Equity risk premium: 5-7% (apply a Korea/governance "코리아 디스카운트" lean toward the high end for chaebol-affiliated or cross-held names)
-> - Cost of debt: pre-tax market rate, **after-tax at ~22% corporate tax** (K-IFRS effective rate; marginal up to ~24-26% incl. local income surtax) — **not 30%**
-> - Base WACC range from [sector-wacc-kr.md](sector-wacc-kr.md)
+> **🇰🇷 KR override — 한국 시장 입력값 사용:**
+> - 무위험금리: **~3%** (10년 국고채), 4% 아님
+> - 시장 위험프리미엄: 5~7% (재벌 계열·상호출자 종목은 코리아 디스카운트/지배구조 우려로 상단에 가깝게)
+> - 부채비용: 세전 시장금리, **세후는 법인세율 ~22% 적용** (K-IFRS 실효; 지방소득세 포함 marginal 최대 ~24~26%) — **30% 아님**
+> - 기준 WACC 레인지는 [sector-wacc-kr.md](sector-wacc-kr.md) 참조
 
 **Reasonableness check:** WACC should be 2-4% below `return_on_invested_capital` for value-creating companies.
 
@@ -112,7 +112,7 @@ Calculate WACC using `debt_to_equity` for capital structure weights.
 
 **Terminal value:** Use Gordon Growth Model with 2.5% terminal growth (GDP proxy).
 
-> **🇰🇷 KR override:** Use **~2.0%** terminal growth (Korea's lower potential GDP growth). The Step 6 sensitivity grid should center on this — vary terminal growth across **1.5% / 2.0% / 2.5%** instead of the US 2.0/2.5/3.0.
+> **🇰🇷 KR override:** 터미널 성장률 **~2.0%** 사용(한국의 낮은 잠재 GDP 성장률). Step 6 민감도 그리드도 이를 중심으로 — 미국의 2.0/2.5/3.0 대신 터미널 성장률을 **1.5% / 2.0% / 2.5%**로 변화시킨다.
 
 ## Step 5: Calculate Present Value
 
@@ -122,7 +122,7 @@ Discount all FCFs → sum for Enterprise Value → subtract Net Debt → divide 
 
 Create 3×3 matrix: WACC (base ±1%) vs terminal growth (2.0%, 2.5%, 3.0%).
 
-> **🇰🇷 KR override:** terminal-growth axis = **1.5% / 2.0% / 2.5%** (centered on Korea's ~2.0% terminal growth).
+> **🇰🇷 KR override:** 터미널 성장률 축 = **1.5% / 2.0% / 2.5%** (한국의 ~2.0% 터미널 성장률 중심).
 
 ## Step 7: Validate Results
 
@@ -149,6 +149,6 @@ Present a structured summary including:
 5. **Caveats**: Standard DCF limitations plus company-specific risks
 
 > **🇰🇷 KR override:**
-> - Report all values in **KRW** (intrinsic value per share, market cap). Run the per-share sanity check in KRW.
-> - Sensitivity matrix terminal-growth axis: **1.5% / 2.0% / 2.5%**.
-> - Add a short **"세후 실현수익률 주의"** caption: the DCF fair value is the company's intrinsic (pre-investor-tax) value. When an investor *realizes* the return, Korean securities transaction tax (증권거래세, as of 2026 ~0.20% of sale proceeds: KOSPI 0.05% 거래세 + 0.15% 농어촌특별세, KOSDAQ 0.20%) and dividend income tax (배당소득세 — 15.4% withholding for residents; ~22% or the tax-treaty rate for foreign holders) reduce the net realized return. These do **not** change the intrinsic value computed above — they are an investor-level adjustment on top of it.
+> - 모든 값을 **KRW**로 표기(주당 내재가치, 시총). 주당가치 합리성 점검도 KRW로.
+> - 민감도 행렬 터미널 성장률 축: **1.5% / 2.0% / 2.5%**.
+> - 짧은 **"세후 실현수익률 주의"** 캡션 추가: DCF 적정가치는 기업의 내재가치(투자자 세전)다. 투자자가 수익을 *실현*할 때 증권거래세(2026년 기준 매도금액의 ~0.20%: KOSPI 0.05% 거래세 + 0.15% 농어촌특별세, KOSDAQ 0.20%)와 배당소득세(거주자 15.4% 원천징수, 외국인 ~22% 또는 조세조약 세율)가 세후 실현수익을 깎는다. 이는 위에서 계산한 내재가치를 **바꾸지 않으며** 그 위에 얹히는 투자자 차원의 조정이다.

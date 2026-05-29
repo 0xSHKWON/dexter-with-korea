@@ -1,93 +1,89 @@
 ---
 name: kr-spinoff-analysis
-description: Analyzes Korean corporate split events (물적분할·인적분할) and their impact on existing parent-company shareholders — holding-company discount, double-counting, loss of a core growth business, and 쪼개기 상장 (subsidiary IPO) dilution. Triggers when a 6-digit Korean ticker or Korean company name is mentioned together with 물적분할, 인적분할, 분할, 자회사 상장, 쪼개기 상장, spin-off, or "did the split hurt shareholders".
+description: 한국 상장사의 물적분할·인적분할 이벤트를 분석하고, 기존 모회사 주주 관점의 가치 영향(지주사 디스카운트, 더블카운팅, 핵심 성장사업 이탈, 쪼개기 상장에 따른 희석)을 평가한다. 6자리 한국 티커나 한국 회사명이 물적분할·인적분할·분할·자회사 상장·쪼개기 상장·spin-off 또는 "분할이 주주가치에 어땠나" 등과 함께 언급될 때 트리거.
 ---
 
-# Korean Split (물적분할 / 인적분할) Analysis Skill
+# 한국 기업분할(물적분할 / 인적분할) 분석 스킬
 
-The goal is **not** to list filings. It is to answer: *was this split good or bad for the
-**existing parent-company shareholders**, and why?* Lead with that verdict.
+이 스킬의 목표는 공시를 나열하는 것이 **아니다**. *이 분할이 **기존 모회사 주주**에게 득이었는지
+실이었는지, 그리고 왜 그런지*에 답하는 것이다. 결론(평가)을 먼저 제시하라.
 
-## Background — two split types (decide which applies)
+## 배경 — 두 가지 분할 유형 (어느 쪽인지 먼저 판단)
 
-- **물적분할 (physical division)**: the parent spins a business unit into a **100%-owned new
-  subsidiary**. The parent's shareholders own the subsidiary only *indirectly*. The classic risk
-  is **쪼개기 상장** — the subsidiary later IPOs, raising capital by selling new shares to outside
-  investors, which **dilutes** the parent's stake and exposes parent holders to the **holding-company
-  discount** and **double-counting** (the same business valued twice, but the parent trades at a
-  discount to the sum of parts). Generally **negative** for existing parent shareholders.
-- **인적분할 (personal/horizontal division)**: shares of the new entity are distributed to existing
-  shareholders **pro-rata**. Holders directly own both pieces, so it is broadly **value-neutral**
-  at the moment of split (value can still move on subsequent re-rating).
+- **물적분할**: 모회사가 사업부를 **100% 자회사**로 신설한다. 모회사 주주는 그 자회사를
+  *간접적으로만* 소유한다. 대표적 리스크는 **쪼개기 상장** — 이후 자회사가 IPO하면서 외부
+  투자자에게 신주를 팔아 자본을 조달하고, 이는 모회사의 지분을 **희석**시키며 모회사 주주를
+  **지주사 디스카운트**와 **더블카운팅**(같은 사업이 두 번 평가되지만 모회사는 부분합 대비 할인
+  거래)에 노출시킨다. 기존 모회사 주주에게 일반적으로 **부정적**.
+- **인적분할**: 신설 법인의 주식이 기존 주주에게 **지분율대로** 배분된다. 주주가 양쪽을 직접
+  소유하므로 분할 시점에는 대체로 **가치 중립적**이다(이후 리레이팅으로 가치가 움직일 수는 있음).
 
-The canonical cautionary case is **LG화학 → LG에너지솔루션** (2020 물적분할, 2022 IPO): LG화학
-shareholders saw their indirect claim on the battery business diluted, and LG화학 re-rated to a
-holding-company-like discount. Use this as the reference pattern.
+대표적 경계 사례는 **LG화학 → LG에너지솔루션**(2020년 물적분할, 2022년 IPO): LG화학 주주는
+배터리 사업에 대한 간접 지분이 희석됐고, LG화학은 지주사형 디스카운트로 리레이팅됐다. 이를 기준
+패턴으로 삼아라.
 
-## Workflow Checklist
+## 워크플로 체크리스트
 
 ```
-KR Split Analysis Progress:
-- [ ] Step 1: Resolve target and find the split event(s)
-- [ ] Step 2: Classify the split (물적분할 vs 인적분할) and build the timeline
-- [ ] Step 3: Map the post-split ownership / control structure
-- [ ] Step 4: Assess the value impact on existing parent shareholders
-- [ ] Step 5: (Optional) Quantify with financials
-- [ ] Step 6: Present verdict + caveats
+KR 분할 분석 진행:
+- [ ] Step 1: 대상 종목 확인 및 분할 이벤트 탐색
+- [ ] Step 2: 분할 유형 분류(물적 vs 인적) 및 타임라인 구성
+- [ ] Step 3: 분할 후 지분 / 지배구조 매핑
+- [ ] Step 4: 기존 모회사 주주에 대한 가치 영향 평가
+- [ ] Step 5: (선택) 재무로 정량화
+- [ ] Step 6: 평가 + 주의사항 제시
 ```
 
-## Step 1: Find the Split Event(s)
+## Step 1: 분할 이벤트 탐색
 
-Call `get_filings_kr` for the target ticker. Split disclosures are filed as **주요사항보고서**, so
-use `filing_type: "material"`. Splits are often years in the past, so pass a wide window via
-`start_date` (e.g. go back 5-10 years) — the default range is only ~1 year.
+대상 티커로 `get_filings_kr`를 호출한다. 분할 공시는 **주요사항보고서**로 제출되므로
+`filing_type: "material"`을 사용한다. 분할은 수년 전 일인 경우가 많으므로 `start_date`로 기간을
+넓게(예: 5~10년 전) 지정한다 — 기본 범위는 ~1년뿐이다.
 
-Scan `report_nm` for: `분할`, `물적분할`, `인적분할`, `회사분할`, `분할합병`, and the subsidiary
-IPO (`증권신고서` / `발행공시`, `filing_type: "issuance"`, if a 쪼개기 상장 is suspected). Note the
-receipt date (`rcept_dt`) and the new entity name.
+`report_nm`에서 다음을 스캔한다: `분할`, `물적분할`, `인적분할`, `회사분할`, `분할합병`, 그리고
+자회사 IPO(`증권신고서` / `발행공시`, 쪼개기 상장이 의심되면 `filing_type: "issuance"`). 접수일
+(`rcept_dt`)과 신설 법인명을 기록한다.
 
-If the user already named the event (e.g. "LG화학 물적분할"), confirm it in the filings rather than
-searching blind, and supplement with `web_search` for board-resolution / approval dates if the
-filing record is thin.
+사용자가 이미 이벤트를 지목했다면(예: "LG화학 물적분할") 맹목적으로 검색하지 말고 공시에서
+확인하고, 공시 기록이 부족하면 이사회 결의 / 승인일을 `web_search`로 보완한다.
 
-## Step 2: Classify and Build the Timeline
+## Step 2: 분류 및 타임라인 구성
 
-State explicitly whether it is **물적분할** or **인적분할** — this drives the entire verdict.
-Build a short timeline: board resolution → shareholder meeting (분할 승인) → 분할기일 (effective
-date) → subsidiary IPO date (if any).
+**물적분할**인지 **인적분할**인지 명시하라 — 이것이 전체 평가를 좌우한다. 짧은 타임라인을
+구성한다: 이사회 결의 → 주주총회(분할 승인) → 분할기일(효력 발생일) → 자회사 IPO일(있는 경우).
 
-## Step 3: Map the Post-Split Ownership Structure (supporting)
+## Step 3: 분할 후 지분구조 매핑 (보조)
 
-Use `get_large_holders_kr` (5%룰 대량보유) and `get_insider_trades_kr` (임원·주요주주) on the
-**parent** to confirm the parent's stake in the new entity and the controlling-family / holding-company
-chain above it. For broader group context (재벌 그룹 구조, 지주사 위치) use `web_search` — full group
-mapping is out of scope; only pull what's needed to explain the value impact.
+모회사에 대해 `get_large_holders_kr`(5%룰 대량보유)와 `get_insider_trades_kr`(임원·주요주주)를
+사용해 모회사의 신설 법인 지분과 그 위의 지배가문 / 지주사 체인을 확인한다. 더 넓은 그룹 맥락
+(재벌 그룹 구조, 지주사 위치)은 `web_search`를 쓴다 — 그룹 전체 매핑은 범위 밖이며, 가치 영향
+설명에 필요한 만큼만 가져온다.
 
-## Step 4: Assess the Value Impact on Existing Parent Shareholders
+## Step 4: 기존 모회사 주주에 대한 가치 영향 평가
 
-This is the core. For a **물적분할 + IPO** pattern, evaluate:
-- **Dilution of indirect claim**: how much of the subsidiary did the parent give up at IPO?
-- **Holding-company / 코리아 디스카운트**: does the parent now trade below sum-of-parts?
-- **Double-counting**: is the crown-jewel business being valued in both the listed subsidiary and the parent?
-- **Loss of the growth engine**: did the parent's best-growing segment leave the directly-held entity?
-- **Use of IPO proceeds**: do they flow to the subsidiary (parent holders don't directly benefit) or the parent?
+핵심이다. **물적분할 + IPO** 패턴이면 다음을 평가한다:
+- **간접 지분 희석**: IPO에서 모회사가 자회사 지분을 얼마나 내줬나?
+- **지주사 / 코리아 디스카운트**: 모회사가 이제 부분합(sum-of-parts) 이하로 거래되나?
+- **더블카운팅**: 핵심 사업이 상장 자회사와 모회사 양쪽에서 평가되고 있나?
+- **성장 엔진 상실**: 모회사의 가장 빠르게 성장하던 사업부가 직접 보유 법인에서 빠져나갔나?
+- **IPO 조달자금 용도**: 자금이 자회사로 가나(모회사 주주는 직접 수혜 없음), 모회사로 가나?
 
-For **인적분할**, note it is broadly neutral at split, then look at any subsequent re-rating.
+**인적분할**이면 분할 시점에는 대체로 중립임을 밝히고, 이후 리레이팅을 살핀다.
 
-## Step 5: (Optional) Quantify with Financials
+## Step 5: (선택) 재무로 정량화
 
-Use `get_financials_kr` to compare the parent's consolidated vs separate (연결 vs 별도) figures and,
-where available, segment contribution before and after the split — to show how much earnings power
-left the directly-held entity.
+`get_financials_kr`로 모회사의 연결 vs 별도 수치를, 가능하면 분할 전후 세그먼트 기여도를 비교해
+— 직접 보유 법인에서 얼마나 많은 이익 창출력이 빠져나갔는지 보여준다.
 
-> DART account labels (`account_nm`) vary by company/year — match on substrings / `account_id`, never exact strings.
+> DART 계정 라벨(`account_nm`)은 회사 / 연도마다 다르다 — 부분 문자열 / `account_id`로 매칭하고
+> 정확 일치는 절대 쓰지 마라.
 
-## Step 6: Output Format
+## Step 6: 출력 형식
 
-Present:
-1. **Verdict** (1-2 sentences): net good / neutral / bad for existing parent shareholders, and the single biggest reason.
-2. **Event summary**: split type, timeline, entities involved.
-3. **Ownership impact**: dilution and control-chain effect (with figures where available).
-4. **Value impact**: discount / double-counting / lost-growth analysis from Step 4.
-5. **Caveats**: 코리아 디스카운트 is partly structural; minority-shareholder protection rules have
-   been tightening (e.g. 2022+ regulatory pushback on 쪼개기 상장) — note if relevant to timing.
+다음을 제시한다:
+1. **평가**(1~2문장): 기존 모회사 주주에게 순득 / 중립 / 순실, 그리고 가장 큰 이유 하나.
+2. **이벤트 요약**: 분할 유형, 타임라인, 관련 법인.
+3. **지분 영향**: 희석과 지배체인 효과(가능하면 수치 포함).
+4. **가치 영향**: Step 4의 디스카운트 / 더블카운팅 / 성장상실 분석.
+5. **주의사항**: 코리아 디스카운트는 부분적으로 구조적이며, 소수주주 보호 규정이 강화돼 왔다
+   (예: 2022년 이후 쪼개기 상장에 대한 규제 반발) — 타이밍과 관련 있으면 언급.
