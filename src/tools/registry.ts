@@ -15,6 +15,9 @@ import { createGetFinancialsKr, GET_FINANCIALS_KR_DESCRIPTION } from './finance-
 import { getFilingsKr, GET_FILINGS_KR_DESCRIPTION } from './finance-kr/get-filings-kr.js';
 import { getLargeHoldersKr, GET_LARGE_HOLDERS_KR_DESCRIPTION } from './finance-kr/get-large-holders-kr.js';
 import { getInsiderTradesKr, GET_INSIDER_TRADES_KR_DESCRIPTION } from './finance-kr/get-insider-trades-kr.js';
+import { getShortBalanceKr, GET_SHORT_BALANCE_KR_DESCRIPTION } from './finance-kr/get-short-balance-kr.js';
+import { getForeignOwnershipKr, GET_FOREIGN_OWNERSHIP_KR_DESCRIPTION } from './finance-kr/get-foreign-ownership-kr.js';
+import { getNpsHoldings_tool, GET_NPS_HOLDINGS_DESCRIPTION } from './finance-kr/get-nps-holdings.js';
 import { GET_MARKET_DATA_DESCRIPTION } from './finance/get-market-data.js';
 import { READ_FILINGS_DESCRIPTION } from './finance/read-filings.js';
 import { SCREEN_STOCKS_DESCRIPTION } from './finance/screen-stocks.js';
@@ -209,6 +212,48 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       tool: getInsiderTradesKr,
       description: GET_INSIDER_TRADES_KR_DESCRIPTION,
       compactDescription: 'Korean 임원·주요주주 소유보고 (insider/executive ownership) for 6-digit tickers.',
+      concurrencySafe: true,
+    });
+  }
+
+  // 외국인 지분율 comes from Naver's keyless JSON API — always available.
+  tools.push({
+    name: 'get_foreign_ownership_kr',
+    tool: getForeignOwnershipKr,
+    description: GET_FOREIGN_OWNERSHIP_KR_DESCRIPTION,
+    compactDescription: 'Korean 외국인 지분율 (foreign ownership ratio), daily, for 6-digit tickers.',
+    concurrencySafe: true,
+  });
+
+  // 공매도 잔고 requires a KRX Data Marketplace login — either a native ID/PW
+  // or a pasted session cookie (KRX_COOKIE) for social-login accounts.
+  const hasKrxIdPw =
+    !!process.env.KRX_ID &&
+    !!process.env.KRX_PW &&
+    !process.env.KRX_ID.startsWith('your-') &&
+    !process.env.KRX_PW.startsWith('your-');
+  const hasKrxCookie =
+    !!process.env.KRX_COOKIE && !process.env.KRX_COOKIE.startsWith('your-');
+  if (hasKrxIdPw || hasKrxCookie) {
+    tools.push({
+      name: 'get_short_balance_kr',
+      tool: getShortBalanceKr,
+      description: GET_SHORT_BALANCE_KR_DESCRIPTION,
+      compactDescription: 'Korean 공매도 잔고 (short-selling balance / short interest), daily, for 6-digit tickers.',
+      concurrencySafe: true,
+    });
+  }
+
+  // 국민연금 holdings come from data.go.kr (odcloud) with a service key.
+  if (
+    process.env.DATA_GO_KR_SERVICE_KEY &&
+    !process.env.DATA_GO_KR_SERVICE_KEY.startsWith('your-')
+  ) {
+    tools.push({
+      name: 'get_nps_holdings',
+      tool: getNpsHoldings_tool,
+      description: GET_NPS_HOLDINGS_DESCRIPTION,
+      compactDescription: 'Korean National Pension Service (국민연금) equity holdings by stock name or 6-digit ticker.',
       concurrencySafe: true,
     });
   }

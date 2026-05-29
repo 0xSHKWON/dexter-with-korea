@@ -58,9 +58,13 @@ These bite without warning. Fix once you learn them.
 - [ ] `get_insider_trades_kr` — 임원·주요주주
 
 ### Phase 3 — Korea-specific
-- [ ] `get_nps_holdings` — 국민연금 분기 공시
-- [ ] `get_short_balance_kr` — KRX 공매도 잔고
-- [ ] `get_foreign_ownership_kr` — 외국인 지분율
+- [x] `get_foreign_ownership_kr` — 외국인 지분율. Source: **Naver mobile JSON** (`m.stock.naver.com/api/stock/{code}/trend`), keyless. Registered unconditionally.
+- [x] `get_short_balance_kr` — 공매도 순보유잔고. Source: **KRX Data Marketplace login scrape** (bld `MDCSTAT30502`). Needs `KRX_ID`/`KRX_PW` (anonymous access returns `LOGOUT` since 2024–25). Ticker→ISIN via `MDCSTAT01901` (`src/data/krx-instrument-registry.ts`). Login flow ported from pykrx in `src/tools/finance-kr/krx-session.ts`.
+- [x] `get_nps_holdings` — 국민연금 보유. Source: **data.go.kr odcloud** dataset 3070507 (year-end snapshot, not quarterly). Needs `DATA_GO_KR_SERVICE_KEY` (Decoded key). No ticker column → matches by Korean stock name.
+
+**Phase 3 source notes** (the clean keyed-API assumption from Phases 1–2 did NOT hold):
+- Official KRX Open API (`openapi.krx.co.kr`) has neither short nor foreign data; data.go.kr has no short/foreign open API. KRX getJsonData requires a member login now.
+- KRX endpoints key on **ISIN** (`isuCd`), not the 6-digit ticker → the KRX instrument registry exists only for this.
 
 ### Phase 4 — Skill adaptation
 - [ ] `src/skills/dcf` — branch on market (K-IFRS, 거래세, 배당세)

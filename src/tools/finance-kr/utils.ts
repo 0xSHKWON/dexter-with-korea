@@ -29,3 +29,32 @@ export function sortByRceptDtDesc<T extends { rcept_dt?: unknown }>(
 export function isNoDataError(message: string): boolean {
   return message.includes('status=013');
 }
+
+/**
+ * KRX (and Naver) return numbers as comma-grouped strings, sometimes with a
+ * leading sign or a trailing `%` (e.g. "5,489,240", "+5,314,304", "48.27%").
+ * Parse to a plain number; return null for blanks and the "-" placeholder.
+ */
+export function parseKrxNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  const s = String(value)
+    .trim()
+    .replace(/,/g, '')
+    .replace(/%$/, '')
+    .replace(/^\+/, '');
+  if (s === '' || s === '-') return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * KRX getJsonData responses wrap rows in an `OutBlock_1` array (some endpoints
+ * use other keys). Missing/empty is a valid "no data" outcome, not an error.
+ */
+export function extractOutBlock(
+  data: Record<string, unknown> | null | undefined,
+  key = 'OutBlock_1',
+): unknown[] {
+  const block = data?.[key];
+  return Array.isArray(block) ? block : [];
+}

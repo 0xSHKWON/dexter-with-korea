@@ -83,6 +83,18 @@ function summarizeToolResult(tool: string, args: Record<string, unknown>, result
           const n = Array.isArray(parsed.data.trades) ? parsed.data.trades.length : 0;
           return `Found ${n} reports`;
         }
+        if (tool === 'get_short_balance_kr') {
+          const n = Array.isArray(parsed.data.short) ? parsed.data.short.length : 0;
+          return `Found ${n} days`;
+        }
+        if (tool === 'get_foreign_ownership_kr') {
+          const n = Array.isArray(parsed.data.ownership) ? parsed.data.ownership.length : 0;
+          return `Found ${n} days`;
+        }
+        if (tool === 'get_nps_holdings') {
+          const n = Array.isArray(parsed.data.holdings) ? parsed.data.holdings.length : 0;
+          return `Found ${n} holdings`;
+        }
         if (tool === 'get_financials' || tool === 'get_financials_kr' || tool === 'get_market_data' || tool === 'stock_screener') {
           if (keys.length === 0) return 'Done';
           return keys.length === 1 ? 'Called 1 data source' : `Called ${keys.length} data sources`;

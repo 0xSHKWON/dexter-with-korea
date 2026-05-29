@@ -85,9 +85,9 @@ flowchart TB
 | `get_filings_kr` | SEC EDGAR | DART 공시 검색 |
 | `get_large_holders_kr` | 13F (5% 이상 보유) | DART 대량보유상황보고서 |
 | `get_insider_trades_kr` | Form 4 (내부자 거래) | DART 임원·주요주주 보고 |
-| `get_nps_holdings` | (미국엔 없음) | 국민연금 분기 공시 |
-| `get_short_balance_kr` | Short interest | KRX 공매도 잔고 |
-| `get_foreign_ownership_kr` | (미국엔 없음) | KRX 외국인 지분율 |
+| `get_nps_holdings` | (미국엔 없음) | 국민연금 국내주식 투자정보 (data.go.kr, `DATA_GO_KR_SERVICE_KEY`) |
+| `get_short_balance_kr` | Short interest | KRX 공매도 순보유잔고 (KRX 로그인 `KRX_ID`/`KRX_PW`) |
+| `get_foreign_ownership_kr` | (미국엔 없음) | 외국인 지분율 (Naver, 키 불필요) |
 
 ### 종목 코드 해결 흐름
 
