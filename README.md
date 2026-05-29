@@ -31,34 +31,7 @@ Dexter는 복잡한 금융 질문을 받아 명확한 단계별 리서치 계획
 
 ### 아키텍처
 
-```mermaid
-flowchart LR
-    User(["사용자"])
-
-    subgraph AgentLoop["에이전트 루프 (Agent Loop)"]
-        direction TB
-        LLM["LLM"]
-        Tools["툴 / 서브에이전트"]
-        Scratchpad["스크래치패드"]
-        LLM -->|호출| Tools
-        Tools -->|결과| Scratchpad
-        Scratchpad -->|프롬프트 + 컨텍스트| LLM
-    end
-
-    subgraph APIs["APIs"]
-        direction TB
-        FD["Financial Datasets"]
-        Exa["Exa"]
-        Other["기타"]
-    end
-
-    Eval["평가 레이어 (Evaluation Layer)"]
-
-    User -->|쿼리| LLM
-    AgentLoop -->|최종 답변| User
-    Tools -->|데이터 요청| APIs
-    AgentLoop --> Eval
-```
+<img width="665" height="452" alt="Dexter 아키텍처" src="https://github.com/user-attachments/assets/02418111-5f48-4a66-be5d-dc9bf9806284" />
 
 ## 🇰🇷 한국 주식 리서치
 
