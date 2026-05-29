@@ -1,43 +1,43 @@
-# Sector WACC Adjustments
+# 섹터별 WACC 조정 (US)
 
-Use these typical WACC ranges as starting points, then adjust based on company-specific factors.
+아래 일반적 WACC 레인지를 출발점으로 사용하고, 기업별 요인에 따라 조정하라.
 
-## Determining Company Sector
+## 회사 섹터 판별
 
-Use `get_financials` with query `"[TICKER] company facts"` to retrieve the company's `sector`. Match the returned sector to the table below.
+`get_financials`를 `"[TICKER] company facts"` 쿼리로 호출해 회사의 `sector`를 가져온다. 반환된 섹터를 아래 표에 매칭하라.
 
-## WACC by Sector
+## 섹터별 WACC
 
-| Sector | Typical WACC Range | Notes |
-|--------|-------------------|-------|
-| Communication Services | 8-10% | Mix of stable telecom and growth media |
-| Consumer Discretionary | 8-10% | Cyclical exposure |
-| Consumer Staples | 7-8% | Defensive, stable demand |
-| Energy | 9-11% | Commodity price exposure |
-| Financials | 8-10% | Leverage already in business model |
-| Health Care | 8-10% | Regulatory and pipeline risk |
-| Industrials | 8-9% | Moderate cyclicality |
-| Information Technology | 8-12% | Assess growth stage; higher for high-growth |
-| Materials | 8-10% | Cyclical, commodity exposure |
-| Real Estate | 7-9% | Interest rate sensitivity |
-| Utilities | 6-7% | Regulated, stable cash flows |
+| 섹터 | 일반적 WACC 레인지 | 비고 |
+|------|------------------|------|
+| Communication Services | 8-10% | 안정적 통신과 성장 미디어 혼재 |
+| Consumer Discretionary | 8-10% | 경기 민감 노출 |
+| Consumer Staples | 7-8% | 방어적, 안정적 수요 |
+| Energy | 9-11% | 원자재 가격 노출 |
+| Financials | 8-10% | 사업모델에 레버리지 내재 |
+| Health Care | 8-10% | 규제·파이프라인 리스크 |
+| Industrials | 8-9% | 중간 수준의 경기순환성 |
+| Information Technology | 8-12% | 성장 단계 평가; 고성장은 더 높게 |
+| Materials | 8-10% | 경기순환, 원자재 노출 |
+| Real Estate | 7-9% | 금리 민감 |
+| Utilities | 6-7% | 규제, 안정적 현금흐름 |
 
-## Adjustment Factors
+## 조정 인자
 
-Add to base WACC:
-- **High debt (D/E > 1.5)**: +1-2%
-- **Small cap (< $2B market cap)**: +1-2%
-- **Emerging markets exposure**: +1-3%
-- **Concentrated customer base**: +0.5-1%
-- **Regulatory uncertainty**: +0.5-1.5%
+기준 WACC에 가산:
+- **고부채 (D/E > 1.5)**: +1~2%
+- **소형주 (시총 < $2B)**: +1~2%
+- **신흥시장 노출**: +1~3%
+- **고객 기반 집중**: +0.5~1%
+- **규제 불확실성**: +0.5~1.5%
 
-Subtract from base WACC:
-- **Market leader with moat**: -0.5-1%
-- **Recurring revenue model**: -0.5-1%
-- **Investment grade credit rating**: -0.5%
+기준 WACC에서 감산:
+- **해자를 갖춘 시장 리더**: -0.5~1%
+- **반복 매출 모델**: -0.5~1%
+- **투자등급 신용등급**: -0.5%
 
-## Reasonableness Checks
+## 합리성 점검
 
-- WACC should typically be 2-4% below ROIC for value-creating companies
-- If calculated WACC > ROIC, the company may be destroying value
-- Compare to sector peers if available
+- 가치 창출 기업은 보통 WACC가 ROIC보다 2~4% 낮아야 한다
+- 계산된 WACC > ROIC이면 가치를 훼손하고 있을 수 있다
+- 가능하면 섹터 동종 업계와 비교하라
