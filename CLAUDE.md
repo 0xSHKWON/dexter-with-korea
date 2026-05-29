@@ -67,8 +67,10 @@ These bite without warning. Fix once you learn them.
 - KRX endpoints key on **ISIN** (`isuCd`), not the 6-digit ticker → the KRX instrument registry exists only for this.
 
 ### Phase 4 — Skill adaptation
-- [ ] `src/skills/dcf` — branch on market (K-IFRS, 거래세, 배당세)
-- [ ] New skill: 재벌 그룹 구조 / 물적분할 분석
+- [x] `src/skills/dcf` — branches on market. 6-digit ticker → KR path (`get_financials_kr`, ~22% K-IFRS corporate tax, ~3% 국고채 risk-free, ~2% terminal growth, KRW). New `sector-wacc-kr.md`. 거래세/배당세 surface as an investor-level "세후 실현수익률" caveat in output, not in the intrinsic-value math.
+- [x] New skill: `src/skills/kr-spinoff` (`kr-spinoff-analysis`) — 물적분할/인적분할 event analysis from parent-shareholder POV (`get_filings_kr` 주요사항보고 search → dilution / holding-co discount / double-counting). 재벌 그룹 매핑은 보조(web_search)로 축소.
+
+**Phase 4 notes**: skills are pure markdown, auto-discovered by `src/skills/registry.ts` — no registry/prompt/`cli.ts` code change. DCF stays a single `dcf-valuation` skill (branches internally) so `write-memo`'s `dcf-valuation` call keeps working. Guard test: `src/skills/registry.test.ts`.
 
 ### Decided
 - No `aliases.json`. LLM's training data covers common Korean tickers; resolver handles canonical ticker → corp_code only.
