@@ -2,7 +2,8 @@ import { DynamicStructuredTool } from '@langchain/core/tools';
 import type { RunnableConfig } from '@langchain/core/runnables';
 import { z } from 'zod';
 import { existsSync, mkdirSync, writeFileSync, readdirSync, statSync, unlinkSync } from 'fs';
-import { callLlm } from '../../model/llm.js';
+import { callLlm, getFastModel } from '../../model/llm.js';
+import { resolveProvider } from '../../providers.js';
 import { formatToolResult } from '../types.js';
 import { getCurrentDate } from '../../agent/prompts.js';
 import { resolveTicker } from '../../data/ticker-registry.js';
@@ -330,6 +331,18 @@ function errMsg(error: unknown): string {
 }
 
 /**
+ * Model for this tool's internal plan + summary calls. These are extract/compress
+ * subtasks, so they default to the agent provider's fast tier (e.g. gpt-5.4-mini)
+ * to keep cost down while the agent itself stays on the flagship. Override with
+ * READ_FILINGS_KR_MODEL to force a specific model (e.g. the flagship for max quality).
+ */
+export function resolveInternalModel(agentModel: string): string {
+  const override = process.env.READ_FILINGS_KR_MODEL?.trim();
+  if (override && !override.startsWith('your-')) return override;
+  return getFastModel(resolveProvider(agentModel).id, agentModel);
+}
+
+/**
  * Create a read_filings_kr tool configured with the given model.
  * Workflow: (1) structured-output plan → (2) deterministic rcept_no lookup via
  * /list.json → (3) document.xml fetch + DSD parse (cached) → (4) grounded Korean
@@ -346,13 +359,15 @@ export function createReadFilingsKr(model: string): DynamicStructuredTool {
     }),
     func: async (input, _runManager, config?: RunnableConfig) => {
       const onProgress = config?.metadata?.onProgress as ((msg: string) => void) | undefined;
+      // plan + summary run on the fast tier (cost); see resolveInternalModel.
+      const internalModel = resolveInternalModel(model);
 
       // 1. Plan ticker + report + sections.
       onProgress?.('Planning DART filing read...');
       let plan: Plan;
       try {
         const { response } = await callLlm(input.query, {
-          model,
+          model: internalModel,
           systemPrompt: buildPlanPrompt(),
           outputSchema: PlanSchema,
         });
@@ -457,7 +472,7 @@ export function createReadFilingsKr(model: string): DynamicStructuredTool {
         const systemPrompt = escapeTemplateVars(
           buildSummaryPrompt(resolved.corp_name, reportNm, rceptNo, buildSummaryInput(extracted.sections)),
         );
-        const { response } = await callLlm(input.query, { model, systemPrompt });
+        const { response } = await callLlm(input.query, { model: internalModel, systemPrompt });
         summary = typeof response === 'string' ? response : String(response);
       } catch (error) {
         return formatToolResult(

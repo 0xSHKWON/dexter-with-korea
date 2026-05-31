@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'bun:test';
-import { pickRceptNo, buildSummaryInput, type DartFiling } from './read-filings-kr.js';
+import { describe, it, expect, afterEach } from 'bun:test';
+import { pickRceptNo, buildSummaryInput, resolveInternalModel, type DartFiling } from './read-filings-kr.js';
 
 // Representative /list.json rows (정기공시), date-desc as DART returns them.
 const SAMSUNG: DartFiling[] = [
@@ -65,5 +65,29 @@ describe('buildSummaryInput', () => {
     expect(out).toContain('<<mdna>>');
     expect(out).toContain('A.');
     expect(out).toContain('B.');
+  });
+});
+
+describe('resolveInternalModel', () => {
+  const original = process.env.READ_FILINGS_KR_MODEL;
+  afterEach(() => {
+    if (original === undefined) delete process.env.READ_FILINGS_KR_MODEL;
+    else process.env.READ_FILINGS_KR_MODEL = original;
+  });
+
+  it('defaults to the agent provider fast tier (cost)', () => {
+    delete process.env.READ_FILINGS_KR_MODEL;
+    expect(resolveInternalModel('gpt-5.5')).toBe('gpt-5.4-mini'); // OpenAI fastModel
+    expect(resolveInternalModel('claude-opus-4-8')).toBe('claude-haiku-4-5'); // Anthropic fastModel
+  });
+
+  it('honors READ_FILINGS_KR_MODEL override', () => {
+    process.env.READ_FILINGS_KR_MODEL = 'gpt-5.5';
+    expect(resolveInternalModel('gpt-5.5')).toBe('gpt-5.5');
+  });
+
+  it('ignores a `your-` placeholder override', () => {
+    process.env.READ_FILINGS_KR_MODEL = 'your-model';
+    expect(resolveInternalModel('gpt-5.5')).toBe('gpt-5.4-mini');
   });
 });
