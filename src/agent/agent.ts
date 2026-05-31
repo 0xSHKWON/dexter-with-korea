@@ -71,7 +71,8 @@ export class Agent {
 
   static async create(config: AgentConfig = {}): Promise<Agent> {
     const model = config.model ?? DEFAULT_MODEL;
-    const tools = getTools(model);
+    const baseTools = getTools(model);
+    const tools = config.transformTools ? config.transformTools(baseTools) : baseTools;
     const concurrencyMap = getToolConcurrencyMap(model);
     const soulContent = await loadSoulDocument();
     const rulesContent = await loadRulesDocument();
