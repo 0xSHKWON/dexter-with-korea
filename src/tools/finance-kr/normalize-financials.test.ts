@@ -111,7 +111,25 @@ describe('summarizePeriod', () => {
     expect(q.ratios.roePct).toBeNull();
     expect(q.ratios.operatingMarginPct).toBe(10.9); // ratios of two YTD flows stay valid
   });
-  it('nulls YoY when the prior period is absent (quarterly frmtrm undefined)', () => {
+  it('reads prior-year same period from frmtrm_q_amount on quarterly reports', () => {
+    // Real DART shape for a 1분기보고서 P&L: frmtrm_amount is empty, the prior-year
+    // Q1 figure lives in frmtrm_q_amount. Samsung 2026 Q1 actuals.
+    const q1: DartRow[] = [
+      {
+        sj_div: 'IS',
+        account_id: 'ifrs-full_Revenue',
+        account_nm: '매출액',
+        thstrm_amount: '133,873,444,000,000',
+        frmtrm_amount: '',
+        frmtrm_q_amount: '79,140,503,000,000',
+      },
+    ];
+    const s2 = summarizePeriod(q1, { bsns_year: 2026, report_type: 'quarterly_1', fs_div: 'CFS' });
+    expect(s2.incomeStatement.revenue.current).toBe(133873444000000);
+    expect(s2.incomeStatement.revenue.prior).toBe(79140503000000);
+    expect(s2.ratios.revenueYoYPct).toBe(69.2);
+  });
+  it('nulls YoY only when both frmtrm and frmtrm_q are absent', () => {
     const q1: DartRow[] = [
       { sj_div: 'IS', account_id: 'ifrs-full_Revenue', account_nm: '매출액', thstrm_amount: '133,873,444,000,000' },
     ];

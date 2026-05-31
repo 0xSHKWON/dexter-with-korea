@@ -12,9 +12,13 @@
     "dev": "bun --watch run src/index.tsx",
     "gateway": "tsx src/gateway/index.ts run",
     "gateway:login": "tsx src/gateway/index.ts login",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.scripts.json",
+    "typecheck:scripts": "tsc --noEmit -p tsconfig.scripts.json",
     "test": "bun test",
     "test:watch": "bun test --watch",
+    "kr-eval": "bun run scripts/kr-eval/runner.ts",
+    "kr-eval:record": "KR_EVAL_MODE=record bun run scripts/kr-eval/runner.ts",
+    "kr-eval:replay": "KR_EVAL_MODE=replay bun run scripts/kr-eval/runner.ts",
     "postinstall": "playwright install chromium"
   },
   "dependencies": {

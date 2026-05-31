@@ -1,3 +1,4 @@
+import type { StructuredToolInterface } from '@langchain/core/tools';
 import type { GroupContext } from './prompts.js';
 import type { MessageQueue } from '../utils/message-queue.js';
 
@@ -58,6 +59,12 @@ export interface AgentConfig {
   memoryEnabled?: boolean;
   /** Message queue for mid-run injection of new user messages. */
   messageQueue?: MessageQueue;
+  /**
+   * Optional transform applied to the resolved tool list before binding.
+   * A test/eval seam — e.g. the KR eval harness swaps live KR tools for
+   * fixture-backed stubs in replay mode. Defaults to identity.
+   */
+  transformTools?: (tools: StructuredToolInterface[]) => StructuredToolInterface[];
 }
 
 /**
