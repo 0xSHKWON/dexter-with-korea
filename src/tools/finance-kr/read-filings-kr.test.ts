@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { pickRceptNo, type DartFiling } from './read-filings-kr.js';
+import { pickRceptNo, buildSummaryInput, type DartFiling } from './read-filings-kr.js';
 
 // Representative /list.json rows (정기공시), date-desc as DART returns them.
 const SAMSUNG: DartFiling[] = [
@@ -42,5 +42,28 @@ describe('pickRceptNo', () => {
       { rcept_no: 'H', report_nm: '반기보고서 (2025.06)', rcept_dt: '20250814' },
     ];
     expect(pickRceptNo(onlyHalf, 'annual')).toBeNull();
+  });
+});
+
+describe('buildSummaryInput', () => {
+  it('dedupes a block shared across categories (business ⊇ risks 위험관리)', () => {
+    // selectSections joins blocks with '\n\n\n'; 위험관리 appears under both categories.
+    const sections = {
+      business: '[1. 사업의 개요]\n반도체 사업.\n\n\n[5. 위험관리 및 파생거래]\n환율 위험.',
+      risks: '[5. 위험관리 및 파생거래]\n환율 위험.\n\n\n[XI. 투자자 보호]\n제재 없음.',
+    };
+    const out = buildSummaryInput(sections);
+    // The 위험관리 block is emitted once total; risks' unique XI block survives.
+    expect(out.split('5. 위험관리 및 파생거래').length - 1).toBe(1);
+    expect(out).toContain('반도체 사업');
+    expect(out).toContain('제재 없음');
+  });
+
+  it('keeps non-overlapping categories intact', () => {
+    const out = buildSummaryInput({ business: '[1. 사업의 개요]\nA.', mdna: '[1. 분석]\nB.' });
+    expect(out).toContain('<<business>>');
+    expect(out).toContain('<<mdna>>');
+    expect(out).toContain('A.');
+    expect(out).toContain('B.');
   });
 });

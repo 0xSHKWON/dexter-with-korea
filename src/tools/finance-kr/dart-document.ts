@@ -130,7 +130,7 @@ export function dsdToPlainText(fragment: string): string {
     .replace(/<\/?(P|BR|TR|DIV|SPAN|TITLE|SECTION-\d+|PGBRK|LI|UL)\b[^>]*>/gi, '\n')
     .replace(/<[^>]+>/g, ' ');
   return decodeEntities(stripped)
-    .replace(/[ \t ]+/g, ' ')
+    .replace(/[ \t\u00a0]+/g, ' ')
     .replace(/ *\n */g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
@@ -242,7 +242,9 @@ export function selectSections(
       const label = s.numeral ? `${s.numeral}. ${s.title}` : s.title;
       blocks.push(`[${label}]\n${text}`);
     }
-    if (blocks.length > 0) out[cat] = blocks.join('\n\n');
+    // Triple-newline between blocks (dsdToPlainText caps internal runs at \n\n) so the
+    // summary builder can split blocks apart again for cross-category dedup.
+    if (blocks.length > 0) out[cat] = blocks.join('\n\n\n');
   }
   return out;
 }

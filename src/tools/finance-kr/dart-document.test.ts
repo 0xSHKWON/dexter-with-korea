@@ -107,6 +107,11 @@ describe('selectSections', () => {
     expect(business).not.toContain('1,000,000');
     expect(business).not.toContain('발행할 주식의 총수');
   });
+
+  it('joins multiple blocks with a triple newline (the dedup contract)', () => {
+    const { business } = selectSections(sections, ['business']);
+    expect(business).toContain('\n\n\n'); // II major + its sub-sections
+  });
 });
 
 describe('extractDsdBody', () => {

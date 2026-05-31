@@ -13,6 +13,7 @@ import { isNoDataError } from './utils.js';
 import { dartApi } from './api.js';
 import {
   fetchAndExtractSections,
+  SECTION_CATEGORIES,
   type SectionCategory,
   type ExtractedSections,
 } from './dart-document.js';
@@ -184,31 +185,54 @@ async function getOrExtractSections(
   rceptNo: string,
   categories: SectionCategory[],
 ): Promise<ExtractedSections> {
-  const cacheParams = { rcept_no: rceptNo, sections: categories.slice().sort().join(',') };
+  // Cache every category keyed on rcept_no alone (filings are immutable) so a later
+  // request for any subset is served without re-downloading the ~MB document.xml ZIP.
+  const cacheParams = { rcept_no: rceptNo };
+  let full: ExtractedSections;
   const cached = readCache(CACHE_ENDPOINT, cacheParams, TTL_24H);
   if (cached) {
-    return {
+    full = {
       sections: (cached.data.sections as Record<string, string>) ?? {},
       allTitles: (cached.data.allTitles as string[]) ?? [],
       url: cached.url,
     };
+  } else {
+    full = await withTimeout(
+      fetchAndExtractSections(rceptNo, [...SECTION_CATEGORIES]),
+      DART_DOCUMENT_TIMEOUT_MS,
+      'read_filings_kr document.xml',
+    );
+    writeCache(CACHE_ENDPOINT, cacheParams, { sections: full.sections, allTitles: full.allTitles }, full.url);
   }
-  const fresh = await withTimeout(
-    fetchAndExtractSections(rceptNo, categories),
-    DART_DOCUMENT_TIMEOUT_MS,
-    'read_filings_kr document.xml',
-  );
-  writeCache(CACHE_ENDPOINT, cacheParams, { sections: fresh.sections, allTitles: fresh.allTitles }, fresh.url);
-  return fresh;
+  // Return only the requested categories from the full (cached) set.
+  const sections: Record<string, string> = {};
+  for (const cat of categories) {
+    if (full.sections[cat]) sections[cat] = full.sections[cat];
+  }
+  return { sections, allTitles: full.allTitles, url: full.url };
 }
 
-/** Concatenate extracted sections under a per-section / total char budget. */
-function buildSummaryInput(sections: Record<string, string>): string {
+/**
+ * Concatenate extracted sections under a per-section / total char budget, dropping
+ * section blocks already emitted under an earlier category — business ⊇ products and
+ * II.5 위험관리, so requesting business+risks would otherwise feed them to the LLM twice.
+ */
+export function buildSummaryInput(sections: Record<string, string>): string {
+  const seenBlocks = new Set<string>();
   const parts: string[] = [];
   let total = 0;
   for (const [cat, text] of Object.entries(sections)) {
     if (total >= TOTAL_CHARS) break;
-    let t = text.length > PER_SECTION_CHARS ? `${text.slice(0, PER_SECTION_CHARS)}\n…(이하 생략)` : text;
+    // selectSections joins blocks with '\n\n\n'; each block's first line is its [label].
+    const blocks = text.split('\n\n\n').filter((b) => {
+      const label = b.split('\n', 1)[0];
+      if (seenBlocks.has(label)) return false;
+      seenBlocks.add(label);
+      return true;
+    });
+    if (blocks.length === 0) continue;
+    let t = blocks.join('\n\n');
+    if (t.length > PER_SECTION_CHARS) t = `${t.slice(0, PER_SECTION_CHARS)}\n…(이하 생략)`;
     if (total + t.length > TOTAL_CHARS) {
       t = `${t.slice(0, Math.max(0, TOTAL_CHARS - total))}\n…(이하 생략)`;
     }
@@ -218,8 +242,9 @@ function buildSummaryInput(sections: Record<string, string>): string {
   return parts.join('\n\n');
 }
 
-// Escape curly braces so LangChain's ChatPromptTemplate (OpenAI/Gemini path in
-// callLlm) doesn't treat filing text as template variables.
+// Escape curly braces so LangChain's ChatPromptTemplate (the OpenAI/Gemini path in
+// callLlm) doesn't treat filing text as template variables. The Anthropic path uses
+// raw messages, so braces there are harmless — escaping just mirrors US read_filings.
 function escapeTemplateVars(str: string): string {
   return str.replace(/\{/g, '{{').replace(/\}/g, '}}');
 }
@@ -337,7 +362,12 @@ export function createReadFilingsKr(model: string): DynamicStructuredTool {
       }
 
       const ticker = plan.ticker.trim();
-      const resolved = await resolveTicker(ticker);
+      let resolved: { corp_code: string; corp_name: string } | null;
+      try {
+        resolved = await resolveTicker(ticker);
+      } catch (error) {
+        return formatToolResult({ error: 'Ticker resolution failed', ticker, details: errMsg(error) }, []);
+      }
       if (!resolved) {
         return formatToolResult({ error: `Ticker ${ticker} not found in DART corp registry` }, []);
       }
