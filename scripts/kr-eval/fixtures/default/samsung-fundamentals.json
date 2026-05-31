@@ -2,8 +2,7 @@
   "id": "samsung-fundamentals",
   "query": "삼성전자(005930) 최근 실적 매출이랑 영업이익 YoY로 알려줘.",
   "meta": {
-    "model": "gpt-5.5",
-    "recordedAt": "2026-05-31T09:05:44.915Z"
+    "model": "gpt-5.5"
   },
   "toolCalls": [
     {

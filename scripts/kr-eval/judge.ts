@@ -48,23 +48,21 @@ const DIMENSION_RUBRICS: Record<DimensionId, string> = {
 const preview = (s: string, n = 1500): string =>
   s.length > n ? s.slice(0, n).replace(/\s+/g, ' ') + ` …[${s.length} chars]` : s.replace(/\s+/g, ' ');
 
-/** Compact, token-bounded digest of the tool results for the judge to ground against. */
+/**
+ * Compact, token-bounded digest of the tool results for the judge to ground against.
+ * The budget is split EVENLY across calls (not greedy first-fit) so a later tool's
+ * data is never dropped wholesale — every tool the agent used is represented, which
+ * matters for grounding/cross_signal judging of multi-tool answers.
+ */
 export function toolDigest(
   toolCalls: ReadonlyArray<{ tool: string; args: Record<string, unknown>; result: string }>,
   maxTotal = 12000,
 ): string {
-  const parts: string[] = [];
-  let used = 0;
-  for (const c of toolCalls) {
-    const block = `### ${c.tool}(${preview(JSON.stringify(c.args), 200)})\n${preview(c.result)}`;
-    if (used + block.length > maxTotal) {
-      parts.push(`…[${toolCalls.length - parts.length} more tool calls omitted]`);
-      break;
-    }
-    parts.push(block);
-    used += block.length;
-  }
-  return parts.join('\n\n') || '(no tools were called)';
+  if (toolCalls.length === 0) return '(no tools were called)';
+  const perCall = Math.max(400, Math.floor(maxTotal / toolCalls.length));
+  return toolCalls
+    .map((c) => `### ${c.tool}(${preview(JSON.stringify(c.args), 200)})\n${preview(c.result, perCall)}`)
+    .join('\n\n');
 }
 
 export async function judgeDimension(

@@ -2,8 +2,7 @@
   "id": "nps-top",
   "query": "국민연금 보유 비중 상위 종목 알려줘.",
   "meta": {
-    "model": "gpt-5.5",
-    "recordedAt": "2026-05-31T09:10:29.346Z"
+    "model": "gpt-5.5"
   },
   "toolCalls": [
     {

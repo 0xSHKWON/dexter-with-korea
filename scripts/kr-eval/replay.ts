@@ -25,7 +25,7 @@ export interface RecordedToolCall {
 export interface QuestionFixture {
   id: string;
   query: string;
-  meta?: { model?: string; recordedAt?: string };
+  meta?: { model?: string };
   toolCalls: RecordedToolCall[];
 }
 
@@ -108,9 +108,18 @@ export function createReplayer(fixture: QuestionFixture): Replayer {
       misses.push(toolName);
       return replayMissResult(toolName);
     }
-    const wanted = canonicalize(input ?? {});
-    const exact = calls.find((c) => canonicalize(c.args) === wanted);
-    return (exact ?? calls[0]).result;
+    const args = (input ?? {}) as Record<string, unknown>;
+    // 1. exact args match.
+    const exact = calls.find((c) => canonicalize(c.args) === canonicalize(args));
+    if (exact) return exact.result;
+    // 2. match on the entity key (ticker) so a multi-ticker tool doesn't return
+    //    another ticker's data when only secondary args (limit, dates) differ.
+    if (args.ticker !== undefined) {
+      const byTicker = calls.find((c) => c.args?.ticker === args.ticker);
+      if (byTicker) return byTicker.result;
+    }
+    // 3. fall back to the first recorded call (KR questions are single-entity).
+    return calls[0].result;
   };
 
   const transformTools = (tools: StructuredToolInterface[]): StructuredToolInterface[] =>

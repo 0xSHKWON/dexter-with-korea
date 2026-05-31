@@ -2,8 +2,7 @@
   "id": "short-balance-ecopro",
   "query": "에코프로비엠(247540) 공매도 잔고비중 지금 어느 수준이야?",
   "meta": {
-    "model": "gpt-5.5",
-    "recordedAt": "2026-05-31T09:07:47.006Z"
+    "model": "gpt-5.5"
   },
   "toolCalls": [
     {

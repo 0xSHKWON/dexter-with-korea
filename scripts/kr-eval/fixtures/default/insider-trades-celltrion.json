@@ -2,8 +2,7 @@
   "id": "insider-trades-celltrion",
   "query": "최근 셀트리온(068270) 임원·주요주주 소유 변동 있었어?",
   "meta": {
-    "model": "gpt-5.5",
-    "recordedAt": "2026-05-31T09:08:52.310Z"
+    "model": "gpt-5.5"
   },
   "toolCalls": [
     {

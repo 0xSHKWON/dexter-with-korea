@@ -2,8 +2,7 @@
   "id": "nps-samsung",
   "query": "국민연금이 삼성전자 얼마나 들고 있어?",
   "meta": {
-    "model": "gpt-5.5",
-    "recordedAt": "2026-05-31T09:10:17.306Z"
+    "model": "gpt-5.5"
   },
   "toolCalls": [
     {

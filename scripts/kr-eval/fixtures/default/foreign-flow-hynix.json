@@ -2,8 +2,7 @@
   "id": "foreign-flow-hynix",
   "query": "SK하이닉스(000660) 외국인 지분율하고 최근 순매수 흐름 어때?",
   "meta": {
-    "model": "gpt-5.5",
-    "recordedAt": "2026-05-31T09:07:35.975Z"
+    "model": "gpt-5.5"
   },
   "toolCalls": [
     {

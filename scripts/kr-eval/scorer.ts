@@ -43,8 +43,6 @@ export interface QuestionResult {
   replayMisses: string[];
   dimensions: DimensionResult[];
   pass: boolean;
-  /** Weighted blend for ranking/printing only — `pass` is the headline. */
-  compositeScore: number;
 }
 
 /** The `requiredTools` for a question, defaulting to its full `expectedTools`. */
@@ -101,10 +99,6 @@ export function buildQuestionResult(args: {
   const dimsPass = dimensions.every((d) => d.pass);
   const pass = tools.missingRequired.length === 0 && dimsPass;
 
-  const dimMean = mean(dimensions.map((d) => d.score));
-  const compositeScore =
-    dimensions.length === 0 ? tools.toolsScore : 0.6 * dimMean + 0.4 * tools.toolsScore;
-
   // A replay with uncovered tool calls didn't fully pin the data → the score is
   // not comparable. Flag inconclusive so it's excluded from pass/fail counts.
   const uncovered = [...new Set(replayMisses)];
@@ -122,7 +116,6 @@ export function buildQuestionResult(args: {
     replayMisses,
     dimensions,
     pass,
-    compositeScore,
   };
 }
 
@@ -138,7 +131,6 @@ export function skippedResult(question: KrEvalQuestion, reason: string): Questio
     replayMisses: [],
     dimensions: [],
     pass: false,
-    compositeScore: 0,
   };
 }
 

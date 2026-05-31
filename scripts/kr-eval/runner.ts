@@ -86,7 +86,7 @@ async function runOnce(
     const file = saveFixture(ctx.scenario, {
       id: q.id,
       query: q.query,
-      meta: { model: ctx.agentModel, recordedAt: new Date().toISOString() },
+      meta: { model: ctx.agentModel },
       toolCalls,
     });
     console.log(`  ↳ recorded ${toolCalls.length} tool calls → ${file}`);
@@ -110,7 +110,8 @@ async function evaluateQuestion(q: KrEvalQuestion, ctx: RunCtx): Promise<Questio
     runs.push({ firedTools: firedToolNames(toolCalls), rawDims, replayMisses });
   }
 
-  // Average judge scores across repeats; tool-firing taken from the first run.
+  // Average judge scores across repeats. Tool-firing / replayMisses are taken from
+  // the first run only; with repeat>1 they under-represent if runs diverge (N=1 default).
   const avgDims: RawDimension[] = q.dimensions.map((id) => {
     const scores = runs.map((r) => r.rawDims.find((d) => d.id === id)?.score ?? 0);
     const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
@@ -181,8 +182,10 @@ async function main(): Promise<void> {
   });
   printReport(report);
 
-  // Non-zero exit when an active question failed — useful as a CI/regression signal.
-  process.exit(report.ran > 0 && report.passed < report.ran ? 1 : 0);
+  // Non-zero exit when an active question failed — a CI/regression signal. record
+  // mode is a capture action, so it always exits 0 regardless of rubric scores.
+  const failed = report.ran > 0 && report.passed < report.ran;
+  process.exit(ctx.mode !== 'record' && failed ? 1 : 0);
 }
 
 main().catch((error) => {

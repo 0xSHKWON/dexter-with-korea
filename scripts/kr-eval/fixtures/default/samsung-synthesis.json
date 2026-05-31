@@ -2,8 +2,7 @@
   "id": "samsung-synthesis",
   "query": "삼성전자 지금 투자 관점에서 어때?",
   "meta": {
-    "model": "gpt-5.5",
-    "recordedAt": "2026-05-31T09:06:31.001Z"
+    "model": "gpt-5.5"
   },
   "toolCalls": [
     {

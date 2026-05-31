@@ -2,8 +2,7 @@
   "id": "institutional-vs-foreign",
   "query": "오늘 삼성전자 기준으로 기관·외국인·개인 누가 사고 팔았어?",
   "meta": {
-    "model": "gpt-5.5",
-    "recordedAt": "2026-05-31T09:07:58.910Z"
+    "model": "gpt-5.5"
   },
   "toolCalls": [
     {

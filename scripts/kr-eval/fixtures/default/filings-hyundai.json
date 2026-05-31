@@ -2,8 +2,7 @@
   "id": "filings-hyundai",
   "query": "현대차(005380) 최근 주요 공시 뭐 있었어?",
   "meta": {
-    "model": "gpt-5.5",
-    "recordedAt": "2026-05-31T09:10:42.511Z"
+    "model": "gpt-5.5"
   },
   "toolCalls": [
     {

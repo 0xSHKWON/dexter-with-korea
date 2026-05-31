@@ -2,8 +2,7 @@
   "id": "large-holders-samsung",
   "query": "삼성전자 대량보유(5%룰) 현황하고 지배구조 함의 정리해줘.",
   "meta": {
-    "model": "gpt-5.5",
-    "recordedAt": "2026-05-31T09:08:30.432Z"
+    "model": "gpt-5.5"
   },
   "toolCalls": [
     {

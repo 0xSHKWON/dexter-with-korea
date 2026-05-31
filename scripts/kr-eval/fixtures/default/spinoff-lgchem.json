@@ -2,8 +2,7 @@
   "id": "spinoff-lgchem",
   "query": "LG화학(051910) 물적분할이 소액주주한테 어떤 영향이었어?",
   "meta": {
-    "model": "gpt-5.5",
-    "recordedAt": "2026-05-31T09:10:08.873Z"
+    "model": "gpt-5.5"
   },
   "toolCalls": [
     {

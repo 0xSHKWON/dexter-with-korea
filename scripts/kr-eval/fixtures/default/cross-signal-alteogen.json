@@ -2,8 +2,7 @@
   "id": "cross-signal-alteogen",
   "query": "알테오젠(196170) 투자 매력 종합 평가해줘 (수급·실적·지배구조).",
   "meta": {
-    "model": "gpt-5.5",
-    "recordedAt": "2026-05-31T09:11:41.449Z"
+    "model": "gpt-5.5"
   },
   "toolCalls": [
     {
