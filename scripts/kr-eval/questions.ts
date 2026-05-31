@@ -55,8 +55,8 @@ export const KR_EVAL_QUESTIONS: KrEvalQuestion[] = [
     ticker: '000660',
     expectedTools: ['get_foreign_ownership_kr'],
     requiredTools: ['get_foreign_ownership_kr'],
-    dimensions: ['cross_signal'],
-    notes: '수급(외국인) 중심.',
+    dimensions: ['grounding'],
+    notes: '단일 신호(외국인 수급) 질문 — 지분율·순매수 수치가 툴 데이터에 근거하는지(grounding)로 채점. 교차신호 thesis는 synthesis 질문에서만 요구.',
   },
   {
     id: 'short-balance-ecopro',
@@ -73,8 +73,8 @@ export const KR_EVAL_QUESTIONS: KrEvalQuestion[] = [
     ticker: '005930',
     expectedTools: ['get_foreign_ownership_kr'],
     requiredTools: ['get_foreign_ownership_kr'],
-    dimensions: ['cross_signal'],
-    notes: 'Naver trend에 기관/개인 순매수 포함.',
+    dimensions: ['grounding'],
+    notes: '단일 신호(당일 매매동향) 질문 — Naver trend의 기관/외국인/개인 순매수 수치 근거(grounding)로 채점.',
   },
   {
     id: 'large-holders-samsung',
@@ -91,8 +91,8 @@ export const KR_EVAL_QUESTIONS: KrEvalQuestion[] = [
     ticker: '068270',
     expectedTools: ['get_insider_trades_kr'],
     requiredTools: ['get_insider_trades_kr'],
-    dimensions: ['governance'],
-    notes: '임원·주요주주 소유보고.',
+    dimensions: ['grounding'],
+    notes: '사실 조회("변동 있었어?") — 소유 변동 수치를 정확히 근거 있게 보고하는지(grounding)로 채점. 깊은 지배구조 valuation 분석은 large-holders/spinoff 질문이 담당.',
   },
   {
     id: 'spinoff-lgchem',

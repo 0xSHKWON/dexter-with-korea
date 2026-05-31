@@ -1,0 +1,17 @@
+{
+  "id": "nps-top",
+  "query": "국민연금 보유 비중 상위 종목 알려줘.",
+  "meta": {
+    "model": "gpt-5.5",
+    "recordedAt": "2026-05-31T09:10:29.346Z"
+  },
+  "toolCalls": [
+    {
+      "tool": "get_nps_holdings",
+      "args": {
+        "limit": 20
+      },
+      "result": "{\"data\":{\"source\":\"NPS 국내주식 투자정보 (data.go.kr, year-end snapshot)\",\"query\":{\"name\":null,\"ticker\":null,\"resolvedName\":null},\"holdings\":[{\"name\":\"삼성전자\",\"evalAmount\":230421,\"weightPct\":16.7,\"shareRatioPct\":7.26},{\"name\":\"SK하이닉스\",\"evalAmount\":95627,\"weightPct\":6.93,\"shareRatioPct\":7.55},{\"name\":\"LG에너지솔루션\",\"evalAmount\":51706,\"weightPct\":3.75,\"shareRatioPct\":6.35},{\"name\":\"삼성바이오로직스\",\"evalAmount\":46721,\"weightPct\":3.39,\"shareRatioPct\":6.92},{\"name\":\"현대차\",\"evalAmount\":33529,\"weightPct\":2.43,\"shareRatioPct\":7.55},{\"name\":\"기아\",\"evalAmount\":28589,\"weightPct\":2.07,\"shareRatioPct\":7.14},{\"name\":\"NAVER\",\"evalAmount\":28134,\"weightPct\":2.04,\"shareRatioPct\":8.94},{\"name\":\"셀트리온\",\"evalAmount\":27624,\"weightPct\":2,\"shareRatioPct\":6.79},{\"name\":\"KB금융\",\"evalAmount\":27405,\"weightPct\":1.99,\"shareRatioPct\":8.4},{\"name\":\"신한지주\",\"evalAmount\":20547,\"weightPct\":1.49,\"shareRatioPct\":8.56},{\"name\":\"현대모비스\",\"evalAmount\":19937,\"weightPct\":1.44,\"shareRatioPct\":9.06},{\"name\":\"HD현대중공업\",\"evalAmount\":16837,\"weightPct\":1.22,\"shareRatioPct\":6.6},{\"name\":\"POSCO홀딩스\",\"evalAmount\":15628,\"weightPct\":1.13,\"shareRatioPct\":7.46},{\"name\":\"하나금융지주\",\"evalAmount\":15081,\"weightPct\":1.09,\"shareRatioPct\":9.25},{\"name\":\"삼성물산\",\"evalAmount\":14852,\"weightPct\":1.08,\"shareRatioPct\":7.28},{\"name\":\"LG화학\",\"evalAmount\":14546,\"weightPct\":1.05,\"shareRatioPct\":8.25},{\"name\":\"삼성생명\",\"evalAmount\":13400,\"weightPct\":0.97,\"shareRatioPct\":7.07},{\"name\":\"메리츠금융지주\",\"evalAmount\":13180,\"weightPct\":0.95,\"shareRatioPct\":6.65},{\"name\":\"삼성SDI\",\"evalAmount\":12598,\"weightPct\":0.91,\"shareRatioPct\":7.41},{\"name\":\"삼성화재\",\"evalAmount\":11794,\"weightPct\":0.85,\"shareRatioPct\":6.94}]}}"
+    }
+  ]
+}
