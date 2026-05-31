@@ -15,6 +15,7 @@ import { createGetFinancialsKr, GET_FINANCIALS_KR_DESCRIPTION } from './finance-
 import { getFilingsKr, GET_FILINGS_KR_DESCRIPTION } from './finance-kr/get-filings-kr.js';
 import { getLargeHoldersKr, GET_LARGE_HOLDERS_KR_DESCRIPTION } from './finance-kr/get-large-holders-kr.js';
 import { getInsiderTradesKr, GET_INSIDER_TRADES_KR_DESCRIPTION } from './finance-kr/get-insider-trades-kr.js';
+import { createReadFilingsKr, READ_FILINGS_KR_DESCRIPTION } from './finance-kr/read-filings-kr.js';
 import { getShortBalanceKr, GET_SHORT_BALANCE_KR_DESCRIPTION } from './finance-kr/get-short-balance-kr.js';
 import { getForeignOwnershipKr, GET_FOREIGN_OWNERSHIP_KR_DESCRIPTION } from './finance-kr/get-foreign-ownership-kr.js';
 import { getNpsHoldings_tool, GET_NPS_HOLDINGS_DESCRIPTION } from './finance-kr/get-nps-holdings.js';
@@ -214,6 +215,14 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       tool: getInsiderTradesKr,
       description: GET_INSIDER_TRADES_KR_DESCRIPTION,
       compactDescription: 'Korean 임원·주요주주 소유보고 (insider/executive ownership) for 6-digit tickers.',
+      concurrencySafe: true,
+    });
+    tools.push({
+      name: 'read_filings_kr',
+      tool: createReadFilingsKr(model),
+      description: READ_FILINGS_KR_DESCRIPTION,
+      compactDescription:
+        'Korean DART 사업·반기·분기보고서 narrative (사업의 내용, 위험관리, 경영진단 MD&A) — qualitative content for 6-digit tickers.',
       concurrencySafe: true,
     });
   }

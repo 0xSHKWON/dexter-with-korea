@@ -1,0 +1,16 @@
+{
+  "id": "business-overview-samsung",
+  "query": "삼성전자(005930) 사업보고서 보면 사업이 어떤 사업부문으로 구성돼 있어?",
+  "meta": {
+    "model": "gpt-5.5"
+  },
+  "toolCalls": [
+    {
+      "tool": "read_filings_kr",
+      "args": {
+        "query": "삼성전자 005930 최근 사업보고서 사업의 내용 사업부문 구성"
+      },
+      "result": "{\"data\":{\"ticker\":\"005930\",\"corp_code\":\"00126380\",\"corp_name\":\"삼성전자\",\"report_nm\":\"사업보고서 (2025.12)\",\"rcept_no\":\"20260310002820\",\"sections_found\":[\"business\"],\"summary\":\"삼성전자(005930)의 최근 사업보고서(2025.12)상 사업부문은 크게 **DX, DS, SDC, Harman**으로 구성됩니다. 회사는 본사와 국내외 종속기업을 포함해 **총 308개 종속기업**으로 구성된 글로벌 전자기업입니다.\\n\\n| 구분 | 사업 성격 | 주요 제품·사업 | 2025년 매출 비중 |\\n|---|---|---|---:|\\n| **DX(Device eXperience) 부문** | 완제품 Set 사업 | TV, 모니터, 냉장고, 세탁기, 에어컨, 스마트폰, 네트워크시스템, PC 등 | **56.3%** |\\n| **DS(Device Solutions) 부문** | 반도체 부품 사업 | DRAM, NAND Flash, 모바일AP, System LSI, Foundry 등 | **39.0%** |\\n| **SDC** | 디스플레이 사업 | 스마트폰용 OLED 패널, 폴더블·IT·Auto용 OLED, QD-OLED 등 | **8.9%** |\\n| **Harman** | 전장·오디오 사업 | 디지털 콕핏, 카오디오, 텔레매틱스, 포터블/사운드바 스피커 등 | **4.7%** |\\n\\n핵심적으로 보면, 삼성전자는 **완제품 중심의 DX 부문**과 **반도체 중심의 DS 부문**이 양대 축입니다. 2025년 매출 기준으로는 DX가 가장 큰 비중을 차지하지만, DS도 DRAM, NAND, 모바일AP, Foundry 등 핵심 부품 사업을 담당하며 회사의 주요 성장축으로 제시되어 있습니다.\\n\\n부문별 특징은 다음과 같습니다.\\n\\n- **DX 부문**은 TV와 모바일이 중심입니다. TV는 AI TV, Neo QLED, OLED, 초대형 TV, 사운드바 등을 통해 프리미엄 시장을 공략하고 있으며, 모바일은 Galaxy S/Z 시리즈, 폴더블, 태블릿, 웨어러블, Samsung Wallet, Samsung Health 등 제품과 서비스 생태계를 확대하고 있습니다.\\n- **DS 부문**은 메모리, System LSI, Foundry로 구성됩니다. 메모리는 HBM, DDR5, LPDDR5x, 서버 SSD 등 AI·서버향 고부가 제품 대응을 강화하고 있으며, Foundry는 2나노, 4나노, HBM4 Base-Die 등 선단 공정 중심으로 경쟁력 강화를 추진하고 있습니다.\\n- **SDC**는 OLED 디스플레이 중심입니다. 스마트폰용 OLED뿐 아니라 폴더블, 태블릿, 노트북, Auto, 워치 등으로 응용처를 확대하고 있으며, 8.6G IT OLED 라인 양산 준비를 통해 IT OLED 시장 선점을 추진하고 있습니다.\\n- **Harman**은 전장부품과 라이프스타일 오디오가 중심입니다. 디지털 콕핏, 카오디오, 텔레매틱스 등 차량 내 경험 관련 사업을 영위하며, SDV 전환에 대응하기 위한 소프트웨어 역량과 전장 제품 경쟁력 강화를 추진하고 있습니다.\\n\\n요약하면, 삼성전자의 사업부문 구성은 **DX 완제품, DS 반도체, SDC 디스플레이, Harman 전장·오디오**의 4개 축으로 정리할 수 있으며, 2025년 기준 매출 규모는 **DX → DS → SDC → Harman** 순입니다.\",\"rawSectionsFile\":\".dexter/tool-results/kr-filing-00126380-20260310002820.json\",\"note\":\"summary is grounded in the report narrative. Use read_file on rawSectionsFile for the full extracted sections.\"},\"sourceUrls\":[\"https://opendart.fss.or.kr/api/document.xml?rcept_no=20260310002820\",\"https://opendart.fss.or.kr/api/list.json?corp_code=00126380&bgn_de=20241201&end_de=20260531&pblntf_ty=A&page_count=100&page_no=1&sort=date&sort_mth=desc\"]}"
+    }
+  ]
+}

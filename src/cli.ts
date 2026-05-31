@@ -75,6 +75,10 @@ function summarizeToolResult(tool: string, args: Record<string, unknown>, result
           const n = Array.isArray(parsed.data.filings) ? parsed.data.filings.length : 0;
           return `Found ${n} filings`;
         }
+        if (tool === 'read_filings_kr') {
+          const n = Array.isArray(parsed.data.sections_found) ? parsed.data.sections_found.length : 0;
+          return `Read ${n} section${n !== 1 ? 's' : ''}`;
+        }
         if (tool === 'get_large_holders_kr') {
           const n = Array.isArray(parsed.data.holders) ? parsed.data.holders.length : 0;
           return `Found ${n} holders`;
