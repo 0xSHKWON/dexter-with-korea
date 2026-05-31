@@ -29,6 +29,12 @@ export interface QuestionResult {
   query: string;
   /** Set when the question's required tools aren't registered in this env. */
   skipped?: string;
+  /**
+   * Set when replay wasn't faithful — the live agent called tool(s) with no
+   * recorded output (replayMisses). The score isn't comparable, so the result is
+   * excluded from pass/fail rather than counted as a regression.
+   */
+  inconclusive?: string;
   firedTools: string[];
   missingExpected: string[];
   missingRequired: string[];
@@ -99,9 +105,16 @@ export function buildQuestionResult(args: {
   const compositeScore =
     dimensions.length === 0 ? tools.toolsScore : 0.6 * dimMean + 0.4 * tools.toolsScore;
 
+  // A replay with uncovered tool calls didn't fully pin the data → the score is
+  // not comparable. Flag inconclusive so it's excluded from pass/fail counts.
+  const uncovered = [...new Set(replayMisses)];
+  const inconclusive =
+    uncovered.length > 0 ? `replay not faithful — uncovered tool calls: ${uncovered.join(', ')}` : undefined;
+
   return {
     id: question.id,
     query: question.query,
+    inconclusive,
     firedTools: tools.firedTools,
     missingExpected: tools.missingExpected,
     missingRequired: tools.missingRequired,
@@ -133,6 +146,7 @@ export interface AggregateReport {
   ran: number;
   passed: number;
   skipped: number;
+  inconclusive: number;
   byDimension: Partial<Record<DimensionId, { mean: number; passRate: number }>>;
   toolFireRate: number;
   results: QuestionResult[];
@@ -143,8 +157,11 @@ export function aggregate(
   results: QuestionResult[],
   meta: AggregateReport['meta'],
 ): AggregateReport {
-  const active = results.filter((r) => !r.skipped);
-  const skipped = results.length - active.length;
+  // "active" = scored runs: not skipped (couldn't run) and not inconclusive
+  // (replay wasn't faithful). Both are excluded from pass/fail and dim stats.
+  const active = results.filter((r) => !r.skipped && !r.inconclusive);
+  const skipped = results.filter((r) => r.skipped).length;
+  const inconclusive = results.filter((r) => !r.skipped && r.inconclusive).length;
 
   const byDimension: AggregateReport['byDimension'] = {};
   const dimIds = new Set<DimensionId>();
@@ -161,6 +178,7 @@ export function aggregate(
     ran: active.length,
     passed: active.filter((r) => r.pass).length,
     skipped,
+    inconclusive,
     byDimension,
     toolFireRate: mean(active.map((r) => r.toolsScore)),
     results,

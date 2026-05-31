@@ -101,6 +101,18 @@ describe('buildQuestionResult', () => {
     expect(r.dimensions[0].pass).toBe(true);
     expect(r.pass).toBe(true);
   });
+
+  it('marks the result inconclusive when replay had uncovered tool calls', () => {
+    const r = buildQuestionResult({
+      question: baseQ,
+      firedTools: ['get_financials_kr', 'get_foreign_ownership_kr'],
+      rawDimensions: dims(1),
+      replayMisses: ['read_file', 'read_file'],
+    });
+    expect(r.inconclusive).toContain('read_file');
+    // dedupes the uncovered tool names in the reason
+    expect(r.inconclusive?.match(/read_file/g)?.length).toBe(1);
+  });
 });
 
 describe('aggregate', () => {
@@ -116,16 +128,25 @@ describe('aggregate', () => {
       rawDimensions: [{ id: 'earnings_yoy', score: 0.2, comment: 'c' }],
     });
     const skipped = skippedResult({ ...baseQ, id: 'q3' }, 'n/a');
+    const inconclusive = buildQuestionResult({
+      question: { ...baseQ, id: 'q4' },
+      firedTools: ['get_financials_kr', 'get_foreign_ownership_kr'],
+      rawDimensions: [{ id: 'earnings_yoy', score: 0.1, comment: 'c' }],
+      replayMisses: ['read_file'],
+    });
 
-    const report = aggregate([passing, failing, skipped], {
+    const report = aggregate([passing, failing, skipped, inconclusive], {
       mode: 'replay',
       agentModel: 'm',
       judgeModel: 'j',
     });
 
+    // inconclusive (q4) is excluded from ran/passed and from dimension stats,
+    // so its low score doesn't drag the earnings_yoy mean below 0.5.
     expect(report.ran).toBe(2);
     expect(report.passed).toBe(1);
     expect(report.skipped).toBe(1);
+    expect(report.inconclusive).toBe(1);
     expect(report.toolFireRate).toBe(1);
     expect(report.byDimension.earnings_yoy?.mean).toBeCloseTo(0.5, 5);
     expect(report.byDimension.earnings_yoy?.passRate).toBe(0.5);

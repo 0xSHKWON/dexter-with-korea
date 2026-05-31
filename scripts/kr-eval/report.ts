@@ -10,12 +10,15 @@ function fmtPct(n: number): string {
 }
 
 function questionLine(r: QuestionResult): string {
-  if (r.skipped) return `  SKIP  ${r.id.padEnd(26)} — ${r.skipped}`;
-  const tag = r.pass ? 'PASS' : 'FAIL';
+  if (r.skipped) return `  SKIP   ${r.id.padEnd(26)} — ${r.skipped}`;
   const dims = r.dimensions.map((d) => `${d.id}=${d.score.toFixed(2)}${d.pass ? '' : '✗'}`).join(' ');
   const missing = r.missingRequired.length ? `  missingReq=[${r.missingRequired.join(',')}]` : '';
   const misses = r.replayMisses.length ? `  replayMiss=[${[...new Set(r.replayMisses)].join(',')}]` : '';
-  return `  ${tag}  ${r.id.padEnd(26)} tools=${fmtPct(r.toolsScore)} ${dims}${missing}${misses}`;
+  if (r.inconclusive) {
+    return `  INCONC ${r.id.padEnd(26)} tools=${fmtPct(r.toolsScore)} ${dims}${missing}${misses}`;
+  }
+  const tag = r.pass ? 'PASS  ' : 'FAIL  ';
+  return `  ${tag} ${r.id.padEnd(26)} tools=${fmtPct(r.toolsScore)} ${dims}${missing}${misses}`;
 }
 
 export function printReport(report: AggregateReport): void {
@@ -27,7 +30,9 @@ export function printReport(report: AggregateReport): void {
 
   for (const r of report.results) {
     console.log(questionLine(r));
-    if (!r.skipped) {
+    if (r.inconclusive) {
+      console.log(`        ↳ ${r.inconclusive} (re-record this question's fixture)`);
+    } else if (!r.skipped) {
       for (const d of r.dimensions) {
         if (!d.pass) console.log(`        ↳ ${d.id}: ${d.comment}`);
       }
@@ -35,7 +40,9 @@ export function printReport(report: AggregateReport): void {
   }
 
   console.log('\n' + '-'.repeat(80));
-  console.log(`Passed ${report.passed}/${report.ran}  (skipped ${report.skipped})`);
+  console.log(
+    `Passed ${report.passed}/${report.ran}  (skipped ${report.skipped}, inconclusive ${report.inconclusive})`,
+  );
   console.log(`Tool-fire rate: ${fmtPct(report.toolFireRate)}`);
   const dimKeys = Object.keys(report.byDimension);
   if (dimKeys.length > 0) {

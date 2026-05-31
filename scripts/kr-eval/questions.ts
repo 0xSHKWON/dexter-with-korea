@@ -31,8 +31,8 @@ export const KR_EVAL_QUESTIONS: KrEvalQuestion[] = [
     ticker: '005930',
     expectedTools: ['get_financials_kr'],
     requiredTools: ['get_financials_kr'],
-    dimensions: ['earnings_yoy'],
-    notes: '단일 종목 펀더멘털 — 손익 + 전년대비 숫자가 핵심.',
+    dimensions: ['earnings_yoy', 'grounding'],
+    notes: '단일 종목 펀더멘털 — 손익 + 전년대비 숫자가 핵심. grounding으로 YoY가 툴 데이터에 실제 근거하는지 교차검증.',
   },
   {
     id: 'samsung-synthesis',
@@ -135,7 +135,7 @@ export const KR_EVAL_QUESTIONS: KrEvalQuestion[] = [
     ticker: '196170',
     expectedTools: ['get_financials_kr', 'get_foreign_ownership_kr', 'get_large_holders_kr'],
     requiredTools: ['get_financials_kr'],
-    dimensions: ['earnings_yoy', 'cross_signal', 'governance'],
+    dimensions: ['earnings_yoy', 'cross_signal', 'governance', 'grounding'],
     notes: 'KOSDAQ 교차신호 종합.',
   },
 ];
