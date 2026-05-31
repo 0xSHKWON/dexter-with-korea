@@ -26,6 +26,11 @@ export interface DartRow {
   sj_div?: string;
   thstrm_amount?: string;
   frmtrm_amount?: string;
+  /**
+   * 전년 동기 누적 — present only on quarterly/semiannual flow statements (IS/CIS/CF).
+   * DART leaves frmtrm_amount empty there and puts the prior-year SAME period here.
+   */
+  frmtrm_q_amount?: string;
   [key: string]: unknown;
 }
 
@@ -260,9 +265,15 @@ export function findMetric(list: DartRow[], spec: AccountSpec): MetricVal {
 
 function toMetric(row: DartRow, kind: MetricKind): MetricVal {
   const current = parseAmount(row.thstrm_amount);
+  // Prior-year same period. On quarterly/semiannual flow statements DART leaves
+  // frmtrm_amount empty and carries 전년 동기 in frmtrm_q_amount; on annual reports
+  // (and the quarterly balance sheet) there is no _q field, so fall back to
+  // frmtrm_amount (전기 / 전년말). Without this, quarterly YoY is silently null.
+  const priorQ = parseAmount(row.frmtrm_q_amount);
+  const prior = priorQ !== null ? priorQ : parseAmount(row.frmtrm_amount);
   return {
     current,
-    prior: parseAmount(row.frmtrm_amount),
+    prior,
     label: row.account_nm ?? null,
     display: formatDisplay(current, kind),
   };
