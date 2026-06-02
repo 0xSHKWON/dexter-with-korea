@@ -231,11 +231,20 @@ export const ACCOUNT_SPECS: Record<string, AccountSpec> = {
  * Summed across every matching BS row (a filer may split borrowings over several lines,
  * or — like LG화학 — report two rows both labelled exactly "차입금").
  *
- * Labels/ids verified against real DART CFS payloads (삼성전자 005930, LG화학 051910,
- * 알테오젠 196170): 삼성 lists 단기차입금 with account_id `-표준계정코드 미사용-` (no standard
- * code) → the account_nm set carries it; LG화학 aggregates to bare "차입금"; 알테오젠 adds
- * 전환사채/유동성장기차입금. The id set is a best-effort preference layer; the exact-nm set is
- * the reliable matcher. 리스부채(operating, already in FCF) is intentionally EXCLUDED.
+ * VERIFIED against real DART CFS payloads: 삼성전자 005930 (단기차입금 carries account_id
+ * `-표준계정코드 미사용-` → the account_nm set, not the id, resolves it; plus 유동성장기부채/
+ * 사채/장기차입금), LG화학 051910 (bare "차입금" ×2 — current + non-current), 알테오젠 196170
+ * (유동전환사채/유동성장기차입금). The id set is a preference layer; the exact-nm set is the
+ * reliable matcher.
+ *
+ * BEST-EFFORT (plausible but NOT present in those three samples): 유동성사채, 단기사채,
+ * 전환사채, 비유동 전환사채, 신주인수권부사채, 유동성신주인수권부사채. Exact-match means each
+ * either hits the real label or harmlessly misses — never a false positive.
+ *
+ * 리스부채 (operating, already in FCF) is intentionally EXCLUDED. Caveat: a filer reporting
+ * BOTH itemized borrowings AND a bare "차입금" subtotal would double-count — not observed
+ * (fnlttSinglAcntAll lists reported leaves, not computed subtotals), and Step 7 of the DCF
+ * skill cross-checks |Net Debt| vs market cap as a backstop.
  */
 export const DEBT_SUM_SPEC: SumSpec = {
   sjDiv: 'BS',
