@@ -36,6 +36,13 @@ Confirm or ask for the following before drafting:
 
 ## Step 2: Gather Data (Parallel)
 
+> **🇰🇷 KR override (6자리 티커 / 한국 상장사):** US 도구(`get_financials`, `get_market_data`, `read_filings`)는 6자리 티커를 해석하지 못한다. 아래 2.1–2.3을 KR 도구로 대체한다(병렬 호출):
+> - **재무**: `get_financials_kr` — 자연어 쿼리 하나로 멀티이어 손익·현금흐름·재무상태표(K-IFRS, KRW). 정량 세그먼트·컨센서스 추정치 도구는 없다(있는 것만 쓴다).
+> - **시장·밸류에이션**: `get_market_data_kr` — 현재가·52주 레인지·시가총액·발행주식수·PER/PBR/EPS/BPS·배당수익률·**목표주가 컨센서스**·동종 peer.
+> - **수급·지배구조**: `get_foreign_ownership_kr`(외국인 흐름), `get_large_holders_kr`(5%룰), `get_insider_trades_kr`(임원·주요주주), 가능하면 `get_short_balance_kr`(공매도)·`get_nps_holdings`(국민연금).
+> - **내러티브(사업·리스크·MD&A)**: `read_filings_kr` (DART 사업/반기/분기보고서) — 10-K/10-Q 대신. `{{business_snapshot}}`·리스크 문구를 여기서 verbatim으로 뽑는다.
+> - 메모 본문은 KRW로 작성하고, 코리아 디스카운트·물적/인적분할·지주사 할인·거래세·배당세 등 KR 고유 요인을 반영한다.
+
 Issue these tool calls in parallel:
 
 ### 2.1 Financials

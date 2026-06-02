@@ -18,6 +18,7 @@ import { getInsiderTradesKr, GET_INSIDER_TRADES_KR_DESCRIPTION } from './finance
 import { createReadFilingsKr, READ_FILINGS_KR_DESCRIPTION } from './finance-kr/read-filings-kr.js';
 import { getShortBalanceKr, GET_SHORT_BALANCE_KR_DESCRIPTION } from './finance-kr/get-short-balance-kr.js';
 import { getForeignOwnershipKr, GET_FOREIGN_OWNERSHIP_KR_DESCRIPTION } from './finance-kr/get-foreign-ownership-kr.js';
+import { getMarketDataKr, GET_MARKET_DATA_KR_DESCRIPTION } from './finance-kr/get-market-data-kr.js';
 import { getNpsHoldings_tool, GET_NPS_HOLDINGS_DESCRIPTION } from './finance-kr/get-nps-holdings.js';
 import { GET_MARKET_DATA_DESCRIPTION } from './finance/get-market-data.js';
 import { READ_FILINGS_DESCRIPTION } from './finance/read-filings.js';
@@ -233,6 +234,16 @@ export function getToolRegistry(model: string): RegisteredTool[] {
     tool: getForeignOwnershipKr,
     description: GET_FOREIGN_OWNERSHIP_KR_DESCRIPTION,
     compactDescription: 'Korean 외국인 지분율 (foreign ownership ratio), daily, for 6-digit tickers.',
+    concurrencySafe: true,
+  });
+
+  // Price + valuation + consensus snapshot, also from Naver's keyless API.
+  tools.push({
+    name: 'get_market_data_kr',
+    tool: getMarketDataKr,
+    description: GET_MARKET_DATA_KR_DESCRIPTION,
+    compactDescription:
+      'Korean price + market cap + PER/PBR + 목표주가 컨센서스 snapshot for 6-digit tickers (get_market_data equivalent).',
     concurrencySafe: true,
   });
 

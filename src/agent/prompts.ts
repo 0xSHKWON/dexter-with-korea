@@ -105,16 +105,17 @@ filings, insider reports. A generic "good company, watch the price" answer waste
 For any analyze / 어때 / 평가 / 매수·매도 판단 question on a Korean stock:
 
 - GATHER broadly ONLY for open-ended questions (analyze / 어때 / 평가 / 매수·매도): call
-  get_financials_kr (multi-year) AND get_foreign_ownership_kr, get_large_holders_kr,
-  get_filings_kr (recent material), plus get_short_balance_kr / get_nps_holdings when available —
-  they run concurrently. For a NARROW ask (DCF·단일 지표·특정 공시/이벤트) or when a skill is
+  get_financials_kr (multi-year) AND get_market_data_kr (현재가·밸류에이션·목표주가), get_foreign_ownership_kr,
+  get_large_holders_kr, get_filings_kr (recent material), plus get_short_balance_kr / get_nps_holdings when
+  available — they run concurrently. For a NARROW ask (DCF·단일 지표·특정 공시/이벤트) or when a skill is
   driving the query, gather ONLY what that task needs; do NOT run the full sweep.
 - GROUND the answer in concrete, dated, numeric signals only you can see — not a textbook
   description. Always state, with numbers + YoY: actual revenue / operating profit / net
   income / margins / ROE from get_financials_kr's \`summary\` (never give an investment view
   without earnings); 외국인 지분율 and recent net-buy trend (foreign vs 기관 vs 개인);
   공매도 잔고비중 level + direction (≈0% = no bearish positioning / no squeeze fuel; rising =
-  building short pressure); NPS / 5%-rule / insider direction as smart-money signals.
+  building short pressure); NPS / 5%-rule / insider direction as smart-money signals; and current
+  밸류에이션 from get_market_data_kr — 현재가, PER/PBR vs 업종·자기 과거 밴드, 목표주가 컨센서스 대비 상승여력.
 - SYNTHESIZE the signals into ONE integrated thesis, not separate bullets. Three strands:
   수급(외국인·공매도·기관 방향) · 실적(매출/이익/마진/ROE) · 지배구조(대량보유 집중·계열 지분).
   State explicitly whether they agree or conflict and which dominates — e.g.
@@ -290,7 +291,7 @@ ${toolDescriptions}
 ## Tool Usage Policy
 
 - Call get_financials or get_market_data ONCE with the full natural language query — they handle multi-company/multi-metric requests internally. Do NOT break up queries into multiple calls.
-- 6-digit numeric tickers (e.g. 005930, 035420) are Korean stocks — use get_financials_kr for fundamentals, get_filings_kr for DART disclosures, get_large_holders_kr for 5%-rule major shareholders, get_insider_trades_kr for executive/insider ownership, get_short_balance_kr for 공매도 잔고 (short interest), get_foreign_ownership_kr for 외국인 지분율 (foreign ownership), get_nps_holdings for 국민연금 (National Pension Service) holdings, and read_filings_kr for the report narrative (사업 구성·주요 리스크·경영진단 MD&A from DART 사업/반기/분기보고서). ASCII tickers (AAPL, MSFT) use the US tools.
+- 6-digit numeric tickers (e.g. 005930, 035420) are Korean stocks — use get_financials_kr for fundamentals, get_market_data_kr for current price·시가총액·발행주식수·PER/PBR/EPS·목표주가 컨센서스 (the get_market_data equivalent — get_market_data does NOT resolve 6-digit tickers), get_filings_kr for DART disclosures, get_large_holders_kr for 5%-rule major shareholders, get_insider_trades_kr for executive/insider ownership, get_short_balance_kr for 공매도 잔고 (short interest), get_foreign_ownership_kr for 외국인 지분율 (foreign ownership), get_nps_holdings for 국민연금 (National Pension Service) holdings, and read_filings_kr for the report narrative (사업 구성·주요 리스크·경영진단 MD&A from DART 사업/반기/분기보고서). ASCII tickers (AAPL, MSFT) use the US tools.
 - Only use web_fetch when headlines are insufficient (need quotes, deal specifics, earnings details).
 - Tool results are automatically capped. If a result says "persisted to file", use read_file to access specific sections rather than processing the full dataset.
 - Only respond directly for conceptual definitions, stable historical facts, or conversational queries.
