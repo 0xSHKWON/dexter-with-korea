@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { mapMarketData, parseKoreanMarketCapToKRW } from './get-market-data-kr.js';
+import { mapMarketData, parseKoreanMarketCapToKRW, hasNoMarketData } from './get-market-data-kr.js';
 import { parseNaverMetric } from './utils.js';
 
 // Shape captured from m.stock.naver.com/api/stock/005930/integration.
@@ -47,9 +47,16 @@ describe('parseNaverMetric', () => {
     expect(parseNaverMetric('0.47%')).toBe(0.47);
     expect(parseNaverMetric('401,250')).toBe(401250);
     expect(parseNaverMetric('-1.52')).toBe(-1.52);
+    expect(parseNaverMetric('+5.5%')).toBe(5.5);
+    // 주 is a Naver label-key char (52주, 주당배당금), never a value unit; a value
+    // carrying it is treated as non-numeric rather than silently stripped to a number.
+    expect(parseNaverMetric('1,668주')).toBeNull();
+    expect(parseNaverMetric('n/a')).toBeNull();
     expect(parseNaverMetric('N/A')).toBeNull();
     expect(parseNaverMetric('-')).toBeNull();
+    expect(parseNaverMetric('')).toBeNull();
     expect(parseNaverMetric(null)).toBeNull();
+    expect(parseNaverMetric(undefined)).toBeNull();
   });
 });
 
@@ -118,10 +125,30 @@ describe('mapMarketData', () => {
 
   it('degrades gracefully on an empty payload', () => {
     const empty = mapMarketData('005930', null);
+    expect(empty.name).toBeNull();
     expect(empty.quote.price).toBeNull();
     expect(empty.valuation.marketCap).toBeNull();
     expect(empty.valuation.sharesOutstanding).toBeNull();
     expect(empty.consensus.targetPrice).toBeNull();
     expect(empty.peers).toEqual([]);
+  });
+});
+
+describe('hasNoMarketData', () => {
+  it('flags an all-null mapping (empty/garbage 200 payload) as not found', () => {
+    expect(hasNoMarketData(mapMarketData('999999', null))).toBe(true);
+    expect(hasNoMarketData(mapMarketData('999999', {} as Record<string, unknown>))).toBe(true);
+  });
+
+  it('does not false-positive on a valid ticker (stockName alone is enough)', () => {
+    // A valid /integration response always carries stockName, so a real ticker
+    // never trips the guard even if price/marketCap are momentarily absent.
+    const sparse = mapMarketData('005930', { stockName: '삼성전자' } as Record<string, unknown>);
+    expect(sparse.name).toBe('삼성전자');
+    expect(hasNoMarketData(sparse)).toBe(false);
+  });
+
+  it('does not false-positive on the full Samsung payload', () => {
+    expect(hasNoMarketData(mapMarketData('005930', SAMSUNG_RAW as Record<string, unknown>))).toBe(false);
   });
 });

@@ -61,3 +61,6 @@ coverage.json
 
 # Scratchpad files
 scratchpads/*
+
+# Claude Code runtime locks
+.claude/scheduled_tasks.lock

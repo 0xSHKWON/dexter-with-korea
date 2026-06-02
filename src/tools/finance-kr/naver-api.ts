@@ -103,6 +103,11 @@ export async function fetchNaverIntegration(
   }
 
   if (!response.ok) {
+    // An unknown/invalid 6-digit code returns 409 (not 404); surface that as a
+    // clear "no such ticker" rather than a raw HTTP status the model can't act on.
+    if (response.status === 409 || response.status === 404) {
+      throw new Error(`[Naver API] no data for ticker ${ticker} — check the 6-digit ticker (status ${response.status})`);
+    }
     throw new Error(`[Naver API] request failed: ${response.status} ${response.statusText}`);
   }
 

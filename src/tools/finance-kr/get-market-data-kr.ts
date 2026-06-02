@@ -78,6 +78,16 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+/**
+ * A valid ticker's `/integration` always carries at least `stockName`; an empty
+ * or garbage 200 payload yields nulls across the board. Use this to surface a
+ * "not found" error instead of a snapshot of nulls. (Invalid codes return 409,
+ * which `fetchNaverIntegration` already throws on — this is the 200 fallback.)
+ */
+export function hasNoMarketData(m: MarketDataKr): boolean {
+  return m.name === null && m.quote.price === null && m.valuation.marketCap === null;
+}
+
 /** `totalInfos` is an array of `{ code, key, value }`; look up a value by code. */
 function totalInfo(totalInfos: unknown, code: string): unknown {
   if (!Array.isArray(totalInfos)) return undefined;
@@ -108,8 +118,8 @@ export function mapMarketData(ticker: string, raw: Record<string, unknown> | nul
   const direction =
     dir && typeof dir === 'object' ? ((dir as Record<string, unknown>).text as string) ?? null : null;
 
-  const marketCap = parseKoreanMarketCapToKRW(totalInfo(ti, 'marketValue'));
   const marketCapRaw = totalInfo(ti, 'marketValue');
+  const marketCap = parseKoreanMarketCapToKRW(marketCapRaw);
   const sharesOutstanding = marketCap !== null && price ? Math.round(marketCap / price) : null;
 
   const targetPrice = parseNaverMetric(cons?.priceTargetMean);
@@ -176,10 +186,14 @@ export const getMarketDataKr = new DynamicStructuredTool({
     const ticker = input.ticker.trim();
     try {
       const { data, url } = await fetchNaverIntegration(ticker, { cacheable: true, ttlMs: TTL_1H });
-      if (!data) {
-        return formatToolResult({ ticker, _error: `No market data found for ${ticker}` }, [url]);
+      const mapped = data ? mapMarketData(ticker, data) : null;
+      if (!mapped || hasNoMarketData(mapped)) {
+        return formatToolResult(
+          { ticker, _error: `No market data found for ${ticker} — check the 6-digit ticker` },
+          [url],
+        );
       }
-      return formatToolResult(mapMarketData(ticker, data), [url]);
+      return formatToolResult(mapped, [url]);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return formatToolResult({ ticker, _error: message }, []);

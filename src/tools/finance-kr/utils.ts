@@ -69,7 +69,7 @@ export function parseNaverMetric(value: unknown): number | null {
   const s = String(value)
     .trim()
     .replace(/,/g, '')
-    .replace(/[%원배주]/g, '')
+    .replace(/[%원배]/g, '')
     .replace(/^\+/, '')
     .trim();
   if (s === '' || s === '-' || s.toUpperCase() === 'N/A') return null;
