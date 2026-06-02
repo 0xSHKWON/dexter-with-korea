@@ -59,6 +59,25 @@ export function parseKrxNumber(value: unknown): number | null {
 }
 
 /**
+ * Naver's `/integration` metric strings carry Korean unit suffixes that
+ * `parseKrxNumber` does not strip — e.g. "28.69배" (PER), "12,372원" (EPS),
+ * "0.47%" (yield), "4.04" (recommendation), "401,250" (target price), "N/A".
+ * Strip the suffix/grouping and parse; null for blanks, "-", and "N/A".
+ */
+export function parseNaverMetric(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  const s = String(value)
+    .trim()
+    .replace(/,/g, '')
+    .replace(/[%원배주]/g, '')
+    .replace(/^\+/, '')
+    .trim();
+  if (s === '' || s === '-' || s.toUpperCase() === 'N/A') return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
  * KRX getJsonData responses wrap rows in an `OutBlock_1` array (some endpoints
  * use other keys). Missing/empty is a valid "no data" outcome, not an error.
  */

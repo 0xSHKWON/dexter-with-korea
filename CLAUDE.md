@@ -59,6 +59,7 @@ These bite without warning. Fix once you learn them.
 
 ### Phase 3 — Korea-specific
 - [x] `get_foreign_ownership_kr` — 외국인 지분율. Source: **Naver mobile JSON** (`m.stock.naver.com/api/stock/{code}/trend`), keyless. Registered unconditionally.
+- [x] `get_market_data_kr` — 현재가·일변동·52주·시가총액·발행주식수(도출)·PER/PBR/EPS/BPS·추정PER/EPS·배당수익률·목표주가 컨센서스(목표가+투자의견)·동종 peer. Source: **Naver mobile JSON** (`m.stock.naver.com/api/stock/{code}/integration`), keyless. Registered unconditionally. The `get_market_data` equivalent for 6-digit tickers (get_market_data does NOT resolve them) — unblocks DCF 현재가/발행주식수 (previously `web_search` inference). 시총은 `2,075조 4,289억` 문자열을 조/억 파싱; 발행주식수 = 시총÷현재가 도출(정확값은 `get_short_balance_kr.listedShares`); 지표값은 `배`/`원`/`%` 접미사라 `parseNaverMetric`로 파싱.
 - [x] `get_short_balance_kr` — 공매도 순보유잔고. Source: **KRX Data Marketplace login scrape** (bld `MDCSTAT30502`). Needs `KRX_ID`/`KRX_PW` (anonymous access returns `LOGOUT` since 2024–25). Ticker→ISIN via `MDCSTAT01901` (`src/data/krx-instrument-registry.ts`). Login flow ported from pykrx in `src/tools/finance-kr/krx-session.ts`.
 - [x] `get_nps_holdings` — 국민연금 보유. Source: **data.go.kr odcloud** dataset 3070507 (year-end snapshot, not quarterly). Needs `DATA_GO_KR_SERVICE_KEY` (Decoded key). No ticker column → matches by Korean stock name.
 

@@ -95,6 +95,10 @@ function summarizeToolResult(tool: string, args: Record<string, unknown>, result
           const n = Array.isArray(parsed.data.ownership) ? parsed.data.ownership.length : 0;
           return `Found ${n} days`;
         }
+        if (tool === 'get_market_data_kr') {
+          const price = parsed.data.quote?.price;
+          return typeof price === 'number' ? `Price ₩${price.toLocaleString()}` : 'Received snapshot';
+        }
         if (tool === 'get_nps_holdings') {
           const n = Array.isArray(parsed.data.holdings) ? parsed.data.holdings.length : 0;
           return `Found ${n} holdings`;
