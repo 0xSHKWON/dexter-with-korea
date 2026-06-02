@@ -39,7 +39,11 @@ DCF 분석 진행:
 > **출력은 `periods[].summary` 에 정규화돼 있다(KRW).** 라벨을 직접 파싱하지 말고 이 필드를 읽어라:
 > - 현금흐름: `cashFlow.operating`(=영업현금흐름), `cashFlow.capex`, `ratios.freeCashFlow`(=영업CF−|capex|). `free_cash_flow`가 없으면 이 값을 쓴다.
 > - 손익: `incomeStatement.revenue / operatingProfit / netIncome`, `ratios.revenueYoYPct`.
-> - 재무상태표: `balanceSheet.totalLiabilities`(순부채 근사; 가능하면 이자부채만 별도 확인), `balanceSheet.cashAndEquivalents`, `balanceSheet.totalEquity`.
+> - 재무상태표 — **순부채(Net Debt)는 부채총계가 아니다. 이자부채만 쓴다:**
+>   - `balanceSheet.totalDebt`(이자부채 합계 = 단기차입금+유동성장기부채+사채+장기차입금+전환사채), `balanceSheet.cashAndEquivalents`(현금및현금성자산), `balanceSheet.shortTermInvestments`(단기금융상품), `balanceSheet.totalEquity`.
+>   - **Net Debt = `totalDebt` − (`cashAndEquivalents` + `shortTermInvestments`)**. 음수면 **순현금(net cash)** 기업 — 이때 주식가치는 EV보다 **커진다**(순현금을 더한다). 삼성전자처럼 차입금이 작고 현금+단기금융상품이 큰 종목이 대표적(부채총계를 순부채로 쓰면 부호가 뒤집혀 저평가).
+>   - `totalDebt`가 `null`이면(은행·지주사 등 이자부채 라벨 비표준) `rawLineItemsFile`을 `read_file`로 열어 차입금·사채 라인을 `account_id`로 직접 합산하라. 그래도 불명확하면 보고된 `enterprise_value`·시총 기반 브리지로 폴백.
+>   - `balanceSheet.totalLiabilities`(부채총계)·`ratios.debtToEquityPct`는 레버리지 점검용일 뿐 **순부채가 아니다.** 리스부채는 totalDebt에 포함하지 않는다(영업성; FCF에 이미 반영).
 > - 각 metric은 `{ current, prior, label, display }` 구조이며 `current`(당기)를 쓴다. 분기·반기 손익/현금흐름은 누적(YTD)임을 `summary.basis`가 알려준다.
 > - 발행주식수(`outstanding_shares`)는 summary에 없다 — `get_market_data_kr`의 `valuation.sharesOutstanding`(시총÷현재가 도출)을 쓰고, 정확한 상장주식수가 필요하면 `get_short_balance_kr`의 `listedShares`로 보완한다.
 >
@@ -123,7 +127,16 @@ DCF 분석 진행:
 
 ## Step 5: 현재가치 계산
 
-모든 FCF를 할인 → 합산해 기업가치(Enterprise Value) → 순부채(Net Debt) 차감 → `outstanding_shares`로 나눠 주당 적정가치를 구한다.
+모든 FCF를 현재가치로 할인하고 합산해 **기업가치(Enterprise Value, EV)**를 구한다. 그다음 EV를 **주식가치(Equity Value)**로 전환한다:
+
+> **Equity Value = EV − Net Debt**, &nbsp; **Net Debt = Total Debt − Cash − Short-term Investments**
+
+**부호 규칙(중요):** Net Debt가 음수이면 회사는 **순현금(net cash)** 상태다 — 현금성자산이 차입금보다 많다. 이때는 순현금을 **더하므로 Equity Value가 EV보다 커진다.** 순부채를 무조건 "차감"으로만 생각해 부호를 뒤집지 마라. **총부채(부채총계)를 순부채로 혼동하면 순현금 기업을 저평가한다** (이자부채만 Net Debt에 들어간다).
+
+마지막으로 `outstanding_shares`로 나눠 주당 적정가치를 구한다.
+
+- **US 경로:** Total Debt=`total_debt`, Cash=`cash_and_equivalents`, Short-term Investments=`current_investments`(없으면 0) — §1.3에서 추출.
+- **🇰🇷 KR 경로:** Total Debt=`balanceSheet.totalDebt`, Cash=`balanceSheet.cashAndEquivalents`, Short-term Investments=`balanceSheet.shortTermInvestments`, 주식수=`valuation.sharesOutstanding`. `totalDebt`가 `null`이면 §1 KR override의 폴백(rawLineItemsFile 직접 합산 또는 보고된 EV 브리지)을 따른다.
 
 ## Step 6: 민감도 분석
 
@@ -143,6 +156,8 @@ DCF 분석 진행:
    - 40% 미만이면 단기 투영이 공격적일 수 있음
 
 3. **주당 교차 점검**: `free_cash_flow_per_share × 15~25`와 비교해 대략적 합리성 점검
+
+4. **순부채 부호·규모 점검**: Net Debt 부호가 회사 실태와 맞는지 확인하라. 차입금이 현금+단기금융상품보다 작은데 양(+)의 큰 Net Debt가 나오면 총부채를 잘못 쓴 것이다(순현금 기업은 Net Debt<0, Equity Value>EV). 또 |Net Debt|가 시가총액 대비 비현실적으로 크면(예: 시총의 절반 초과) 차입금 합산 누락/과다를 의심하고 `ratios.debtToEquityPct`·`rawLineItemsFile`과 교차 확인하라.
 
 검증에 실패하면 결과를 제시하기 전에 가정을 재고하라.
 
