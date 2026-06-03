@@ -61,8 +61,16 @@ export interface FinancialSummary {
   balanceSheet: {
     totalAssets: MetricVal;
     totalLiabilities: MetricVal;
+    /**
+     * Interest-bearing debt only (단기차입금 + 유동성장기부채 + 사채 + 장기차입금 + 전환사채 등),
+     * NOT 부채총계. This is the net-debt numerator; `null` when no borrowing line matches
+     * (banks/holdcos/insurers use non-standard labels — the model drills the raw file).
+     */
+    totalDebt: MetricVal;
     totalEquity: MetricVal;
     cashAndEquivalents: MetricVal;
+    /** 단기금융상품 — short-term financial instruments, cash-equivalent for the net-debt bridge. */
+    shortTermInvestments: MetricVal;
   };
   cashFlow: {
     operating: MetricVal;
@@ -95,6 +103,21 @@ interface AccountSpec {
   accountNms: string[];
   kind: MetricKind;
   statement: Statement;
+}
+
+/**
+ * Spec for a metric that is the SUM of several line items (e.g. total interest-bearing
+ * debt). Unlike AccountSpec/findMetric (one row), sumMetrics adds EVERY row whose
+ * account_id ∈ accountIds OR account_nm ∈ accountNms — a filer may report the same
+ * concept across multiple rows (LG화학 lists current and non-current borrowings as two
+ * rows both labelled exactly "차입금"). Matching is by the exact-set membership only (no
+ * substring), so 리스부채/충당부채/매입채무 stay out.
+ */
+export interface SumSpec {
+  sjDiv: Statement;
+  accountIds: string[];
+  accountNms: string[];
+  kind: MetricKind;
 }
 
 /** account_id mapping verified against real DART payloads (Samsung 005930, CFS). */
@@ -164,6 +187,15 @@ export const ACCOUNT_SPECS: Record<string, AccountSpec> = {
     kind: 'amount',
     statement: 'BS',
   },
+  // 단기금융상품 (short-term financial instruments) — cash-equivalent for net debt. id/nm
+  // verified against real DART CFS payloads (삼성전자 005930 and 알테오젠 both use this id).
+  shortTermInvestments: {
+    sjDivs: ['BS'],
+    accountIds: ['ifrs-full_ShorttermDepositsNotClassifiedAsCashEquivalents'],
+    accountNms: ['단기금융상품'],
+    kind: 'amount',
+    statement: 'BS',
+  },
   cfo: {
     sjDivs: ['CF'],
     accountIds: ['ifrs-full_CashFlowsFromUsedInOperatingActivities'],
@@ -192,6 +224,55 @@ export const ACCOUNT_SPECS: Record<string, AccountSpec> = {
     kind: 'amount',
     statement: 'CF',
   },
+};
+
+/**
+ * Interest-bearing debt for the Net Debt bridge: Net Debt = totalDebt − (cash + STI).
+ * Summed across every matching BS row (a filer may split borrowings over several lines,
+ * or — like LG화학 — report two rows both labelled exactly "차입금").
+ *
+ * VERIFIED against real DART CFS payloads: 삼성전자 005930 (단기차입금 carries account_id
+ * `-표준계정코드 미사용-` → the account_nm set, not the id, resolves it; plus 유동성장기부채/
+ * 사채/장기차입금), LG화학 051910 (bare "차입금" ×2 — current + non-current), 알테오젠 196170
+ * (유동전환사채/유동성장기차입금). The id set is a preference layer; the exact-nm set is the
+ * reliable matcher.
+ *
+ * BEST-EFFORT (plausible but NOT present in those three samples): 유동성사채, 단기사채,
+ * 전환사채, 비유동 전환사채, 신주인수권부사채, 유동성신주인수권부사채. Exact-match means each
+ * either hits the real label or harmlessly misses — never a false positive.
+ *
+ * 리스부채 (operating, already in FCF) is intentionally EXCLUDED. Caveat: a filer reporting
+ * BOTH itemized borrowings AND a bare "차입금" subtotal would double-count — not observed
+ * (fnlttSinglAcntAll lists reported leaves, not computed subtotals), and Step 7 of the DCF
+ * skill cross-checks |Net Debt| vs market cap as a backstop.
+ */
+export const DEBT_SUM_SPEC: SumSpec = {
+  sjDiv: 'BS',
+  kind: 'amount',
+  accountIds: [
+    'ifrs-full_ShorttermBorrowings',
+    'ifrs-full_CurrentPortionOfLongtermBorrowings',
+    'ifrs-full_NoncurrentPortionOfNoncurrentLoansReceived',
+    'ifrs-full_LongtermBorrowings',
+    'ifrs-full_NoncurrentPortionOfNoncurrentBondsIssued',
+    'ifrs-full_BondsIssued',
+    'dart_CurrentPortionOfConvertibleBonds',
+  ],
+  accountNms: [
+    '단기차입금',
+    '차입금',
+    '유동성장기부채',
+    '유동성장기차입금',
+    '장기차입금',
+    '유동성사채',
+    '사채',
+    '단기사채',
+    '유동전환사채',
+    '전환사채',
+    '비유동 전환사채',
+    '신주인수권부사채',
+    '유동성신주인수권부사채',
+  ],
 };
 
 const BASIS_NOTES: Record<ReportType, string> = {
@@ -263,19 +344,61 @@ export function findMetric(list: DartRow[], spec: AccountSpec): MetricVal {
   return { ...EMPTY_METRIC };
 }
 
+/**
+ * Prior-year same-period amount. On quarterly/semiannual flow statements DART leaves
+ * frmtrm_amount empty and carries 전년 동기 in frmtrm_q_amount; on annual reports (and the
+ * quarterly balance sheet) there is no _q field, so fall back to frmtrm_amount (전기 /
+ * 전년말). Without this, quarterly YoY is silently null.
+ */
+function priorAmount(row: DartRow): number | null {
+  const priorQ = parseAmount(row.frmtrm_q_amount);
+  return priorQ !== null ? priorQ : parseAmount(row.frmtrm_amount);
+}
+
 function toMetric(row: DartRow, kind: MetricKind): MetricVal {
   const current = parseAmount(row.thstrm_amount);
-  // Prior-year same period. On quarterly/semiannual flow statements DART leaves
-  // frmtrm_amount empty and carries 전년 동기 in frmtrm_q_amount; on annual reports
-  // (and the quarterly balance sheet) there is no _q field, so fall back to
-  // frmtrm_amount (전기 / 전년말). Without this, quarterly YoY is silently null.
-  const priorQ = parseAmount(row.frmtrm_q_amount);
-  const prior = priorQ !== null ? priorQ : parseAmount(row.frmtrm_amount);
+  return {
+    current,
+    prior: priorAmount(row),
+    label: row.account_nm ?? null,
+    display: formatDisplay(current, kind),
+  };
+}
+
+/**
+ * Sum every BS row whose account_id ∈ spec.accountIds OR account_nm (whitespace-
+ * insensitive) ∈ spec.accountNms, counting each physical row once. Used for totalDebt,
+ * which spans several borrowing lines. Returns EMPTY_METRIC when nothing matches; a filer
+ * missing some borrowing lines still gets the sum of the ones it reports.
+ *
+ * NOTE: do NOT put the sentinel `-표준계정코드 미사용-` in accountIds — many unrelated rows
+ * share it; those lines are matched by their exact account_nm instead.
+ */
+export function sumMetrics(list: DartRow[], spec: SumSpec): MetricVal {
+  const idSet = new Set(spec.accountIds);
+  const nmSet = new Set(spec.accountNms.map(squash));
+  const matched = list.filter(
+    (r) =>
+      r.sj_div === spec.sjDiv &&
+      ((r.account_id !== undefined && idSet.has(r.account_id)) ||
+        (r.account_nm !== undefined && nmSet.has(squash(r.account_nm)))),
+  );
+  if (matched.length === 0) return { ...EMPTY_METRIC };
+
+  let current: number | null = null;
+  let prior: number | null = null;
+  for (const row of matched) {
+    const c = parseAmount(row.thstrm_amount);
+    if (c !== null) current = (current ?? 0) + c;
+    const p = priorAmount(row);
+    if (p !== null) prior = (prior ?? 0) + p;
+  }
+  const labels = [...new Set(matched.map((r) => r.account_nm).filter((n): n is string => !!n))];
   return {
     current,
     prior,
-    label: row.account_nm ?? null,
-    display: formatDisplay(current, kind),
+    label: labels.length > 0 ? labels.join(' + ') : null,
+    display: formatDisplay(current, spec.kind),
   };
 }
 
@@ -310,8 +433,10 @@ export function summarizePeriod(list: DartRow[], opts: SummarizeOpts): Financial
   const eps = m('eps');
   const totalAssets = m('totalAssets');
   const totalLiabilities = m('totalLiabilities');
+  const totalDebt = sumMetrics(list, DEBT_SUM_SPEC);
   const totalEquity = m('totalEquity');
   const cashAndEquivalents = m('cashAndEquivalents');
+  const shortTermInvestments = m('shortTermInvestments');
   const cfo = m('cfo');
   const cfi = m('cfi');
   const cff = m('cff');
@@ -337,7 +462,7 @@ export function summarizePeriod(list: DartRow[], opts: SummarizeOpts): Financial
     unit: 'KRW',
     basis: BASIS_NOTES[opts.report_type],
     incomeStatement: { revenue, operatingProfit, netIncome, controllingNetIncome, eps },
-    balanceSheet: { totalAssets, totalLiabilities, totalEquity, cashAndEquivalents },
+    balanceSheet: { totalAssets, totalLiabilities, totalDebt, totalEquity, cashAndEquivalents, shortTermInvestments },
     cashFlow: { operating: cfo, investing: cfi, financing: cff, capex },
     ratios: {
       operatingMarginPct: ratioPct(operatingProfit.current, revenue.current),

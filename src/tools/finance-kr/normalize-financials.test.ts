@@ -3,8 +3,10 @@ import {
   parseAmount,
   formatKrw,
   findMetric,
+  sumMetrics,
   summarizePeriod,
   ACCOUNT_SPECS,
+  DEBT_SUM_SPEC,
   type DartRow,
 } from './normalize-financials.js';
 
@@ -143,5 +145,107 @@ describe('summarizePeriod', () => {
     expect(empty.incomeStatement.revenue.current).toBeNull();
     expect(empty.ratios.operatingMarginPct).toBeNull();
     expect(empty.ratios.freeCashFlow).toBeNull();
+  });
+});
+
+// Net-debt inputs (totalDebt = interest-bearing borrowings; shortTermInvestments = 단기금융상품).
+// Fixtures use REAL DART CFS line items so account_id/account_nm reflect actual filings:
+//   - 삼성전자 005930 lists 단기차입금 with account_id '-표준계정코드 미사용-' (no standard code)
+//   - LG화학 051910 aggregates all borrowings into two rows both labelled exactly "차입금"
+//   - 단기금융상품 uses ifrs-full_ShorttermDepositsNotClassifiedAsCashEquivalents
+describe('balanceSheet.totalDebt — interest-bearing debt sum', () => {
+  // 삼성전자 2025 연결 BS, actual figures.
+  const samsungBS: DartRow[] = [
+    { sj_div: 'BS', account_id: '-표준계정코드 미사용-', account_nm: '단기차입금', thstrm_amount: '17,574,980,000,000', frmtrm_amount: '17,000,000,000,000' },
+    { sj_div: 'BS', account_id: 'ifrs-full_CurrentPortionOfLongtermBorrowings', account_nm: '유동성장기부채', thstrm_amount: '1,177,508,000,000', frmtrm_amount: '1,000,000,000,000' },
+    { sj_div: 'BS', account_id: 'ifrs-full_NoncurrentPortionOfNoncurrentBondsIssued', account_nm: '사채', thstrm_amount: '7,134,000,000', frmtrm_amount: '7,000,000,000' },
+    { sj_div: 'BS', account_id: 'ifrs-full_NoncurrentPortionOfNoncurrentLoansReceived', account_nm: '장기차입금', thstrm_amount: '6,479,517,000,000', frmtrm_amount: '6,000,000,000,000' },
+    { sj_div: 'BS', account_id: 'ifrs-full_CashAndCashEquivalents', account_nm: '현금및현금성자산', thstrm_amount: '57,856,378,000,000', frmtrm_amount: '49,680,710,000,000' },
+    { sj_div: 'BS', account_id: 'ifrs-full_ShorttermDepositsNotClassifiedAsCashEquivalents', account_nm: '단기금융상품', thstrm_amount: '67,965,021,000,000', frmtrm_amount: '65,102,886,000,000' },
+    // noise that must NOT be summed into debt:
+    { sj_div: 'BS', account_id: 'ifrs-full_CurrentLeaseLiabilities', account_nm: '유동 리스부채', thstrm_amount: '1,500,000,000,000', frmtrm_amount: '1,400,000,000,000' },
+    { sj_div: 'BS', account_id: 'ifrs-full_NoncurrentLeaseLiabilities', account_nm: '비유동 리스부채', thstrm_amount: '2,000,000,000,000', frmtrm_amount: '1,900,000,000,000' },
+    { sj_div: 'BS', account_id: '-표준계정코드 미사용-', account_nm: '매입채무', thstrm_amount: '12,000,000,000,000', frmtrm_amount: '11,000,000,000,000' },
+    { sj_div: 'BS', account_id: 'ifrs-full_CurrentProvisions', account_nm: '유동성충당부채', thstrm_amount: '5,000,000,000,000', frmtrm_amount: '4,500,000,000,000' },
+  ];
+
+  it('sums every borrowing line (단기차입금 matched by name — its id is the no-code sentinel)', () => {
+    const s = summarizePeriod(samsungBS, { bsns_year: 2025, report_type: 'annual', fs_div: 'CFS' });
+    expect(s.balanceSheet.totalDebt.current).toBe(25_239_139_000_000);
+    expect(s.balanceSheet.totalDebt.prior).toBe(24_007_000_000_000);
+    expect(s.balanceSheet.totalDebt.display).toBe('25.2조');
+    expect(s.balanceSheet.totalDebt.label).toBe('단기차입금 + 유동성장기부채 + 사채 + 장기차입금');
+  });
+
+  it('excludes 리스부채 / 매입채무 / 충당부채 from debt', () => {
+    const debt = sumMetrics(samsungBS, DEBT_SUM_SPEC);
+    // If leases/payables/provisions leaked in, the sum would jump by 20.5조.
+    expect(debt.current).toBe(25_239_139_000_000);
+    expect(debt.label).not.toContain('리스');
+    expect(debt.label).not.toContain('매입채무');
+  });
+
+  it('resolves 단기금융상품 as shortTermInvestments → company is net cash', () => {
+    const s = summarizePeriod(samsungBS, { bsns_year: 2025, report_type: 'annual', fs_div: 'CFS' });
+    expect(s.balanceSheet.shortTermInvestments.current).toBe(67_965_021_000_000);
+    expect(s.balanceSheet.shortTermInvestments.display).toBe('68.0조');
+    // Net Debt = totalDebt − (cash + shortTermInvestments) must be deeply negative (net cash).
+    const cash = s.balanceSheet.cashAndEquivalents.current!;
+    const sti = s.balanceSheet.shortTermInvestments.current!;
+    const debt = s.balanceSheet.totalDebt.current!;
+    expect(debt - (cash + sti)).toBe(-100_582_260_000_000);
+    expect(debt - (cash + sti)).toBeLessThan(0);
+  });
+
+  it('sums multiple rows sharing the same label (LG화학 lists 차입금 twice: current + non-current)', () => {
+    const lgChemBS: DartRow[] = [
+      { sj_div: 'BS', account_id: '-표준계정코드 미사용-', account_nm: '차입금', thstrm_amount: '3,804,367,000,000', frmtrm_amount: '3,000,000,000,000' },
+      { sj_div: 'BS', account_id: '-표준계정코드 미사용-', account_nm: '차입금', thstrm_amount: '12,160,152,000,000', frmtrm_amount: '11,000,000,000,000' },
+      { sj_div: 'BS', account_id: 'ifrs-full_CashAndCashEquivalents', account_nm: '현금및현금성자산', thstrm_amount: '8,497,882,000,000' },
+    ];
+    const debt = sumMetrics(lgChemBS, DEBT_SUM_SPEC);
+    expect(debt.current).toBe(15_964_519_000_000); // both rows, not just the first
+    expect(debt.prior).toBe(14_000_000_000_000);
+    expect(debt.label).toBe('차입금'); // deduped label
+  });
+
+  it('includes 전환사채 (convertible bonds) and 유동성장기차입금 variant', () => {
+    const altBS: DartRow[] = [
+      { sj_div: 'BS', account_id: '-표준계정코드 미사용-', account_nm: '유동성장기차입금', thstrm_amount: '972,248,000' },
+      { sj_div: 'BS', account_id: 'dart_CurrentPortionOfConvertibleBonds', account_nm: '유동전환사채', thstrm_amount: '1,600,360,970' },
+      { sj_div: 'BS', account_id: 'ifrs-full_NoncurrentPortionOfNoncurrentLoansReceived', account_nm: '장기차입금', thstrm_amount: '4,027,752,000' },
+    ];
+    const debt = sumMetrics(altBS, DEBT_SUM_SPEC);
+    expect(debt.current).toBe(972_248_000 + 1_600_360_970 + 4_027_752_000);
+    expect(debt.label).toContain('유동전환사채');
+  });
+
+  it('counts a row matched by both id and name only once (no double count)', () => {
+    const dupMatch: DartRow[] = [
+      // matches DEBT_SUM_SPEC by BOTH account_id and account_nm
+      { sj_div: 'BS', account_id: 'ifrs-full_CurrentPortionOfLongtermBorrowings', account_nm: '유동성장기부채', thstrm_amount: '1,000,000,000,000' },
+    ];
+    expect(sumMetrics(dupMatch, DEBT_SUM_SPEC).current).toBe(1_000_000_000_000);
+  });
+
+  it('totalDebt / shortTermInvestments are null for filers with no borrowing lines (banks/holdcos)', () => {
+    const bankBS: DartRow[] = [
+      { sj_div: 'BS', account_id: 'ifrs-full_CashAndCashEquivalents', account_nm: '현금및현금성자산', thstrm_amount: '20,000,000,000,000' },
+      { sj_div: 'BS', account_id: '-표준계정코드 미사용-', account_nm: '예수부채', thstrm_amount: '300,000,000,000,000' },
+      { sj_div: 'BS', account_id: '-표준계정코드 미사용-', account_nm: '보험계약부채', thstrm_amount: '150,000,000,000,000' },
+    ];
+    const s = summarizePeriod(bankBS, { bsns_year: 2025, report_type: 'annual', fs_div: 'CFS' });
+    expect(s.balanceSheet.totalDebt.current).toBeNull();
+    expect(s.balanceSheet.totalDebt.label).toBeNull();
+    expect(s.balanceSheet.shortTermInvestments.current).toBeNull();
+  });
+
+  it('does not substring-match (예수부채 / 매입채무 are not 차입금)', () => {
+    const tricky: DartRow[] = [
+      { sj_div: 'BS', account_id: '-표준계정코드 미사용-', account_nm: '예수부채', thstrm_amount: '999,000,000,000' },
+      { sj_div: 'BS', account_id: '-표준계정코드 미사용-', account_nm: '단기차입금및유동성장기부채', thstrm_amount: '888,000,000,000' },
+    ];
+    // bare-label set is exact: neither row equals an entry, so debt is null.
+    expect(sumMetrics(tricky, DEBT_SUM_SPEC).current).toBeNull();
   });
 });
