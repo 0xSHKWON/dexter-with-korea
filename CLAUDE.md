@@ -27,8 +27,8 @@ CI runs `typecheck` + `test` on push/PR.
 
 These bite without warning. Fix once you learn them.
 
-- **TUI is `@mariozechner/pi-tui`, not Ink.** `src/index.tsx` has the `.tsx` extension for historical reasons; there is no JSX in the active CLI (`src/cli.ts`). `AGENTS.md` and `README.md` still say Ink — trust the code.
-- **Tools are conditionally registered by env var** (`src/tools/registry.ts`). Missing `EXASEARCH_API_KEY` → exa just isn't a `web_search` candidate. Missing `FINANCIAL_DATASETS_API_KEY` → all `get_*` finance tools absent.
+- **TUI is `@mariozechner/pi-tui`, not Ink.** `src/index.tsx` has the `.tsx` extension for historical reasons; there is no JSX in the active CLI (`src/cli.ts`). `src/components/` are plain-`.ts` pi-tui components (no React/JSX, no `src/hooks/`). Trust the code.
+- **Registration is by env var — but the US finance tools are NOT gated.** (`src/tools/registry.ts`) `get_financials`/`get_market_data`/`read_filings`/`stock_screener` and the keyless Naver KR tools (`get_market_data_kr`/`get_foreign_ownership_kr`) register **unconditionally**; without `FINANCIAL_DATASETS_API_KEY` the US ones stay bound to the LLM and 401 at call-time — they are NOT absent. Actually gated: `DART_API_KEY` → the 5 KR DART tools; ≥1 of `EXASEARCH_API_KEY`/`PERPLEXITY_API_KEY`/`TAVILY_API_KEY`/`LANGSEARCH_API_KEY` → `web_search` (missing one just drops that provider, not the tool); `KRX_*` / `DATA_GO_KR_SERVICE_KEY` / `X_BEARER_TOKEN` → their respective tools.
 - **`your-` is treated as a placeholder.** `checkApiKeyExists` (`src/utils/env.ts`) ignores values starting with `your-`. Copying `env.example` without replacing values = "key missing" behavior.
 - **Tool output shape feeds the UI.** `summarizeToolResult` in `src/cli.ts` switches on `tool` name and inspects `parsed.data` shape. New finance tools must return `{ data: ... }` and need a matching case here, or the UI shows stale status lines.
 - **`concurrencySafe` flag.** Each tool declares it; the executor parallelizes safe tools and serializes unsafe ones (browser, stateful APIs). Wrong value = subtle race conditions.
@@ -87,6 +87,6 @@ These bite without warning. Fix once you learn them.
 
 ## Stale docs
 
-- `AGENTS.md` is upstream's contributor doc with drift (says Ink/React, entry `cli.tsx`).
-- `README.md` mentions Ink in places. The 🇰🇷 section is current.
+- `AGENTS.md` (upstream contributor doc): the TUI/tool drift has been corrected to match this fork (pi-tui not Ink, real tool names, KR tools, single-pass final answer). It still carries less KR detail than CLAUDE.md + README — prefer those for Korean specifics.
+- `README.md` is current (no Ink references; the 🇰🇷 section is authoritative).
 - When in doubt, read the code.
