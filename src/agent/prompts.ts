@@ -1,5 +1,5 @@
 import { buildCompactToolDescriptions } from '../tools/registry.js';
-import { checkApiKeyExists } from '../utils/env.js';
+import { hasDartKey } from '../utils/env.js';
 import { buildSkillMetadataSection, discoverSkills } from '../skills/index.js';
 import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -87,14 +87,34 @@ ${skillList}
 }
 
 /**
- * Korea-specific research playbook. Only included when DART-backed KR tools are
- * active (DART_API_KEY present). These first-party data sources are the agent's
- * edge over generic assistants; without explicit synthesis guidance the model
- * defaults to a generic per-metric summary indistinguishable from a chatbot.
+ * Korea-specific research playbook, in two tiers. These first-party data sources
+ * are the agent's edge over generic assistants; without explicit synthesis
+ * guidance the model defaults to a generic per-metric summary.
+ *  - Full tier (DART_API_KEY present): the complete DART-backed sweep + synthesis.
+ *  - Keyless tier (no DART key): get_market_data_kr and get_foreign_ownership_kr
+ *    are registered UNCONDITIONALLY (Naver, no key), so the 수급·밸류에이션 guidance
+ *    must survive without DART — otherwise the model loses the playbook for tools
+ *    it still has. Referencing only the always-registered keyless tools avoids
+ *    pointing the model at unbound DART tools.
+ * Pure (the DART-key check lives at the call site) so both tiers are unit-testable.
  */
-function buildKoreanResearchSection(): string {
-  if (!checkApiKeyExists('DART_API_KEY')) {
-    return '';
+export function buildKoreanResearchSection(hasDartKey: boolean): string {
+  if (!hasDartKey) {
+    return `## Korean Stock Research (6-digit tickers — keyless market-data edge)
+
+Even without a DART key you have keyless first-party Korean data a general chatbot does
+NOT have: get_market_data_kr (현재가·일변동·52주·시가총액·PER/PBR/EPS/BPS·추정PER·배당수익률·
+목표주가 컨센서스·동종 peer) and get_foreign_ownership_kr (일별 외국인 지분율 + 외국인/기관/개인
+순매수 흐름). For any Korean-stock 가격 / 밸류에이션 / 수급 question:
+
+- GROUND every claim in those tool numbers, dated — current 현재가, PER/PBR vs 업종·자기 과거
+  밴드, 목표주가 컨센서스 대비 상승여력, 외국인 지분율 수준 + 최근 순매수 방향(외국인 vs 기관 vs 개인).
+  Never quote a price or multiple from memory; call the tool.
+- SYNTHESIZE 수급(외국인·기관 방향)과 밸류에이션을 하나의 관점으로 묶으세요 — 단순 나열 금지.
+  공매도 잔고(get_short_balance_kr)·국민연금(get_nps_holdings)이 등록돼 있으면 smart-money 신호로 함께 엮으세요.
+- STATE LIMITS honestly: DART 키가 없으면 정확한 K-IFRS 실적·공시·5%룰·임원거래는 조회 불가입니다.
+  실적 기반 판단이 필요하면 그 한계를 명시하고(숫자를 지어내지 말 것) DART_API_KEY 추가를 제안하세요 —
+  가격·수급 범위 안에서만 확정적으로 답하세요.`;
   }
 
   return `## Korean Stock Research (6-digit tickers — your edge over generic assistants)
@@ -296,7 +316,7 @@ ${toolDescriptions}
 - Tool results are automatically capped. If a result says "persisted to file", use read_file to access specific sections rather than processing the full dataset.
 - Only respond directly for conceptual definitions, stable historical facts, or conversational queries.
 
-${buildKoreanResearchSection()}
+${buildKoreanResearchSection(hasDartKey())}
 
 ${buildSkillsSection()}
 
