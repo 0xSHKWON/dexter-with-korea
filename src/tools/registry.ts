@@ -223,7 +223,7 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       tool: createReadFilingsKr(model),
       description: READ_FILINGS_KR_DESCRIPTION,
       compactDescription:
-        'Korean DART 사업·반기·분기보고서 narrative (사업의 내용, 위험관리, 경영진단 MD&A) — qualitative content for 6-digit tickers.',
+        'Korean DART 사업·반기·분기보고서 narrative (사업의 내용, 위험관리, 경영진단 MD&A, 지배구조·최대주주·계열회사) — qualitative content for 6-digit tickers.',
       concurrencySafe: true,
     });
   }

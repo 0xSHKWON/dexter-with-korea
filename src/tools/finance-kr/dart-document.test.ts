@@ -157,3 +157,79 @@ describe('real fixture (Samsung 005930 사업보고서 II. 사업의 내용)', (
     expect(sel.risks).toContain('위험'); // 재무위험관리정책 …
   });
 });
+
+describe('governance category', () => {
+  // VI 이사회 등 회사의 기관 / VII 주주에 관한 사항 / IX 계열회사 등 / X 대주주 등과의 거래내용,
+  // interleaved with II (business) and XI (other) which governance must NOT pull.
+  const GOV_SAMPLE = `<?xml version="1.0" encoding="utf-8"?>
+<DOCUMENT><BODY>
+<TITLE ATOC="Y" ENG="II. Business">II. 사업의 내용</TITLE>
+<P>당사는 반도체 사업을 영위합니다.</P>
+<TITLE ATOC="Y" ENG="VI. Board and organs">VI. 이사회 등 회사의 기관에 관한 사항</TITLE>
+<TITLE ATOC="Y" ENG="1. Board">1. 이사회에 관한 사항</TITLE>
+<P>이사회는 사내이사 5인과 사외이사 6인으로 구성됩니다.</P>
+<TITLE ATOC="Y" ENG="VII. Shareholders">VII. 주주에 관한 사항</TITLE>
+<TITLE ATOC="Y" ENG="1. Largest shareholder">1. 최대주주 및 그 특수관계인의 주식소유 현황</TITLE>
+<P>최대주주는 외 특수관계인이며 지분 합계는 20.1%입니다.</P>
+<TITLE ATOC="Y" ENG="2. Distribution">2. 주식의 분포</TITLE>
+<P>소액주주는 전체의 78%를 보유합니다.</P>
+<TITLE ATOC="Y" ENG="IX. Affiliates">IX. 계열회사 등에 관한 사항</TITLE>
+<P>삼성물산 등 59개 계열회사를 보유하며 순환출자 구조가 존재합니다.</P>
+<TITLE ATOC="Y" ENG="X. Related-party">X. 대주주 등과의 거래내용</TITLE>
+<P>대주주와의 자금거래 및 담보제공 내역.</P>
+<TITLE ATOC="Y" ENG="XI. Other">XI. 그 밖에 투자자 보호를 위하여 필요한 사항</TITLE>
+<P>제재현황 없음.</P>
+</BODY></DOCUMENT>`;
+
+  const sections = splitSections(GOV_SAMPLE);
+
+  it('pulls VI/VII/IX/X ownership & governance prose', () => {
+    const { governance } = selectSections(sections, ['governance']);
+    expect(governance).toContain('사외이사 6인'); // VI 이사회
+    expect(governance).toContain('최대주주'); // VII 주주
+    expect(governance).toContain('소액주주는 전체의 78%'); // VII.2 주식의 분포 (generic-titled sub, by parent)
+    expect(governance).toContain('순환출자'); // IX 계열회사
+    expect(governance).toContain('대주주와의 자금거래'); // X 대주주 등과의 거래
+  });
+
+  it('does not bleed into II business or XI other-matters', () => {
+    const { governance } = selectSections(sections, ['governance']);
+    expect(governance).not.toContain('반도체 사업'); // II
+    expect(governance).not.toContain('제재현황 없음'); // XI
+  });
+
+  it('business does not pull governance sections', () => {
+    const { business } = selectSections(sections, ['business']);
+    expect(business).toContain('반도체 사업');
+    expect(business ?? '').not.toContain('최대주주');
+  });
+
+  it('drops headerless, title-less fragments (no empty-label block)', () => {
+    // A whitespace-only <TITLE> under a governance major → numeral='' & title=''. It matches
+    // by parent but must be filtered out as noise, not emitted as an empty "[]" block.
+    const noise = splitSections(
+      `<DOCUMENT><BODY>
+<TITLE ATOC="Y" ENG="VII. Shareholders">VII. 주주에 관한 사항</TITLE>
+<P>최대주주 지분 20%.</P>
+<TITLE ATOC="Y" ENG=""> </TITLE>
+<P>헤더 없는 잡음 조각.</P>
+</BODY></DOCUMENT>`,
+    );
+    const { governance } = selectSections(noise, ['governance']);
+    expect(governance).toContain('최대주주 지분 20%'); // VII major kept
+    expect(governance).not.toContain('[]'); // empty-label block filtered
+    expect(governance).not.toContain('헤더 없는 잡음'); // the title-less fragment dropped
+  });
+
+  it('catches a shareholder section even when its numeral drifts (title fallback)', () => {
+    // VIII (∉ canonical GOV_MAJORS) — must still match via the 주주에 관한/최대주주 title regex.
+    const drift = splitSections(
+      `<DOCUMENT><BODY>
+<TITLE ATOC="Y" ENG="VIII. Shareholders (renumbered)">VIII. 주주에 관한 사항</TITLE>
+<P>최대주주 지분 30%.</P>
+</BODY></DOCUMENT>`,
+    );
+    const { governance } = selectSections(drift, ['governance']);
+    expect(governance).toContain('최대주주 지분 30%');
+  });
+});

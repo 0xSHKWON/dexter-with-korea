@@ -18,7 +18,7 @@ import { unzipSync, strFromU8 } from 'fflate';
 import { dartApi } from './api.js';
 
 /** Narrative section categories the planner can request. */
-export type SectionCategory = 'overview' | 'business' | 'products' | 'risks' | 'mdna';
+export type SectionCategory = 'overview' | 'business' | 'products' | 'risks' | 'mdna' | 'governance';
 
 export const SECTION_CATEGORIES: readonly SectionCategory[] = [
   'overview',
@@ -26,6 +26,7 @@ export const SECTION_CATEGORIES: readonly SectionCategory[] = [
   'products',
   'risks',
   'mdna',
+  'governance',
 ];
 
 export interface DsdSection {
@@ -222,6 +223,26 @@ function sectionMatches(s: DsdSection, cat: SectionCategory): boolean {
         s.parent === 'IV' ||
         /경영\s*진단|분석의견/.test(s.title)
       );
+    case 'governance': {
+      // 지배구조·소유구조·특수관계자 — the Korea-discount drivers. Scattered across the
+      // canonical 정기보고서 서식: VI 이사회 등 회사의 기관 / VII 주주에 관한 사항 /
+      // IX 계열회사 등에 관한 사항 / X 대주주 등과의 거래내용(이해관계자와의 거래), all in
+      // the main body. The 특수관계자와의 거래 footnote (III 재무 주석) is in the body too and
+      // matches here, but it is table-heavy so dsdToPlainText strips it to ~empty and it drops
+      // out — precise related-party amounts stay get_financials_kr's job, not this narrative.
+      // (Verified live against 005930 FY2025: VI/VII/IX/X yield ~9.6KB of real prose.)
+      // Numerals drift across reports (esp. 반기/분기), so match the canonical majors AND
+      // their subs by numeral, then fall back to title keywords — the title fallback catches
+      // a major (and its descriptively-titled subs) even when its numeral shifts.
+      const GOV_MAJORS = new Set(['VI', 'VII', 'IX', 'X']);
+      return (
+        (s.level === 'major' && GOV_MAJORS.has(s.numeral)) ||
+        (s.parent !== '' && GOV_MAJORS.has(s.parent)) ||
+        /주주에\s*관한|최대주주|특수관계|주식의\s*분포|계열회사|타법인.?출자|대주주.*거래|이해관계자.*거래|이사회|사외이사|회사의\s*기관|지배구조/.test(
+          s.title,
+        )
+      );
+    }
     default:
       return false;
   }
@@ -240,6 +261,9 @@ export function selectSections(
       const text = sectionText(s);
       if (text.trim().length === 0) continue;
       const label = s.numeral ? `${s.numeral}. ${s.title}` : s.title;
+      // Skip headerless, title-less fragments (numeral='' AND title='') — they carry no
+      // citable heading and only add noise (observed under governance majors in real filings).
+      if (label.trim() === '') continue;
       blocks.push(`[${label}]\n${text}`);
     }
     // Triple-newline between blocks (dsdToPlainText caps internal runs at \n\n) so the
