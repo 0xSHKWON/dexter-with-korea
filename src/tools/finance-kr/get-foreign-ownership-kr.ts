@@ -1,7 +1,7 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { fetchNaverTrend } from './naver-api.js';
-import { parseKrxNumber, toIsoDate } from './utils.js';
+import { parseKrxNumber, toIsoDate, deadColumns } from './utils.js';
 import { formatToolResult } from '../types.js';
 import { TTL_6H } from '../finance/utils.js';
 
@@ -59,7 +59,32 @@ export const getForeignOwnershipKr = new DynamicStructuredTool({
         .map(mapForeignRow)
         .sort((a, b) => b.date.localeCompare(a.date))
         .slice(0, input.limit);
-      return formatToolResult({ ...base, ownership }, [url]);
+      // Partial-drift canary: a Naver field rename makes a whole column null across
+      // every row while the array stays non-empty (no error). Flag the dead columns
+      // so the model treats the gap as suspect upstream drift, not a real zero.
+      // Genuine emptiness parses to 0 (not null — e.g. a flat/zero-foreign day), so a
+      // null column means the source field is gone, not that nothing happened. Require
+      // ≥3 rows first: on a 1-2 row window (brand-new listing) "null in every row" is
+      // trivially satisfiable and would false-positive.
+      const dead =
+        ownership.length >= 3
+          ? deadColumns(ownership, [
+              'foreignHoldRatio',
+              'foreignNetBuyQty',
+              'orgNetBuyQty',
+              'individualNetBuyQty',
+              'closePrice',
+              'tradingVolume',
+            ])
+          : [];
+      const warning =
+        dead.length > 0
+          ? `수급 컬럼이 전 구간 null: ${dead.join(', ')}. Naver trend 응답 구조 변경(필드 rename) 가능성이 있어, 값을 신뢰하기 전 확인이 필요합니다.`
+          : null;
+      return formatToolResult(
+        { ...base, ownership, ...(warning ? { _dataQualityWarning: warning } : {}) },
+        [url],
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return formatToolResult({ ...base, _error: message }, []);

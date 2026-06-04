@@ -6,6 +6,8 @@ import {
   isNoDataError,
   parseKrxNumber,
   extractOutBlock,
+  nullFields,
+  deadColumns,
 } from './utils.js';
 
 describe('toDartDate', () => {
@@ -93,5 +95,37 @@ describe('extractOutBlock', () => {
     expect(extractOutBlock({})).toEqual([]);
     expect(extractOutBlock(null)).toEqual([]);
     expect(extractOutBlock({ OutBlock_1: 'nope' })).toEqual([]);
+  });
+});
+
+describe('nullFields', () => {
+  it('lists only the null/undefined fields, preserving order', () => {
+    expect(nullFields({ a: 1, b: null, c: 'x', d: undefined })).toEqual(['b', 'd']);
+  });
+
+  it('returns [] when every field is present (including 0 and empty string)', () => {
+    expect(nullFields({ a: 0, b: '', c: false })).toEqual([]);
+  });
+});
+
+describe('deadColumns', () => {
+  it('flags a column that is null in EVERY row', () => {
+    const rows = [
+      { ratio: 1, qty: null },
+      { ratio: 2, qty: null },
+    ];
+    expect(deadColumns(rows, ['ratio', 'qty'])).toEqual(['qty']);
+  });
+
+  it('does not flag a column with even one present value (sporadic gap ≠ drift)', () => {
+    const rows = [
+      { ratio: 1, qty: null },
+      { ratio: 2, qty: 5 },
+    ];
+    expect(deadColumns(rows, ['ratio', 'qty'])).toEqual([]);
+  });
+
+  it('returns [] for an empty row set (no data ≠ drift)', () => {
+    expect(deadColumns([] as Array<{ ratio: number | null }>, ['ratio'])).toEqual([]);
   });
 });

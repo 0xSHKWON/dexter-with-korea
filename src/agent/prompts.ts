@@ -314,6 +314,7 @@ ${toolDescriptions}
 - 6-digit numeric tickers (e.g. 005930, 035420) are Korean stocks — use get_financials_kr for fundamentals, get_market_data_kr for current price·시가총액·발행주식수·PER/PBR/EPS·목표주가 컨센서스 (the get_market_data equivalent — get_market_data does NOT resolve 6-digit tickers), get_filings_kr for DART disclosures, get_large_holders_kr for 5%-rule major shareholders, get_insider_trades_kr for executive/insider ownership, get_short_balance_kr for 공매도 잔고 (short interest), get_foreign_ownership_kr for 외국인 지분율 (foreign ownership), get_nps_holdings for 국민연금 (National Pension Service) holdings, and read_filings_kr for the report narrative (사업 구성·주요 리스크·경영진단 MD&A from DART 사업/반기/분기보고서). ASCII tickers (AAPL, MSFT) use the US tools.
 - Only use web_fetch when headlines are insufficient (need quotes, deal specifics, earnings details).
 - Tool results are automatically capped. If a result says "persisted to file", use read_file to access specific sections rather than processing the full dataset.
+- If a KR market/flow tool result carries a \`_dataQualityWarning\` (possible upstream Naver schema drift), treat the flagged fields as unreliable — omit them (or, only if another tool independently provides the same value, cross-check) and tell the user about the data-quality issue rather than reporting those numbers as fact.
 - Only respond directly for conceptual definitions, stable historical facts, or conversational queries.
 
 ${buildKoreanResearchSection(hasDartKey())}

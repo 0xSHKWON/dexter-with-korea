@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'bun:test';
-import { mapMarketData, parseKoreanMarketCapToKRW, hasNoMarketData } from './get-market-data-kr.js';
+import {
+  mapMarketData,
+  parseKoreanMarketCapToKRW,
+  hasNoMarketData,
+  marketDataQualityWarning,
+} from './get-market-data-kr.js';
 import { parseNaverMetric } from './utils.js';
 
 // Shape captured from m.stock.naver.com/api/stock/005930/integration.
@@ -150,5 +155,110 @@ describe('hasNoMarketData', () => {
 
   it('does not false-positive on the full Samsung payload', () => {
     expect(hasNoMarketData(mapMarketData('005930', SAMSUNG_RAW as Record<string, unknown>))).toBe(false);
+  });
+});
+
+describe('marketDataQualityWarning (partial-drift canary)', () => {
+  it('is null for the full, healthy Samsung payload', () => {
+    expect(marketDataQualityWarning(mapMarketData('005930', SAMSUNG_RAW as Record<string, unknown>))).toBeNull();
+  });
+
+  it('is null for a truly-empty payload (that case is hasNoMarketData’s job)', () => {
+    expect(marketDataQualityWarning(mapMarketData('999999', null))).toBeNull();
+  });
+
+  it('WARNS on the partial-drift gap hasNoMarketData misses (name present, structurals null)', () => {
+    // The exact payload hasNoMarketData treats as a valid ticker (stockName only).
+    const sparse = mapMarketData('005930', { stockName: '삼성전자' } as Record<string, unknown>);
+    expect(hasNoMarketData(sparse)).toBe(false); // slips past the no-data guard…
+    const warning = marketDataQualityWarning(sparse); // …but the canary catches it
+    expect(warning).toContain('price');
+    expect(warning).toContain('marketCap');
+    expect(warning).toContain('필드 누락');
+  });
+
+  it('warns when 시총 is renamed away (critical field) even if everything else maps', () => {
+    const noMarketValue = {
+      ...SAMSUNG_RAW,
+      totalInfos: SAMSUNG_RAW.totalInfos.filter((t) => t.code !== 'marketValue'),
+    };
+    const m = mapMarketData('005930', noMarketValue as Record<string, unknown>);
+    expect(hasNoMarketData(m)).toBe(false); // price+name still present → not "no data"
+    expect(marketDataQualityWarning(m)).toContain('marketCap');
+  });
+
+  it('does NOT warn when only legitimately-optional fields are absent (no false positive)', () => {
+    // A loss-maker / non-payer: drop PER, EPS, dividend, forward estimates — all legit null.
+    const optionalOnly = {
+      ...SAMSUNG_RAW,
+      totalInfos: SAMSUNG_RAW.totalInfos.filter(
+        (t) => !['per', 'eps', 'cnsPer', 'cnsEps', 'dividendYieldRatio', 'dividend'].includes(t.code),
+      ),
+    };
+    expect(marketDataQualityWarning(mapMarketData('005930', optionalOnly as Record<string, unknown>))).toBeNull();
+  });
+
+  it('does NOT warn on a no-coverage equity (has 시총 + price, but no earnings/book) — equity-conditional', () => {
+    // No PER/EPS → not earnings-reporting, so the missing PBR/BPS pair is NOT counted.
+    const noCoverage = {
+      ...SAMSUNG_RAW,
+      totalInfos: SAMSUNG_RAW.totalInfos.filter(
+        (t) => !['per', 'eps', 'cnsPer', 'cnsEps', 'pbr', 'bps'].includes(t.code),
+      ),
+    };
+    const m = mapMarketData('123456', noCoverage as Record<string, unknown>);
+    expect(hasNoMarketData(m)).toBe(false); // price + 시총 present
+    expect(marketDataQualityWarning(m)).toBeNull();
+  });
+
+  it('does NOT warn on a real ETF schema (nav/etfBaseIdx, no marketValue/multiples) — fund detection', () => {
+    // Naver serves funds a different totalInfos shape; 시총·PER·PBR absent by construction,
+    // not drift. Without the fund check this would warn on the missing 시총 (critical field).
+    const etf = {
+      itemCode: '069500',
+      stockName: 'KODEX 200',
+      totalInfos: [
+        { code: 'lastClosePrice', key: '전일', value: '138,730' },
+        { code: 'nav', key: 'NAV', value: '138,900' },
+        { code: 'fundPay', key: '분배금', value: '0' },
+        { code: 'etfBaseIdx', key: '기초지수', value: '코스피 200' },
+        { code: 'issueName', key: '발행사', value: '삼성자산운용' },
+      ],
+      dealTrendInfos: [
+        { bizdate: '20260601', closePrice: '138,730', compareToPreviousClosePrice: '500', compareToPreviousPrice: { code: '2', text: '상승', name: 'RISING' }, accumulatedTradingVolume: '1,000,000' },
+      ],
+    };
+    const m = mapMarketData('069500', etf as Record<string, unknown>);
+    expect(m.quote.price).toBe(138730);
+    expect(m.valuation.marketCap).toBeNull(); // funds have no marketValue field…
+    expect(marketDataQualityWarning(m, etf as Record<string, unknown>)).toBeNull(); // …but that's not drift
+  });
+
+  it('WARNS when an EQUITY loses both PBR and BPS (book-value drift, earnings still present)', () => {
+    const bookDrift = {
+      ...SAMSUNG_RAW,
+      totalInfos: SAMSUNG_RAW.totalInfos.filter((t) => !['pbr', 'bps'].includes(t.code)),
+    };
+    const w = marketDataQualityWarning(mapMarketData('005930', bookDrift as Record<string, unknown>));
+    expect(w).toContain('pbr');
+    expect(w).toContain('bps');
+  });
+
+  it('WARNS when the daily close is renamed away and a stale 전일 close masks it', () => {
+    // dealTrendInfos[0] without closePrice → price falls back to lastClosePrice (349,000).
+    const staleClose = {
+      ...SAMSUNG_RAW,
+      dealTrendInfos: [
+        {
+          bizdate: '20260601',
+          compareToPreviousClosePrice: '32,000',
+          compareToPreviousPrice: { code: '2', text: '상승', name: 'RISING' },
+          accumulatedTradingVolume: '45,052,488',
+        },
+      ],
+    };
+    const m = mapMarketData('005930', staleClose as Record<string, unknown>);
+    expect(m.quote.price).toBe(349000); // stale prior-close rescued the value…
+    expect(marketDataQualityWarning(m, staleClose as Record<string, unknown>)).toContain('closePrice'); // …canary catches it
   });
 });
