@@ -78,6 +78,32 @@ export function parseNaverMetric(value: unknown): number | null {
 }
 
 /**
+ * Partial-drift canary for the contract-less Naver mobile JSON. A renamed field
+ * silently maps to null while sibling fields still populate, so an all-null "no
+ * data" guard misses it. Given the structural fields a valid payload must carry,
+ * return the names that came back null/undefined — callers warn when SOME (not
+ * all) are missing, which is the signature of an upstream schema change.
+ */
+export function nullFields(fields: Record<string, unknown>): string[] {
+  return Object.entries(fields)
+    .filter(([, v]) => v === null || v === undefined)
+    .map(([k]) => k);
+}
+
+/**
+ * Row-data variant of {@link nullFields}: of `columns`, return those that are
+ * null/undefined in EVERY row (rows must be non-empty). A whole structural column
+ * going null across the series is the signature of a Naver field rename, not a
+ * sporadic genuine gap.
+ */
+export function deadColumns<T>(rows: T[], columns: (keyof T)[]): string[] {
+  if (rows.length === 0) return [];
+  return columns
+    .filter((c) => rows.every((r) => r[c] === null || r[c] === undefined))
+    .map((c) => String(c));
+}
+
+/**
  * KRX getJsonData responses wrap rows in an `OutBlock_1` array (some endpoints
  * use other keys). Missing/empty is a valid "no data" outcome, not an error.
  */

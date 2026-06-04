@@ -46,6 +46,17 @@ export function checkApiKeyExists(apiKeyName: string): boolean {
   return false;
 }
 
+/**
+ * Pure DART-key gate (process.env only, no .env-file fallback) — the single source
+ * of truth for whether the DART-backed KR tools are bound. Used by BOTH the tool
+ * registry (to register them) and the system prompt (to pick the research-playbook
+ * tier), so the playbook can never advertise DART tools that aren't registered.
+ */
+export function hasDartKey(): boolean {
+  const value = process.env.DART_API_KEY;
+  return !!value && !value.startsWith('your-');
+}
+
 export function saveApiKeyToEnv(apiKeyName: string, apiKeyValue: string): boolean {
   try {
     let lines: string[] = [];

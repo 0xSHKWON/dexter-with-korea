@@ -3,7 +3,7 @@ import { createGetFinancials, createGetMarketData, createReadFilings, createScre
 import { exaSearch, perplexitySearch, tavilySearch, langSearch, WEB_SEARCH_DESCRIPTION, xSearchTool, X_SEARCH_DESCRIPTION } from './search/index.js';
 import { createWebSearchTool, type WebSearchProvider } from './search/web-search.js';
 import { getSetting } from '../utils/config.js';
-import { checkApiKeyExists, type SearchProviderId } from '../utils/env.js';
+import { checkApiKeyExists, hasDartKey, type SearchProviderId } from '../utils/env.js';
 import { skillTool, SKILL_TOOL_DESCRIPTION } from './skill.js';
 import { webFetchTool, WEB_FETCH_DESCRIPTION } from './fetch/web-fetch.js';
 import { browserTool, BROWSER_DESCRIPTION } from './browser/browser.js';
@@ -189,7 +189,7 @@ export function getToolRegistry(model: string): RegisteredTool[] {
     });
   }
 
-  if (process.env.DART_API_KEY && !process.env.DART_API_KEY.startsWith('your-')) {
+  if (hasDartKey()) {
     tools.push({
       name: 'get_financials_kr',
       tool: createGetFinancialsKr(model),
@@ -223,7 +223,7 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       tool: createReadFilingsKr(model),
       description: READ_FILINGS_KR_DESCRIPTION,
       compactDescription:
-        'Korean DART 사업·반기·분기보고서 narrative (사업의 내용, 위험관리, 경영진단 MD&A) — qualitative content for 6-digit tickers.',
+        'Korean DART 사업·반기·분기보고서 narrative (사업의 내용, 위험관리, 경영진단 MD&A, 지배구조·최대주주·계열회사) — qualitative content for 6-digit tickers.',
       concurrencySafe: true,
     });
   }

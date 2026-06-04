@@ -1,7 +1,7 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { fetchNaverIntegration } from './naver-api.js';
-import { parseNaverMetric, toIsoDate } from './utils.js';
+import { parseNaverMetric, toIsoDate, nullFields } from './utils.js';
 import { formatToolResult } from '../types.js';
 import { TTL_1H } from '../finance/utils.js';
 
@@ -86,6 +86,58 @@ function round2(n: number): number {
  */
 export function hasNoMarketData(m: MarketDataKr): boolean {
   return m.name === null && m.quote.price === null && m.valuation.marketCap === null;
+}
+
+/**
+ * Partial-drift canary. Naver has no API contract: a renamed `totalInfos` code maps
+ * to null while sibling fields still populate, slipping past hasNoMarketData (which
+ * only fires when name+price+marketCap are ALL null). We flag three drift shapes on
+ * a valid payload (name present):
+ *  - a CRITICAL field (현재가 or 시총) null — every tradable listing, equity OR fund,
+ *    must carry these;
+ *  - PBR and BPS BOTH null on an EQUITY (PER or EPS present) — book-value multiples
+ *    are universal for equities, so both vanishing is drift. Funds/notes (ETN/ETF/
+ *    REIT) and day-1 IPOs legitimately lack book value AND report no earnings, so the
+ *    PER/EPS gate keeps them quiet (no false positive);
+ *  - the daily close (dealTrendInfos[0].closePrice) renamed away while the stale 전일
+ *    lastClosePrice fallback masks it — the worst case, since price stays non-null and
+ *    the model would otherwise treat yesterday's close as today's with no signal.
+ * PER/EPS/배당/추정치 are excluded as drift signals: legitimately null for loss-makers,
+ * non-payers, and uncovered small caps, so they'd false-positive.
+ */
+export function marketDataQualityWarning(
+  m: MarketDataKr,
+  raw?: Record<string, unknown> | null,
+): string | null {
+  if (m.name === null) return null; // truly-empty payload is hasNoMarketData's job
+
+  // ETF/ETN/fund schema check FIRST. Naver serves funds a different totalInfos shape
+  // (nav/fundPay/etfBaseIdx, no marketValue/PER/PBR), so 시총·multiples are absent by
+  // construction, not drift. get_market_data_kr is an equity tool; a fund legitimately
+  // maps to price-only, so skip the equity canary rather than cry "schema drift".
+  const ti = Array.isArray(raw?.totalInfos) ? (raw!.totalInfos as Record<string, unknown>[]) : [];
+  const isFund = ti.some((x) => {
+    const code = x && typeof x === 'object' ? (x as Record<string, unknown>).code : undefined;
+    return code === 'nav' || code === 'etfBaseIdx' || code === 'fundPay';
+  });
+  if (isFund) return null;
+
+  const v = m.valuation;
+  const missing = nullFields({ price: m.quote.price, marketCap: v.marketCap });
+
+  // Book-value pair is a drift signal ONLY for an earnings-reporting equity — funds
+  // (ETN/ETF/REIT) and day-1 IPOs legitimately have neither earnings nor book value.
+  const reportsEarnings = v.per !== null || v.eps !== null;
+  if (reportsEarnings && v.pbr === null && v.bps === null) missing.push('pbr', 'bps');
+
+  // Daily-close rename masked by the stale 전일 종가 fallback (price stays non-null).
+  const deal = Array.isArray(raw?.dealTrendInfos) ? (raw!.dealTrendInfos as Record<string, unknown>[]) : [];
+  if (deal.length > 0 && parseNaverMetric(deal[0].closePrice) === null && m.quote.price !== null) {
+    missing.push('현재가(closePrice 미갱신 — 전일 종가로 대체)');
+  }
+
+  if (missing.length === 0) return null;
+  return `핵심 시장데이터 필드 누락/이상: ${missing.join(', ')}. Naver 응답 구조 변경(필드 rename) 가능성이 있어, 이 종목 수치를 신뢰하기 전 확인이 필요합니다.`;
 }
 
 /** `totalInfos` is an array of `{ code, key, value }`; look up a value by code. */
@@ -193,7 +245,8 @@ export const getMarketDataKr = new DynamicStructuredTool({
           [url],
         );
       }
-      return formatToolResult(mapped, [url]);
+      const warning = marketDataQualityWarning(mapped, data);
+      return formatToolResult(warning ? { ...mapped, _dataQualityWarning: warning } : mapped, [url]);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return formatToolResult({ ticker, _error: message }, []);

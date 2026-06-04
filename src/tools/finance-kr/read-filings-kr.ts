@@ -26,12 +26,13 @@ export const READ_FILINGS_KR_DESCRIPTION = `Intelligent meta-tool for reading th
 - "주요 제품/매출 구성" — main products & services (prose; for tables use get_financials_kr)
 - "주요 리스크가 뭐야" — risk narrative (II.5 위험관리 및 파생거래 + XI 투자자 보호)
 - "경영진단 의견 / MD&A" — management discussion (IV. 이사의 경영진단 및 분석의견)
+- "지배구조 / 최대주주 / 특수관계자 / 계열회사 / 소유구조 / 대주주 거래" — ownership & governance narrative (VI 이사회 등 회사의 기관 · VII 주주에 관한 사항 · IX 계열회사 등 · X 대주주 등과의 거래내용)
 - Company overview (I. 회사의 개요)
 
 ## When NOT to Use
 - Financial line items / numbers → get_financials_kr
 - Disclosure metadata / filing history → get_filings_kr
-- Shareholders, short interest, foreign ownership → the dedicated *_kr tools
+- Exact shareholder stakes, 5%-rule holder lists, short interest, foreign-ownership numbers → the dedicated *_kr tools (get_large_holders_kr / get_short_balance_kr / get_foreign_ownership_kr). The "governance" category here is the QUALITATIVE ownership/affiliate/related-party narrative, not the structured holdings table.
 
 ## Usage Notes
 - Call ONCE with the full natural-language query. Accepts company names (삼성전자 → 005930).
@@ -62,11 +63,12 @@ const PlanSchema = z.object({
     .nullable()
     .describe('Business (fiscal) year of the report, e.g. 2025 for the FY2025 사업보고서. null for the most recent.'),
   sections: z
-    .array(z.enum(['overview', 'business', 'products', 'risks', 'mdna']))
+    .array(z.enum(['overview', 'business', 'products', 'risks', 'mdna', 'governance']))
     .min(1)
     .describe(
       'Narrative section categories to read. Map intent: 사업 구성/세그먼트→["business"], 주요 제품/매출구성→["products"], ' +
-        '주요 리스크→["risks"], 경영진단/MD&A→["mdna"], 회사 개요→["overview"]. Pick the minimum set.',
+        '주요 리스크→["risks"], 경영진단/MD&A→["mdna"], 회사 개요→["overview"], ' +
+        '지배구조/최대주주/특수관계자/계열회사/소유구조/대주주 거래→["governance"]. Pick the minimum set.',
     ),
 });
 
@@ -88,6 +90,7 @@ Section mapping:
 - 리스크 / 위험 / 위험요인 → risks
 - 경영진단 / MD&A / 경영진 분석 → mdna
 - 회사 개요 / 연혁 → overview
+- 지배구조 / 최대주주 / 특수관계자 / 계열회사 / 소유구조 / 대주주(이해관계자) 거래 / 순환출자 → governance
 Choose the minimum set that answers the query.`;
 }
 
@@ -177,7 +180,10 @@ function listRange(year?: number | null): { bgn_de: string; end_de: string } {
 // Extraction (cached) + summarization input
 // ---------------------------------------------------------------------------
 
-const CACHE_ENDPOINT = '/_dsd_sections'; // synthetic — caches parsed text, never hits network
+// synthetic — caches parsed text, never hits network. Versioned: bump the suffix when
+// SECTION_CATEGORIES changes so pre-existing cache entries (which lack the new categories)
+// miss and re-extract, instead of silently omitting the added category until the TTL lapses.
+const CACHE_ENDPOINT = '/_dsd_sections_v2';
 const DART_DOCUMENT_TIMEOUT_MS = 30_000; // the 5MB ZIP leg is slower than other sub-tools
 const PER_SECTION_CHARS = 40_000;
 const TOTAL_CHARS = 120_000;
