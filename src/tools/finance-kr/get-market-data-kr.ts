@@ -1,6 +1,7 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { fetchNaverIntegration } from './naver-api.js';
+import { resolveKrSecurity } from './resolve-kr.js';
 import { parseNaverMetric, toIsoDate, nullFields } from './utils.js';
 import { formatToolResult } from '../types.js';
 import { TTL_1H } from '../finance/utils.js';
@@ -12,8 +13,8 @@ Use this for current price, market cap, shares outstanding, PER/PBR/EV multiples
 const InputSchema = z.object({
   ticker: z
     .string()
-    .regex(/^\d{6}$/, 'Korean ticker must be a 6-digit string (e.g. 005930 for Samsung).')
-    .describe('6-digit Korean stock ticker (e.g. 005930 for Samsung Electronics).'),
+    .min(1)
+    .describe('6-digit Korean stock ticker (e.g. 005930) OR the company name (e.g. 삼성전자) — a name is resolved to its listing automatically.'),
 });
 
 export interface MarketDataKr {
@@ -235,7 +236,14 @@ export const getMarketDataKr = new DynamicStructuredTool({
   description: GET_MARKET_DATA_KR_DESCRIPTION,
   schema: InputSchema,
   func: async (input) => {
-    const ticker = input.ticker.trim();
+    const resolved = await resolveKrSecurity(input.ticker);
+    if (!resolved) {
+      return formatToolResult(
+        { ticker: input.ticker, _error: `Could not resolve "${input.ticker}" to a Korean listing — pass a 6-digit ticker or an exact company name` },
+        [],
+      );
+    }
+    const ticker = resolved.stockCode;
     try {
       const { data, url } = await fetchNaverIntegration(ticker, { cacheable: true, ttlMs: TTL_1H });
       const mapped = data ? mapMarketData(ticker, data) : null;

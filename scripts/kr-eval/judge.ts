@@ -27,12 +27,28 @@ const DIMENSION_RUBRICS: Record<DimensionId, string> = {
     '영업이익, 순이익, margins, or ROE with concrete numbers AND a year-over-year (YoY / 전년대비 / ' +
     '전년동기) comparison, grounded in the financial figures the tools returned. Score 1.0 for dated, ' +
     'numeric YoY figures; ~0.5 if numbers but no YoY (or vice-versa); 0 if vague or missing.',
+  earnings_momentum:
+    'DIMENSION = 실적 모멘텀. Reward the answer ONLY if, beyond YoY, it addresses the DIRECTION of momentum ' +
+    '— the latest quarter-over-quarter (QoQ / 전분기 대비) inflection AND/OR whether results beat or missed ' +
+    'forward expectations (추정EPS/추정PER, 컨센서스 대비 서프라이즈) — grounded in the tool figures. For a ' +
+    'cyclical (반도체·2차전지·화학·철강) the QoQ turn matters more than YoY. Score ~0.5 for YoY-only with no ' +
+    'momentum read; 0 if it ignores direction/consensus.',
   cross_signal:
     'DIMENSION = 교차신호 종합 (cross-signal synthesis). Reward the answer ONLY if it weaves 수급' +
     '(외국인·공매도·기관 방향) · 실적(매출/이익/마진/ROE) · 지배구조(대량보유·계열 지분) into ONE integrated ' +
     'investment thesis where the signals are explicitly cross-referenced (do they agree or conflict?) ' +
     'and it ends with an evidence-anchored verdict and specific triggers. Score low for three ' +
     'disconnected bullet lists with no synthesis, even if each bullet is individually correct.',
+  relative_value:
+    'DIMENSION = 상대가치 (relative valuation). Reward the answer ONLY if it compares the target\'s multiples ' +
+    '(PER/PBR/EV — and PBR/ROE for a bank) against PEERS or the sector (not just absolute "cheap"), and ' +
+    'explains the premium/discount via fundamentals (성장·마진·ROE·지배구조). For a cyclical it should lean on ' +
+    'PBR/through-cycle rather than trough/peak PER. Score 0 for a bare PER without any peer/sector comparison.',
+  value_up:
+    'DIMENSION = 밸류업/주주환원 (Value-up & shareholder return). Reward the answer ONLY if it goes beyond ' +
+    '"low PBR = cheap" to assess RE-RATING potential: 기업가치제고계획·자사주 소각(매입 아닌 소각)·배당정책, and ' +
+    'treats the ABSENCE of shareholder-return commitment as a reason the 코리아 디스카운트 persists. Score 0 if ' +
+    'it just calls a sub-1 PBR cheap with no return/Value-up analysis.',
   governance:
     'DIMENSION = 지배구조 (governance) as a valuation factor. Reward the answer if it treats 대량보유/' +
     '계열 지분/물적분할·인적분할 as valuation-relevant (순환출자, 승계, 지주사 할인, 소액주주 영향, 더블카운팅) ' +

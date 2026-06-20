@@ -2,7 +2,7 @@ import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { dartApi } from './api.js';
 import { toDartDate, isNoDataError } from './utils.js';
-import { resolveTicker } from '../../data/ticker-registry.js';
+import { resolveKrSecurity } from './resolve-kr.js';
 import { formatToolResult } from '../types.js';
 import { TTL_1H } from '../finance/utils.js';
 
@@ -23,8 +23,8 @@ const PBLNTF_TY: Record<string, string> = {
 const InputSchema = z.object({
   ticker: z
     .string()
-    .regex(/^\d{6}$/, 'Korean ticker must be a 6-digit string (e.g. 005930 for Samsung).')
-    .describe('6-digit Korean stock ticker (e.g. 005930 for Samsung Electronics).'),
+    .min(1)
+    .describe('6-digit Korean stock ticker (e.g. 005930) OR the company name (e.g. 삼성전자) — a name is resolved to its DART listing automatically.'),
   filing_type: z
     .enum(['periodic', 'material', 'issuance', 'ownership', 'audit', 'exchange'])
     .optional()
@@ -65,11 +65,15 @@ export const getFilingsKr = new DynamicStructuredTool({
   description: GET_FILINGS_KR_DESCRIPTION,
   schema: InputSchema,
   func: async (input) => {
-    const ticker = input.ticker.trim();
-    const resolved = await resolveTicker(ticker);
-    if (!resolved) {
-      return formatToolResult({ error: `Ticker ${ticker} not found in DART corp registry` }, []);
+    const sec = await resolveKrSecurity(input.ticker);
+    if (!sec?.corpCode) {
+      return formatToolResult(
+        { ticker: input.ticker, _error: `Could not resolve "${input.ticker}" to a DART corp_code — pass a 6-digit ticker or an exact company name` },
+        [],
+      );
     }
+    const ticker = sec.stockCode;
+    const resolved = { corp_code: sec.corpCode, corp_name: sec.name ?? '' };
 
     const range = defaultRange();
     const params = {

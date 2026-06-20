@@ -6,7 +6,7 @@ import { callLlm, getFastModel } from '../../model/llm.js';
 import { resolveProvider } from '../../providers.js';
 import { formatToolResult } from '../types.js';
 import { getCurrentDate } from '../../agent/prompts.js';
-import { resolveTicker } from '../../data/ticker-registry.js';
+import { resolveKrSecurity } from './resolve-kr.js';
 import { dexterPath } from '../../utils/paths.js';
 import { readCache, writeCache } from '../../utils/cache.js';
 import { withTimeout, TTL_1H, TTL_24H } from '../finance/utils.js';
@@ -48,7 +48,7 @@ type ReportType = 'annual' | 'semiannual' | 'quarterly_1' | 'quarterly_3';
 const PlanSchema = z.object({
   ticker: z
     .string()
-    .describe('6-digit Korean stock ticker (e.g. 005930 for Samsung). Resolve company names to tickers yourself.'),
+    .describe('6-digit Korean stock ticker (e.g. 005930) OR the company name (e.g. 삼성전자). If unsure of the exact code, pass the name verbatim — it is resolved automatically; do NOT guess a code from memory.'),
   report_type: z
     .enum(['annual', 'semiannual', 'quarterly_1', 'quarterly_3'])
     .describe(
@@ -79,7 +79,7 @@ function buildPlanPrompt(): string {
 Current date: ${getCurrentDate()}
 
 Given a user query about a Korean company's report narrative, return a structured plan:
-- ticker (6-digit; resolve names: 삼성전자→005930, SK하이닉스→000660, 네이버→035420, LG화학→051910, 현대차→005380, 카카오→035720)
+- ticker (the 6-digit code if the user gave one; otherwise pass the company NAME verbatim — it is resolved to a code automatically. Do not guess codes from memory for less-common names.)
 - report_type (annual unless the query names a quarter/half)
 - year (fiscal year, or null for most recent)
 - sections (which narrative categories answer the query)
@@ -382,16 +382,17 @@ export function createReadFilingsKr(model: string): DynamicStructuredTool {
         return formatToolResult({ error: 'Failed to plan filing read', details: errMsg(error) }, []);
       }
 
-      const ticker = plan.ticker.trim();
-      let resolved: { corp_code: string; corp_name: string } | null;
+      let sec: Awaited<ReturnType<typeof resolveKrSecurity>>;
       try {
-        resolved = await resolveTicker(ticker);
+        sec = await resolveKrSecurity(plan.ticker);
       } catch (error) {
-        return formatToolResult({ error: 'Ticker resolution failed', ticker, details: errMsg(error) }, []);
+        return formatToolResult({ error: 'Ticker resolution failed', ticker: plan.ticker, details: errMsg(error) }, []);
       }
-      if (!resolved) {
-        return formatToolResult({ error: `Ticker ${ticker} not found in DART corp registry` }, []);
+      if (!sec?.corpCode) {
+        return formatToolResult({ error: `Could not resolve "${plan.ticker}" to a DART corp_code — pass a 6-digit ticker or an exact company name` }, []);
       }
+      const ticker = sec.stockCode;
+      const resolved = { corp_code: sec.corpCode, corp_name: sec.name ?? '' };
       const identity = { ticker, corp_code: resolved.corp_code, corp_name: resolved.corp_name };
 
       // 2. Find the report's rcept_no via /list.json (정기공시).

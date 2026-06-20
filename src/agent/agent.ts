@@ -25,6 +25,9 @@ const DEFAULT_MAX_ITERATIONS = 10;
 const MAX_OVERFLOW_RETRIES = 2;
 const OVERFLOW_KEEP_ROUNDS = 3;
 
+/** Tools that require an interactive user and are only bound on the CLI channel. */
+const CLI_ONLY_TOOLS = new Set<string>(['ask_user_question']);
+
 /**
  * The core agent class that handles the agent loop and tool execution.
  *
@@ -62,6 +65,8 @@ export class Agent {
       config.signal,
       config.requestToolApproval,
       config.sessionApprovedTools,
+      undefined,
+      config.requestUserInput,
     );
     this.systemPrompt = systemPrompt;
     this.signal = config.signal;
@@ -71,32 +76,53 @@ export class Agent {
 
   static async create(config: AgentConfig = {}): Promise<Agent> {
     const model = config.model ?? DEFAULT_MODEL;
-    const baseTools = getTools(model);
-    const tools = config.transformTools ? config.transformTools(baseTools) : baseTools;
-    const concurrencyMap = getToolConcurrencyMap(model);
-    const soulContent = await loadSoulDocument();
-    const rulesContent = await loadRulesDocument();
-    let memoryFiles: string[] = [];
-    let memoryContext: string | null = null;
-
-    if (config.memoryEnabled !== false) {
-      const memoryManager = await MemoryManager.get();
-      memoryFiles = await memoryManager.listFiles();
-      const session = await memoryManager.loadSessionContext();
-      if (session.text.trim()) {
-        memoryContext = session.text;
-      }
+    const allTools = getTools(model);
+    let tools = config.toolAllowlist
+      ? allTools.filter(t => config.toolAllowlist!.includes(t.name))
+      : allTools;
+    // KR eval harness swaps live KR tools for fixture-backed stubs in replay mode.
+    if (config.transformTools) {
+      tools = config.transformTools(tools);
     }
+    // CLI-only tools (interactive prompts) are dropped on non-CLI channels
+    // (WhatsApp/gateway) and in headless runs, where there is no user at a keyboard.
+    const isCli = !config.channel || config.channel === 'cli';
+    if (!isCli) {
+      tools = tools.filter(t => !CLI_ONLY_TOOLS.has(t.name));
+    }
+    // The concurrency map is a name→bool lookup; extra entries are harmless since
+    // toolMap only holds the (possibly filtered) tools above.
+    const concurrencyMap = getToolConcurrencyMap(model);
 
-    const systemPrompt = buildSystemPrompt(
-      model,
-      soulContent,
-      config.channel,
-      config.groupContext,
-      memoryFiles,
-      memoryContext,
-      rulesContent,
-    );
+    let systemPrompt: string;
+    if (config.systemPromptOverride) {
+      // Self-contained worker prompt: skip soul, rules, and memory context.
+      systemPrompt = config.systemPromptOverride;
+    } else {
+      const soulContent = await loadSoulDocument();
+      const rulesContent = await loadRulesDocument();
+      let memoryFiles: string[] = [];
+      let memoryContext: string | null = null;
+
+      if (config.memoryEnabled !== false) {
+        const memoryManager = await MemoryManager.get();
+        memoryFiles = await memoryManager.listFiles();
+        const session = await memoryManager.loadSessionContext();
+        if (session.text.trim()) {
+          memoryContext = session.text;
+        }
+      }
+
+      systemPrompt = buildSystemPrompt(
+        model,
+        soulContent,
+        config.channel,
+        config.groupContext,
+        memoryFiles,
+        memoryContext,
+        rulesContent,
+      );
+    }
     return new Agent(config, tools, systemPrompt, concurrencyMap);
   }
 

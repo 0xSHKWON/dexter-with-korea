@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { krxApi } from './krx-api.js';
 import { toDartDate, toIsoDate, parseKrxNumber } from './utils.js';
 import { resolveIsin } from '../../data/krx-instrument-registry.js';
+import { resolveKrSecurity } from './resolve-kr.js';
 import { formatToolResult } from '../types.js';
 import { TTL_6H } from '../finance/utils.js';
 
@@ -15,8 +16,8 @@ Note: investors below the 0.01% reporting threshold are not aggregated here, so 
 const InputSchema = z.object({
   ticker: z
     .string()
-    .regex(/^\d{6}$/, 'Korean ticker must be a 6-digit string (e.g. 005930 for Samsung).')
-    .describe('6-digit Korean stock ticker (e.g. 005930 for Samsung Electronics).'),
+    .min(1)
+    .describe('6-digit Korean stock ticker (e.g. 005930) OR the company name (e.g. 삼성전자) — a name is resolved to its listing automatically.'),
   startDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use ISO YYYY-MM-DD.')
@@ -70,7 +71,14 @@ export const getShortBalanceKr = new DynamicStructuredTool({
   description: GET_SHORT_BALANCE_KR_DESCRIPTION,
   schema: InputSchema,
   func: async (input) => {
-    const ticker = input.ticker.trim();
+    const sec = await resolveKrSecurity(input.ticker);
+    if (!sec) {
+      return formatToolResult(
+        { ticker: input.ticker, short: [] as ShortBalanceRow[], _error: `Could not resolve "${input.ticker}" to a Korean listing — pass a 6-digit ticker or an exact company name` },
+        [],
+      );
+    }
+    const ticker = sec.stockCode;
     const { startDate, endDate } = defaultRange(input.startDate, input.endDate);
 
     try {

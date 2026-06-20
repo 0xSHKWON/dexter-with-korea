@@ -1,6 +1,7 @@
 import type { StructuredToolInterface } from '@langchain/core/tools';
 import type { GroupContext } from './prompts.js';
 import type { MessageQueue } from '../utils/message-queue.js';
+import type { Question, UserAnswers } from '../tools/ask-user-question/types.js';
 
 // ============================================================================
 // Channel Profiles
@@ -53,12 +54,27 @@ export interface AgentConfig {
   groupContext?: GroupContext;
   /** Called when a tool needs explicit user approval to proceed */
   requestToolApproval?: (request: { tool: string; args: Record<string, unknown> }) => Promise<ApprovalDecision>;
+  /** CLI-only: called when the agent asks the user interactive questions mid-turn. */
+  requestUserInput?: (request: { questions: Question[] }) => Promise<UserAnswers>;
   /** Shared set of tool names that have been session-approved (persists across queries) */
   sessionApprovedTools?: Set<string>;
   /** Enable/disable persistent memory integration for this run */
   memoryEnabled?: boolean;
   /** Message queue for mid-run injection of new user messages. */
   messageQueue?: MessageQueue;
+  /**
+   * Restrict this agent to a subset of tools, by registry name. When set, only
+   * matching tools are bound. Used to give a delegated worker a focused toolset.
+   */
+  toolAllowlist?: string[];
+  /**
+   * Use this exact system prompt instead of building one. When set, the soul,
+   * rules, and memory context are skipped entirely. Used by delegated workers
+   * that run with a self-contained worker prompt.
+   */
+  systemPromptOverride?: string;
+  /** Optional short label (e.g. "research") used to prefix nested progress lines. */
+  agentLabel?: string;
   /**
    * Optional transform applied to the resolved tool list before binding.
    * A test/eval seam — e.g. the KR eval harness swaps live KR tools for
@@ -129,6 +145,8 @@ export interface ToolProgressEvent {
   type: 'tool_progress';
   tool: string;
   message: string;
+  /** Unique tool_call ID, so progress routes to the right row under concurrent execution. */
+  toolCallId?: string;
 }
 
 /**

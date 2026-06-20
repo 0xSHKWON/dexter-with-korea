@@ -1,8 +1,10 @@
 import { Container, Spacer, Text, type TUI } from '@mariozechner/pi-tui';
 import type { TokenUsage } from '../agent/types.js';
+import type { QuestionAnswer } from '../tools/ask-user-question/types.js';
 import { theme } from '../theme.js';
 import { AnswerBoxComponent } from './answer-box.js';
 import { ToolEventComponent } from './tool-event.js';
+import { SubagentGroupComponent } from './subagent-group.js';
 import { UserQueryComponent } from './user-query.js';
 
 function formatDuration(ms: number): string {
@@ -136,6 +138,7 @@ export class ChatLogComponent extends Container {
   private readonly tui: TUI;
   private readonly toolById = new Map<string, ToolDisplayComponent>();
   private currentBrowserSession: BrowserSessionComponent | null = null;
+  private currentSubagentGroup: SubagentGroupComponent | null = null;
   private activeAnswer: AnswerBoxComponent | null = null;
   private lastToolName: string | null = null;
   private lastToolComponent: ToolDisplayComponent | null = null;
@@ -150,9 +153,11 @@ export class ChatLogComponent extends Container {
     for (const component of this.toolById.values()) {
       component.dispose?.();
     }
+    this.currentSubagentGroup?.dispose();
     this.clear();
     this.toolById.clear();
     this.currentBrowserSession = null;
+    this.currentSubagentGroup = null;
     this.activeAnswer = null;
     this.lastToolName = null;
     this.lastToolComponent = null;
@@ -175,11 +180,27 @@ export class ChatLogComponent extends Container {
     if (toolName !== 'browser') {
       this.currentBrowserSession = null;
     }
+    if (toolName !== 'spawn_subagent') {
+      this.currentSubagentGroup = null;
+    }
 
     const existing = this.toolById.get(toolCallId);
     if (existing) {
       existing.setActive();
       return existing;
+    }
+
+    if (toolName === 'spawn_subagent') {
+      if (!this.currentSubagentGroup) {
+        this.currentSubagentGroup = new SubagentGroupComponent(this.tui);
+        this.addChild(this.currentSubagentGroup);
+      }
+      const handle = this.currentSubagentGroup.addCall(args);
+      this.toolById.set(toolCallId, handle);
+      // Prevent the generic same-name reuse path from merging the next tool.
+      this.lastToolName = null;
+      this.lastToolComponent = null;
+      return handle;
     }
 
     if (toolName === 'browser') {
@@ -269,6 +290,21 @@ export class ChatLogComponent extends Container {
     }
     this.activeAnswer.setText(text);
     this.activeAnswer = null;
+  }
+
+  addAnsweredQuestions(answers: QuestionAnswer[]) {
+    if (answers.length === 0) {
+      return;
+    }
+    this.addChild(new Text(`${theme.success('⏺')} ${theme.muted('Answered:')}`, 0, 0));
+    for (const a of answers) {
+      const picks = [...a.selected];
+      if (a.otherText) {
+        picks.push(a.otherText);
+      }
+      const ans = picks.length ? picks.join(', ') : '—';
+      this.addChild(new Text(`${theme.muted('⎿  ')}${theme.dim(`${a.question} → ${ans}`)}`, 0, 0));
+    }
   }
 
   addContextCleared(clearedCount: number, keptCount: number) {

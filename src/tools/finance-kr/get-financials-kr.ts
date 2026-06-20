@@ -48,18 +48,9 @@ Given a user's natural language query about a Korean (KOSPI/KOSDAQ) listed compa
 
 ## Guidelines
 
-1. **Ticker Resolution** — Convert Korean company names to 6-digit ticker codes:
-   - Samsung Electronics / 삼성전자 → 005930
-   - SK Hynix / SK하이닉스 → 000660
-   - Hyundai Motor / 현대차 → 005380
-   - LG Energy Solution / LG에너지솔루션 → 373220
-   - Naver / 네이버 → 035420
-   - Kakao / 카카오 → 035720
-   - Samsung Biologics / 삼성바이오로직스 → 207940
-   - Celltrion / 셀트리온 → 068270
-   - POSCO Holdings / 포스코홀딩스 → 005490
-   - Hyundai Mobis / 현대모비스 → 012330
-   Strip any suffix the user provides (".KS", ".KQ") — pass only the 6-digit code.
+1. **Ticker / name** — get_business_report_kr's \`ticker\` field accepts EITHER a 6-digit code OR a Korean company name; it resolves names to codes deterministically (DART registry / Naver). So:
+   - If the user gave a 6-digit code, pass it (strip any ".KS"/".KQ" suffix → just the 6 digits).
+   - Otherwise pass the company NAME verbatim (e.g. "삼성전자", "고려아연"). Do NOT guess a code from memory for less-common names — a wrong guess silently returns a different company.
 
 2. **Report Type Selection** (report_type):
    - "사업보고서" / "annual" / "연간" → annual (reprt_code 11011, typically filed in March)

@@ -5,7 +5,7 @@ import { createWebSearchTool, type WebSearchProvider } from './search/web-search
 import { getSetting } from '../utils/config.js';
 import { checkApiKeyExists, hasDartKey, type SearchProviderId } from '../utils/env.js';
 import { skillTool, SKILL_TOOL_DESCRIPTION } from './skill.js';
-import { webFetchTool, WEB_FETCH_DESCRIPTION } from './fetch/web-fetch.js';
+import { createWebFetch, WEB_FETCH_DESCRIPTION } from './fetch/web-fetch.js';
 import { browserTool, BROWSER_DESCRIPTION } from './browser/browser.js';
 import { readFileTool, READ_FILE_DESCRIPTION } from './filesystem/read-file.js';
 import { writeFileTool, WRITE_FILE_DESCRIPTION } from './filesystem/write-file.js';
@@ -16,6 +16,7 @@ import { getFilingsKr, GET_FILINGS_KR_DESCRIPTION } from './finance-kr/get-filin
 import { getLargeHoldersKr, GET_LARGE_HOLDERS_KR_DESCRIPTION } from './finance-kr/get-large-holders-kr.js';
 import { getInsiderTradesKr, GET_INSIDER_TRADES_KR_DESCRIPTION } from './finance-kr/get-insider-trades-kr.js';
 import { createReadFilingsKr, READ_FILINGS_KR_DESCRIPTION } from './finance-kr/read-filings-kr.js';
+import { getSegmentsKr, GET_SEGMENTS_KR_DESCRIPTION } from './finance-kr/get-segments-kr.js';
 import { getShortBalanceKr, GET_SHORT_BALANCE_KR_DESCRIPTION } from './finance-kr/get-short-balance-kr.js';
 import { getForeignOwnershipKr, GET_FOREIGN_OWNERSHIP_KR_DESCRIPTION } from './finance-kr/get-foreign-ownership-kr.js';
 import { getMarketDataKr, GET_MARKET_DATA_KR_DESCRIPTION } from './finance-kr/get-market-data-kr.js';
@@ -27,6 +28,8 @@ import { heartbeatTool, HEARTBEAT_TOOL_DESCRIPTION } from './heartbeat/heartbeat
 import { cronTool, CRON_TOOL_DESCRIPTION } from './cron/cron-tool.js';
 import { memoryGetTool, MEMORY_GET_DESCRIPTION, memorySearchTool, MEMORY_SEARCH_DESCRIPTION, memoryUpdateTool, MEMORY_UPDATE_DESCRIPTION } from './memory/index.js';
 import { discoverSkills } from '../skills/index.js';
+import { createSpawnSubagent, SPAWN_SUBAGENT_DESCRIPTION } from './subagent/spawn-subagent.js';
+import { createAskUserQuestion, ASK_USER_QUESTION_DESCRIPTION } from './ask-user-question/ask-user-question.js';
 
 /**
  * A registered tool with its rich description for system prompt injection.
@@ -82,10 +85,24 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       concurrencySafe: true,
     },
     {
+      name: 'spawn_subagent',
+      tool: createSpawnSubagent(model),
+      description: SPAWN_SUBAGENT_DESCRIPTION,
+      compactDescription: 'Delegate a focused sub-task to an isolated subagent. Emit multiple calls in one turn to run independent sub-tasks in parallel.',
+      concurrencySafe: true,
+    },
+    {
+      name: 'ask_user_question',
+      tool: createAskUserQuestion(),
+      description: ASK_USER_QUESTION_DESCRIPTION,
+      compactDescription: 'Ask the user 1-4 multiple-choice questions mid-turn and wait for their answers. CLI only.',
+      concurrencySafe: false,
+    },
+    {
       name: 'web_fetch',
-      tool: webFetchTool,
+      tool: createWebFetch(model),
       description: WEB_FETCH_DESCRIPTION,
-      compactDescription: 'Fetch and extract content from a URL as markdown. Use when you need full article text beyond headlines.',
+      compactDescription: 'Fetch a URL and answer a prompt about its content (HTML→markdown, fast-model summarized).',
       concurrencySafe: true,
     },
     {
@@ -223,7 +240,15 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       tool: createReadFilingsKr(model),
       description: READ_FILINGS_KR_DESCRIPTION,
       compactDescription:
-        'Korean DART 사업·반기·분기보고서 narrative (사업의 내용, 위험관리, 경영진단 MD&A, 지배구조·최대주주·계열회사) — qualitative content for 6-digit tickers.',
+        'Korean DART 사업·반기·분기보고서 narrative (사업의 내용, 위험관리, 경영진단 MD&A, 지배구조·최대주주·계열회사) — qualitative content for 6-digit tickers or names.',
+      concurrencySafe: true,
+    });
+    tools.push({
+      name: 'get_segments_kr',
+      tool: getSegmentsKr,
+      description: GET_SEGMENTS_KR_DESCRIPTION,
+      compactDescription:
+        'Korean 사업부문별 요약 재무현황 (segment 매출액·영업이익·비중) from the latest DART 정기보고서 — divisional mix for 재벌/복합 기업 (6-digit tickers or names).',
       concurrencySafe: true,
     });
   }

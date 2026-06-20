@@ -142,6 +142,31 @@ export function sectionText(section: DsdSection): string {
   return dsdToPlainText(section.html);
 }
 
+/**
+ * Extract every `<TABLE>` in a DSD fragment as an array of rows (each row = the
+ * ordered cell texts). DART tables are plain `<TR>` / `<TD|TH>` with `<P>`-wrapped
+ * cell text; we flatten inner tags, decode entities, and collapse whitespace.
+ * colspan/rowspan are NOT expanded — cells are taken in document order, which still
+ * yields a readable row for merged headers. `dsdToPlainText` deliberately DROPS tables
+ * (numbers belong to get_financials_kr), so this is the only path that recovers the
+ * per-부문 (segment) summary tables for get_segments_kr.
+ */
+export function parseDsdTables(fragment: string): string[][][] {
+  const tables: string[][][] = [];
+  for (const tbl of fragment.match(/<TABLE\b[\s\S]*?<\/TABLE>/gi) ?? []) {
+    const rows: string[][] = [];
+    for (const tr of tbl.match(/<TR\b[\s\S]*?<\/TR>/gi) ?? []) {
+      const cells: string[] = [];
+      for (const m of tr.matchAll(/<T[DH]\b[^>]*>([\s\S]*?)<\/T[DH]>/gi)) {
+        cells.push(decodeEntities(m[1].replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim());
+      }
+      if (cells.length > 0) rows.push(cells);
+    }
+    if (rows.length > 0) tables.push(rows);
+  }
+  return tables;
+}
+
 // ---------------------------------------------------------------------------
 // Section splitting + selection
 // ---------------------------------------------------------------------------
