@@ -16,6 +16,9 @@ interface Props {
   conversation: ChatConversation | null;
   onSaved: (conv: ChatConversation) => void;
   onOpenSettings: () => void;
+  /** A prompt to prefill into the composer (e.g. from a Help example). */
+  seed?: string | null;
+  onSeedConsumed?: () => void;
 }
 
 const EXAMPLES = [
@@ -59,7 +62,7 @@ function toolStatus(ev: AgentEvent): string {
   return arg ? `${label} · ${arg} …` : `${label} …`;
 }
 
-export default function ChatView({ conversation, onSaved, onOpenSettings }: Props): JSX.Element {
+export default function ChatView({ conversation, onSaved, onOpenSettings, seed, onSeedConsumed }: Props): JSX.Element {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -95,6 +98,16 @@ export default function ChatView({ conversation, onSaved, onOpenSettings }: Prop
         : [],
     );
   }, [conversation?.id]);
+
+  // Prefill a prompt handed in from elsewhere (e.g. a Help example), then clear it.
+  const seedConsumedRef = useRef(onSeedConsumed);
+  seedConsumedRef.current = onSeedConsumed;
+  useEffect(() => {
+    if (!seed) return;
+    setInput(seed);
+    taRef.current?.focus();
+    seedConsumedRef.current?.();
+  }, [seed]);
 
   function persist(msgs: ChatMessage[]): void {
     const id = currentIdRef.current;

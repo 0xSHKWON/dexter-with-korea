@@ -14,6 +14,59 @@ interface Section {
   footnote?: string;
 }
 
+interface PromptGroup {
+  label: string;
+  items: { p: string; why: string }[];
+}
+
+// Showcase prompts — the kind of question a generic chatbot / 기업분석 서비스 can't match,
+// because each one drives the agent loop across multiple first-party sources + KR skills.
+const PROMPT_GROUPS: PromptGroup[] = [
+  {
+    label: '한 줄로 전체 분석',
+    items: [
+      {
+        p: '삼성전자 지금 투자 관점에서 어때?',
+        why: '재무·수급·공매도·지배구조에 더해 동종 peer 비교·사업부문 이익기여도까지 스스로 끌어와 하나의 결론으로',
+      },
+    ],
+  },
+  {
+    label: '여러 종목 동시 비교 · 랭킹',
+    items: [
+      {
+        p: '삼성전자·SK하이닉스·한미반도체 투자매력 순위 매겨줘',
+        why: '종목마다 1차 출처를 각각 수집해 밸류에이션·실적·현금흐름·수급·지배구조 6개 차원으로 비교',
+      },
+    ],
+  },
+  {
+    label: '1차 출처 시계열 (뉴스 2차가 아님)',
+    items: [
+      { p: '에코프로비엠 공매도 순보유잔고 추이 보여줘', why: 'KRX 일별 잔고를 직접 조회' },
+      { p: '삼성전자 외국인 일별 순매수 추세 보여줘', why: '네이버 일별 외국인·기관·개인 수급' },
+    ],
+  },
+  {
+    label: '한국형 밸류에이션',
+    items: [
+      { p: 'SK 지주사 SOTP로 적정가치 뜯어줘', why: '지주사 할인 분해 — 전용 스킬' },
+      { p: 'SK하이닉스 DCF로 적정주가 계산하고 현재가랑 비교해줘', why: '법인세·무위험금리·KRW 한국 경로 자동 분기' },
+    ],
+  },
+  {
+    label: '지배구조 · 이벤트 (DART 본문에서 직접)',
+    items: [
+      { p: 'LG화학 물적분할이 기존 주주가치에 어떤 영향이었는지 분석해줘', why: '공시 직접 인용 + 구조 분석' },
+      { p: '삼성전자 최대주주·특수관계인·계열사 지분 사업보고서 기준으로 정리해줘', why: '추정이 아닌 1차 근거' },
+    ],
+  },
+  {
+    label: '메모로 정리',
+    items: [{ p: '삼성전자 매수 논거를 투자 메모로 작성해줘', why: '근거·리스크·트리거가 담긴 투자 메모' }],
+  },
+];
+
 // Issuance guides. Env var names match the core (src/model/llm.ts, env.ts) exactly.
 const SECTIONS: Section[] = [
   {
@@ -60,17 +113,33 @@ const SECTIONS: Section[] = [
   },
 ];
 
-export default function HelpView(): JSX.Element {
+export default function HelpView({ onUsePrompt }: { onUsePrompt: (text: string) => void }): JSX.Element {
   return (
     <div className="help">
       <header className="page-head">
-        <h1>API 키 발급 가이드</h1>
-        <p className="sub">발급처에서 키를 받아 설정에 입력하세요. 키는 이 컴퓨터에 암호화 저장되며 외부로 전송되지 않습니다.</p>
+        <h1>도움말</h1>
+        <p className="sub">예시를 눌러 바로 실행해 보세요. 아래쪽에 API 키 발급 방법이 있습니다.</p>
       </header>
 
+      <section className="help-sec">
+        <h2 className="help-sec-title">예시 프롬프트</h2>
+        <p className="sec-intro">다른 챗봇·분석 서비스가 따라오기 힘든 질문들 — 누르면 챗에 입력됩니다.</p>
+        {PROMPT_GROUPS.map((g) => (
+          <div className="ex-group" key={g.label}>
+            <div className="ex-group-label">{g.label}</div>
+            {g.items.map((it) => (
+              <button className="ex-row" key={it.p} onClick={() => onUsePrompt(it.p)}>
+                <span className="ex-p">{it.p}</span>
+                {it.why && <span className="ex-why">{it.why}</span>}
+              </button>
+            ))}
+          </div>
+        ))}
+      </section>
+
       {SECTIONS.map((section) => (
-        <section className="card" key={section.title}>
-          <h2>{section.title}</h2>
+        <section className="help-sec" key={section.title}>
+          <h2 className="help-sec-title">{section.title}</h2>
           {section.intro && <p className="sec-intro">{section.intro}</p>}
           <div className="key-list">
             {section.items.map((item) => (

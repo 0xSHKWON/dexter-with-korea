@@ -35,6 +35,18 @@ export interface AppSettings {
   [key: string]: unknown;
 }
 
+export type UpdateStatus = 'ok' | 'optional' | 'required';
+
+export interface UpdateInfo {
+  /** ok = up to date; optional = newer available; required = below minimum, lock the app. */
+  status: UpdateStatus;
+  current: string;
+  latest: string | null;
+  /** Download / Releases page to open. */
+  url: string;
+  notes: string;
+}
+
 /** API surface exposed to the renderer via contextBridge as `window.dexter`. */
 export interface DexterApi {
   providers: {
@@ -75,5 +87,11 @@ export interface DexterApi {
     list(): Promise<ConversionRecord[]>;
     /** Delete an archived conversion. */
     delete(id: string): Promise<void>;
+  };
+  update: {
+    /** Check the remote manifest against this build's version. */
+    check(): Promise<UpdateInfo>;
+    /** Open the download/Releases page in the OS browser. */
+    open(url: string): Promise<void>;
   };
 }

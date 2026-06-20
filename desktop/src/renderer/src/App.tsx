@@ -4,8 +4,10 @@ import HelpView from './components/HelpView';
 import ChatView from './components/ChatView';
 import WorkView from './components/WorkView';
 import HistoryView from './components/HistoryView';
+import UpdateGate from './components/UpdateGate';
 import SidebarStatus, { type SideStatus } from './components/SidebarStatus';
 import type { ChatConversation, ConversionRecord } from '../../shared/sidecar';
+import type { UpdateInfo } from '../../shared/types';
 
 type View = 'chat' | 'work' | 'history' | 'settings' | 'help';
 
@@ -53,6 +55,24 @@ function ClockIcon(): JSX.Element {
   );
 }
 
+function ChatGlyph(): JSX.Element {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8A8.38 8.38 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" />
+    </svg>
+  );
+}
+
+function WorkGlyph(): JSX.Element {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+      <path d="M8 13h8M8 17h6" />
+    </svg>
+  );
+}
+
 export default function App(): JSX.Element {
   const [view, setView] = useState<View>('chat');
   const [collapsed, setCollapsed] = useState(false);
@@ -60,8 +80,12 @@ export default function App(): JSX.Element {
 
   const [chats, setChats] = useState<ChatConversation[]>([]);
   const [chatId, setChatId] = useState<string | null>(null);
+  const [chatSeed, setChatSeed] = useState<string | null>(null);
   const [works, setWorks] = useState<ConversionRecord[]>([]);
   const [workId, setWorkId] = useState<string | null>(null);
+
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const [updateDismissed, setUpdateDismissed] = useState(false);
 
   async function loadStatus(): Promise<void> {
     try {
@@ -92,7 +116,16 @@ export default function App(): JSX.Element {
     void loadStatus();
     void window.dexter.chat.listConversations().then(setChats).catch(() => {});
     void window.dexter.work.list().then(setWorks).catch(() => {});
+    void window.dexter.update.check().then(setUpdate).catch(() => {});
   }, []);
+
+  // Help example → start a fresh chat with the prompt prefilled in the composer.
+  function usePrompt(text: string): void {
+    setChatId(null);
+    void window.dexter.chat.reset();
+    setChatSeed(text);
+    setView('chat');
+  }
 
   function newChat(): void {
     setView('chat');
@@ -136,6 +169,13 @@ export default function App(): JSX.Element {
   const currentChat = chats.find((c) => c.id === chatId) ?? null;
   const currentWork = works.find((w) => w.id === workId) ?? null;
 
+  // Required update: lock the whole app behind the update screen.
+  if (update?.status === 'required') {
+    return <UpdateGate info={update} />;
+  }
+
+  const showUpdateBanner = update?.status === 'optional' && !updateDismissed;
+
   return (
     <div className={`app ${collapsed ? 'collapsed' : ''}`}>
       <aside className="sidebar">
@@ -155,23 +195,25 @@ export default function App(): JSX.Element {
           onClick={() => setView('history')}
         >
           <ClockIcon />
-          <span>기록</span>
+          <span>History</span>
         </button>
 
         <nav className="side-nav">
           <div className={`nav-row ${view === 'chat' ? 'active' : ''}`}>
             <button className="nav-item" onClick={() => setView('chat')}>
-              챗
+              <ChatGlyph />
+              <span>Chat</span>
             </button>
-            <button className="nav-add" onClick={newChat} title="새 대화" aria-label="새 대화">
+            <button className="nav-add" onClick={newChat} title="New chat" aria-label="New chat">
               +
             </button>
           </div>
           <div className={`nav-row ${view === 'work' ? 'active' : ''}`}>
             <button className="nav-item" onClick={() => setView('work')}>
-              업무
+              <WorkGlyph />
+              <span>Work</span>
             </button>
-            <button className="nav-add" onClick={newWork} title="새 변환" aria-label="새 변환">
+            <button className="nav-add" onClick={newWork} title="New conversion" aria-label="New conversion">
               +
             </button>
           </div>
@@ -215,11 +257,28 @@ export default function App(): JSX.Element {
             <PanelIcon />
           </button>
         )}
+        {showUpdateBanner && update && (
+          <div className="update-banner">
+            <span>
+              새 버전 v{update.latest}이 있습니다.
+            </span>
+            <div className="update-banner-actions">
+              <button className="btn primary sm" onClick={() => void window.dexter.update.open(update.url)}>
+                업데이트
+              </button>
+              <button className="btn ghost sm" onClick={() => setUpdateDismissed(true)}>
+                나중에
+              </button>
+            </div>
+          </div>
+        )}
         <div className={`view ${view === 'chat' ? '' : 'hidden'}`}>
           <ChatView
             conversation={currentChat}
             onSaved={onChatSaved}
             onOpenSettings={() => setView('settings')}
+            seed={chatSeed}
+            onSeedConsumed={() => setChatSeed(null)}
           />
         </div>
         <div className={`view ${view === 'work' ? '' : 'hidden'}`}>
@@ -239,7 +298,7 @@ export default function App(): JSX.Element {
           <SettingsView onKeysChanged={loadStatus} />
         </div>
         <div className={`view ${view === 'help' ? '' : 'hidden'}`}>
-          <HelpView />
+          <HelpView onUsePrompt={usePrompt} />
         </div>
       </main>
     </div>

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { ipcMain, dialog, BrowserWindow } from 'electron';
+import { ipcMain, dialog, shell, BrowserWindow } from 'electron';
 import ExcelJS from 'exceljs';
+import { checkForUpdate } from './updater';
 import { PROVIDERS } from './providers';
 import { DATA_SOURCES } from './data-sources';
 import type {
@@ -43,6 +44,9 @@ function statusFor(envVar: string): SecretStatus {
 export function registerIpc(): void {
   ipcMain.handle('providers:list', () => PROVIDERS);
   ipcMain.handle('datasources:list', () => DATA_SOURCES);
+
+  ipcMain.handle('update:check', () => checkForUpdate());
+  ipcMain.handle('update:open', (_e, url: string) => shell.openExternal(url));
 
   ipcMain.handle('settings:getAll', () => getAllSettings());
   ipcMain.handle('settings:set', (_e, key: string, value: unknown) => {

@@ -39,6 +39,10 @@ const api: DexterApi = {
     list: () => ipcRenderer.invoke('work:list'),
     delete: (id) => ipcRenderer.invoke('work:delete', id),
   },
+  update: {
+    check: () => ipcRenderer.invoke('update:check'),
+    open: (url) => ipcRenderer.invoke('update:open', url),
+  },
 };
 
 contextBridge.exposeInMainWorld('dexter', api);
