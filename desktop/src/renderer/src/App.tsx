@@ -178,6 +178,8 @@ export default function App(): JSX.Element {
 
   return (
     <div className={`app ${collapsed ? 'collapsed' : ''}`}>
+      {/* full-width draggable title strip — drag the window from anywhere along the top */}
+      <div className="titlebar-drag" />
       <aside className="sidebar">
         <div className="side-top">
           <button

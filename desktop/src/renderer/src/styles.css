@@ -85,9 +85,23 @@ code {
      composer) so their border-tops line up. Inner sections pad themselves. */
 }
 
+/* full-width draggable title strip across the whole top of the window. Interactive
+   controls that live in this band are lifted above it (z-index > 30) + no-drag. */
+.titlebar-drag {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 38px;
+  z-index: 30;
+  -webkit-app-region: drag;
+}
+
 /* top bar: draggable region + collapse toggle (collapse sits right of the
    macOS traffic lights, which hiddenInset places at the top-left). */
 .side-top {
+  position: relative;
+  z-index: 31;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -118,10 +132,12 @@ code {
   color: var(--text);
 }
 
-/* floating re-open button shown when the sidebar is collapsed */
+/* floating re-open button shown when the sidebar is collapsed.
+   top:4px → 30px button's icon centers at y=19, matching the in-panel collapse
+   button (side-top is 38px tall, centered) and the macOS traffic lights. */
 .expand-btn {
   position: fixed;
-  top: 7px;
+  top: 4px;
   left: 84px; /* clear macOS traffic lights */
   z-index: 50;
 }
@@ -384,6 +400,9 @@ code {
 }
 
 .hist-top {
+  position: relative;
+  z-index: 31; /* above the title drag strip so the search box stays clickable */
+  -webkit-app-region: no-drag;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1411,6 +1430,9 @@ select:focus {
 }
 
 .update-banner {
+  position: relative;
+  z-index: 31; /* above the title drag strip so its buttons stay clickable */
+  -webkit-app-region: no-drag;
   display: flex;
   align-items: center;
   justify-content: space-between;

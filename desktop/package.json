@@ -63,6 +63,7 @@
       }
     ],
     "mac": {
+      "icon": "build/icon.png",
       "target": [
         {
           "target": "dmg",
@@ -74,11 +75,13 @@
       "category": "public.app-category.finance"
     },
     "win": {
+      "icon": "build/icon.png",
       "target": [
         "nsis"
       ]
     },
     "linux": {
+      "icon": "build/icon.png",
       "target": [
         "AppImage"
       ]
