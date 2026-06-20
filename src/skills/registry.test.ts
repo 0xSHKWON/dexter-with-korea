@@ -8,7 +8,16 @@ afterEach(() => {
 describe('discoverSkills', () => {
   it('discovers all builtin skills with valid frontmatter', () => {
     const names = discoverSkills().map((s) => s.name);
-    for (const expected of ['dcf-valuation', 'write-memo', 'x-research', 'kr-spinoff-analysis']) {
+    for (const expected of [
+      'dcf-valuation',
+      'write-memo',
+      'x-research',
+      'kr-spinoff-analysis',
+      'kr-relative-valuation',
+      'kr-sotp-holdco',
+      'kr-earnings-quality',
+      'kr-shareholder-return',
+    ]) {
       expect(names).toContain(expected);
     }
   });

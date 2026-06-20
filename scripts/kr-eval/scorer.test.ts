@@ -3,7 +3,11 @@ import type { KrEvalQuestion } from './questions.js';
 import {
   aggregate,
   buildQuestionResult,
+  checkNumericAnchors,
+  checkRequiredPhrases,
   DEFAULT_THRESHOLD,
+  extractKrwAmounts,
+  extractPercents,
   firedToolNames,
   scoreTools,
   skippedResult,
@@ -112,6 +116,77 @@ describe('buildQuestionResult', () => {
     expect(r.inconclusive).toContain('read_file');
     // dedupes the uncovered tool names in the reason
     expect(r.inconclusive?.match(/read_file/g)?.length).toBe(1);
+  });
+});
+
+describe('checkRequiredPhrases', () => {
+  it('passes when all phrases appear (whitespace/case-insensitive)', () => {
+    expect(checkRequiredPhrases('DX 부문과 D S 부문이 …', ['DX', 'DS'])).toEqual([]);
+  });
+  it('reports the phrases that are missing', () => {
+    expect(checkRequiredPhrases('DX 부문만 언급', ['DX', 'DS'])).toEqual(['DS']);
+  });
+  it('no phrases → no misses', () => {
+    expect(checkRequiredPhrases('아무말', [])).toEqual([]);
+  });
+});
+
+describe('extractKrwAmounts / extractPercents', () => {
+  it('parses 조 / 조-억 / 억 magnitudes to 원', () => {
+    expect(extractKrwAmounts('매출 133.9조')).toContain(133.9e12);
+    expect(extractKrwAmounts('57조 2,000억')).toContain(57e12 + 2000e8);
+    expect(extractKrwAmounts('1,234억')).toContain(1234e8);
+  });
+  it('parses percentages including negatives', () => {
+    expect(extractPercents('영업이익률 39.3%, 전년 -2%')).toEqual([39.3, -2]);
+  });
+});
+
+describe('checkNumericAnchors', () => {
+  it('passes when a stated 조 figure is within relative tolerance', () => {
+    const miss = checkNumericAnchors('매출은 133.9조, 영업이익 57.2조였다.', [
+      { label: '매출', value: 133.9e12, unit: 'krw', tolerancePct: 3 },
+      { label: '영업이익', value: 57.2e12, unit: 'krw', tolerancePct: 5 },
+    ]);
+    expect(miss).toEqual([]);
+  });
+  it('flags a plausible-but-wrong figure the judge might miss', () => {
+    const miss = checkNumericAnchors('매출은 90조였다.', [
+      { label: '매출', value: 133.9e12, unit: 'krw', tolerancePct: 3 },
+    ]);
+    expect(miss).toEqual(['매출(133900000000000)']);
+  });
+  it('pct unit uses absolute percentage-point tolerance', () => {
+    expect(checkNumericAnchors('외국인 지분율 50.4%', [{ label: '외인', value: 50, unit: 'pct', tolerancePct: 1 }])).toEqual([]);
+    expect(checkNumericAnchors('외국인 지분율 40%', [{ label: '외인', value: 50, unit: 'pct', tolerancePct: 1 }])).toEqual(['외인(50%)']);
+  });
+});
+
+describe('buildQuestionResult — accuracy gates', () => {
+  const q: KrEvalQuestion = {
+    ...baseQ,
+    requiredTools: [],
+    expectedTools: [],
+    requiredPhrases: ['고려아연'],
+    numericAnchors: [{ label: '매출', value: 133.9e12, unit: 'krw', tolerancePct: 3 }],
+  };
+  const dims = (s: number): RawDimension[] => [{ id: 'earnings_yoy', score: s, comment: 'c' }];
+
+  it('passes when phrases present and anchors hit', () => {
+    const r = buildQuestionResult({ question: q, firedTools: [], rawDimensions: dims(0.9), answer: '고려아연 매출 133.9조' });
+    expect(r.phraseMisses).toEqual([]);
+    expect(r.numericMisses).toEqual([]);
+    expect(r.pass).toBe(true);
+  });
+  it('hard-fails on a missing required phrase even with a top judge score', () => {
+    const r = buildQuestionResult({ question: q, firedTools: [], rawDimensions: dims(1), answer: '엉뚱회사 매출 133.9조' });
+    expect(r.phraseMisses).toEqual(['고려아연']);
+    expect(r.pass).toBe(false);
+  });
+  it('hard-fails on a wrong number even with a top judge score', () => {
+    const r = buildQuestionResult({ question: q, firedTools: [], rawDimensions: dims(1), answer: '고려아연 매출 90조' });
+    expect(r.numericMisses.length).toBe(1);
+    expect(r.pass).toBe(false);
   });
 });
 

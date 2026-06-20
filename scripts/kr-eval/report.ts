@@ -14,11 +14,15 @@ function questionLine(r: QuestionResult): string {
   const dims = r.dimensions.map((d) => `${d.id}=${d.score.toFixed(2)}${d.pass ? '' : '✗'}`).join(' ');
   const missing = r.missingRequired.length ? `  missingReq=[${r.missingRequired.join(',')}]` : '';
   const misses = r.replayMisses.length ? `  replayMiss=[${[...new Set(r.replayMisses)].join(',')}]` : '';
+  const accuracy =
+    r.phraseMisses.length || r.numericMisses.length
+      ? `  accuracyMiss=[${[...r.phraseMisses, ...r.numericMisses].join(',')}]`
+      : '';
   if (r.inconclusive) {
     return `  INCONC ${r.id.padEnd(26)} tools=${fmtPct(r.toolsScore)} ${dims}${missing}${misses}`;
   }
   const tag = r.pass ? 'PASS  ' : 'FAIL  ';
-  return `  ${tag} ${r.id.padEnd(26)} tools=${fmtPct(r.toolsScore)} ${dims}${missing}${misses}`;
+  return `  ${tag} ${r.id.padEnd(26)} tools=${fmtPct(r.toolsScore)} ${dims}${missing}${misses}${accuracy}`;
 }
 
 export function printReport(report: AggregateReport): void {

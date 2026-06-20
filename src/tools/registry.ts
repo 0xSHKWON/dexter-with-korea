@@ -16,6 +16,7 @@ import { getFilingsKr, GET_FILINGS_KR_DESCRIPTION } from './finance-kr/get-filin
 import { getLargeHoldersKr, GET_LARGE_HOLDERS_KR_DESCRIPTION } from './finance-kr/get-large-holders-kr.js';
 import { getInsiderTradesKr, GET_INSIDER_TRADES_KR_DESCRIPTION } from './finance-kr/get-insider-trades-kr.js';
 import { createReadFilingsKr, READ_FILINGS_KR_DESCRIPTION } from './finance-kr/read-filings-kr.js';
+import { getSegmentsKr, GET_SEGMENTS_KR_DESCRIPTION } from './finance-kr/get-segments-kr.js';
 import { getShortBalanceKr, GET_SHORT_BALANCE_KR_DESCRIPTION } from './finance-kr/get-short-balance-kr.js';
 import { getForeignOwnershipKr, GET_FOREIGN_OWNERSHIP_KR_DESCRIPTION } from './finance-kr/get-foreign-ownership-kr.js';
 import { getMarketDataKr, GET_MARKET_DATA_KR_DESCRIPTION } from './finance-kr/get-market-data-kr.js';
@@ -223,7 +224,15 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       tool: createReadFilingsKr(model),
       description: READ_FILINGS_KR_DESCRIPTION,
       compactDescription:
-        'Korean DART 사업·반기·분기보고서 narrative (사업의 내용, 위험관리, 경영진단 MD&A, 지배구조·최대주주·계열회사) — qualitative content for 6-digit tickers.',
+        'Korean DART 사업·반기·분기보고서 narrative (사업의 내용, 위험관리, 경영진단 MD&A, 지배구조·최대주주·계열회사) — qualitative content for 6-digit tickers or names.',
+      concurrencySafe: true,
+    });
+    tools.push({
+      name: 'get_segments_kr',
+      tool: getSegmentsKr,
+      description: GET_SEGMENTS_KR_DESCRIPTION,
+      compactDescription:
+        'Korean 사업부문별 요약 재무현황 (segment 매출액·영업이익·비중) from the latest DART 정기보고서 — divisional mix for 재벌/복합 기업 (6-digit tickers or names).',
       concurrencySafe: true,
     });
   }

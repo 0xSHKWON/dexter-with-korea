@@ -96,7 +96,7 @@ async function runOnce(
 }
 
 async function evaluateQuestion(q: KrEvalQuestion, ctx: RunCtx): Promise<QuestionResult> {
-  const runs: { firedTools: string[]; rawDims: RawDimension[]; replayMisses: string[] }[] = [];
+  const runs: { firedTools: string[]; rawDims: RawDimension[]; replayMisses: string[]; answer: string }[] = [];
 
   for (let i = 0; i < ctx.repeat; i++) {
     const { answer, toolCalls, replayMisses } = await runOnce(q, ctx);
@@ -107,7 +107,7 @@ async function evaluateQuestion(q: KrEvalQuestion, ctx: RunCtx): Promise<Questio
       toolCalls,
       model: ctx.judgeModel,
     });
-    runs.push({ firedTools: firedToolNames(toolCalls), rawDims, replayMisses });
+    runs.push({ firedTools: firedToolNames(toolCalls), rawDims, replayMisses, answer });
   }
 
   // Average judge scores across repeats. Tool-firing / replayMisses are taken from
@@ -124,6 +124,7 @@ async function evaluateQuestion(q: KrEvalQuestion, ctx: RunCtx): Promise<Questio
     firedTools: runs[0].firedTools,
     rawDimensions: avgDims,
     replayMisses: runs[0].replayMisses,
+    answer: runs[0].answer,
   });
 }
 

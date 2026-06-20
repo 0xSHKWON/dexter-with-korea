@@ -2,7 +2,7 @@
 // tool calls) combined with per-dimension LLM-judge scores (judge.ts). Pure and
 // side-effect-free so it's unit-testable without network or an LLM.
 
-import type { DimensionId, KrEvalQuestion } from './questions.js';
+import type { DimensionId, KrEvalQuestion, NumericAnchor } from './questions.js';
 
 export const DEFAULT_THRESHOLD = 0.7;
 
@@ -41,6 +41,10 @@ export interface QuestionResult {
   toolsScore: number;
   /** Tools the agent called in replay with no recorded output. */
   replayMisses: string[];
+  /** requiredPhrases that did NOT appear in the answer (hard gate). */
+  phraseMisses: string[];
+  /** numericAnchors whose value the answer did NOT state within tolerance (hard gate). */
+  numericMisses: string[];
   dimensions: DimensionResult[];
   pass: boolean;
 }
@@ -78,6 +82,58 @@ function thresholdFor(q: KrEvalQuestion, id: DimensionId): number {
   return q.thresholds?.[id] ?? DEFAULT_THRESHOLD;
 }
 
+// --- Deterministic accuracy gates (pure; complement the LLM judge) -----------
+
+/** Substrings that must appear in the answer (whitespace- and case-insensitive). */
+export function checkRequiredPhrases(answer: string, phrases: string[] = []): string[] {
+  const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase();
+  const a = norm(answer);
+  return phrases.filter((p) => !a.includes(norm(p)));
+}
+
+/** Parse KRW magnitudes mentioned in prose ("133.9조", "57조 2,000억", "1,234억") → 원. */
+export function extractKrwAmounts(text: string): number[] {
+  const out: number[] = [];
+  const num = (s: string) => parseFloat(s.replace(/,/g, ''));
+  // 조 (optionally followed by 억) — captures "133.9조", "57조 2,000억".
+  for (const m of text.matchAll(/(\d[\d,]*(?:\.\d+)?)\s*조(?:\s*(\d[\d,]*(?:\.\d+)?)\s*억)?/g)) {
+    out.push(num(m[1]) * 1e12 + (m[2] ? num(m[2]) * 1e8 : 0));
+  }
+  // standalone 억 (also re-matches the 억 inside a 조-억 phrase — harmless extra candidate).
+  for (const m of text.matchAll(/(\d[\d,]*(?:\.\d+)?)\s*억/g)) out.push(num(m[1]) * 1e8);
+  return out;
+}
+
+/** Percentages stated in the answer ("39.3%", "-2%"). */
+export function extractPercents(text: string): number[] {
+  return [...text.matchAll(/(-?\d+(?:\.\d+)?)\s*%/g)].map((m) => parseFloat(m[1]));
+}
+
+/** Comma-grouped integers not carrying a 조/억/만/% unit (e.g. raw share counts). */
+export function extractPlainNumbers(text: string): number[] {
+  return [...text.matchAll(/(\d{1,3}(?:,\d{3})+)(?!\s*[조억만%])/g)].map((m) => parseFloat(m[1].replace(/,/g, '')));
+}
+
+/** numericAnchors whose value is NOT stated in the answer within tolerance. */
+export function checkNumericAnchors(answer: string, anchors: NumericAnchor[] = []): string[] {
+  const krw = extractKrwAmounts(answer);
+  const pct = extractPercents(answer);
+  const plain = extractPlainNumbers(answer);
+  const misses: string[] = [];
+  for (const a of anchors) {
+    const tol = a.tolerancePct ?? (a.unit === 'pct' ? 1 : 5);
+    let hit: boolean;
+    if (a.unit === 'pct') {
+      hit = pct.some((v) => Math.abs(v - a.value) <= tol); // tol = absolute percentage-points
+    } else {
+      const pool = a.unit === 'count' ? plain : krw;
+      hit = a.value !== 0 && pool.some((v) => Math.abs(v - a.value) / Math.abs(a.value) <= tol / 100);
+    }
+    if (!hit) misses.push(`${a.label}(${a.value}${a.unit === 'pct' ? '%' : ''})`);
+  }
+  return misses;
+}
+
 function mean(nums: number[]): number {
   return nums.length === 0 ? 0 : nums.reduce((a, b) => a + b, 0) / nums.length;
 }
@@ -87,8 +143,10 @@ export function buildQuestionResult(args: {
   firedTools: string[];
   rawDimensions: RawDimension[];
   replayMisses?: string[];
+  /** The agent's final answer — needed for the requiredPhrases / numericAnchors gates. */
+  answer?: string;
 }): QuestionResult {
-  const { question, firedTools, rawDimensions, replayMisses = [] } = args;
+  const { question, firedTools, rawDimensions, replayMisses = [], answer = '' } = args;
   const tools = scoreTools(question, firedTools);
 
   const dimensions: DimensionResult[] = rawDimensions.map((d) => ({
@@ -96,8 +154,12 @@ export function buildQuestionResult(args: {
     pass: d.score >= thresholdFor(question, d.id),
   }));
 
+  const phraseMisses = checkRequiredPhrases(answer, question.requiredPhrases);
+  const numericMisses = checkNumericAnchors(answer, question.numericAnchors);
+
   const dimsPass = dimensions.every((d) => d.pass);
-  const pass = tools.missingRequired.length === 0 && dimsPass;
+  const pass =
+    tools.missingRequired.length === 0 && dimsPass && phraseMisses.length === 0 && numericMisses.length === 0;
 
   // A replay with uncovered tool calls didn't fully pin the data → the score is
   // not comparable. Flag inconclusive so it's excluded from pass/fail counts.
@@ -114,6 +176,8 @@ export function buildQuestionResult(args: {
     missingRequired: tools.missingRequired,
     toolsScore: tools.toolsScore,
     replayMisses,
+    phraseMisses,
+    numericMisses,
     dimensions,
     pass,
   };
@@ -129,6 +193,8 @@ export function skippedResult(question: KrEvalQuestion, reason: string): Questio
     missingRequired: [],
     toolsScore: 0,
     replayMisses: [],
+    phraseMisses: [],
+    numericMisses: [],
     dimensions: [],
     pass: false,
   };

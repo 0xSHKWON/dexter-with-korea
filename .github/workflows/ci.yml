@@ -30,3 +30,31 @@ jobs:
 
       - name: Run ${{ matrix.task }}
         run: ${{ matrix.command }}
+
+  # On-demand KR-eval regression run (replay mode — recorded tool fixtures, no DART/KRX/Naver
+  # network). Still needs LLM keys for the agent + judge, so it's gated behind the `run-eval`
+  # label and pulls keys from repo secrets. Without keys the runner skips every question and
+  # exits 0, so a misconfigured repo never produces a false failure.
+  kr-eval-replay:
+    if: github.event.action == 'labeled' && github.event.label.name == 'run-eval'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: KR eval (replay)
+        run: bun run kr-eval:replay
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          # Optional repo variables to pin models to whatever key is configured
+          # (defaults: agent + judge = gpt-5.5, which needs OPENAI_API_KEY).
+          KR_RUNNER_MODEL: ${{ vars.KR_RUNNER_MODEL }}
+          KR_EVAL_JUDGE_MODEL: ${{ vars.KR_EVAL_JUDGE_MODEL }}
