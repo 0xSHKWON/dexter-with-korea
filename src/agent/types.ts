@@ -209,6 +209,15 @@ export interface StreamProgressEvent {
 }
 
 /**
+ * A chunk of streamed answer text, for live token-by-token rendering.
+ * Carries the actual text (unlike StreamProgressEvent which is length-only).
+ */
+export interface TextDeltaEvent {
+  type: 'text_delta';
+  text: string;
+}
+
+/**
  * Token usage statistics
  */
 export interface TokenUsage {
@@ -287,6 +296,7 @@ export type AgentEvent =
   | MemoryRecalledEvent
   | MemoryFlushEvent
   | StreamProgressEvent
+  | TextDeltaEvent
   | DoneEvent;
 
 /**
