@@ -1,192 +1,206 @@
-# Dexter 🤖
+# Dexter 🇰🇷
 
-Dexter is an autonomous financial research agent that thinks, plans, and learns as it works. It performs analysis using task planning, self-reflection, and real-time market data. Think Claude Code, but built specifically for financial research.
+**한국 주식을 1차 출처로 직접 리서치하는 CLI 에이전트.** 뉴스 요약이 아니라 DART(전자공시)·KRX(공매도)·Naver(시세·외국인)·국민연금을 API로 직접 호출하고, 수집한 데이터를 하나의 투자 thesis로 엮어 인용과 함께 답합니다. 미국 종목도 같은 루프에서 다루고 교차 비교합니다.
 
-<img width="665" height="452" alt="Screenshot 2026-04-02 at 4 16 57 PM" src="https://github.com/user-attachments/assets/02418111-5f48-4a66-be5d-dc9bf9806284" />
-
-## Table of Contents
-
-- [👋 Overview](#-overview)
-- [✅ Prerequisites](#-prerequisites)
-- [💻 How to Install](#-how-to-install)
-- [🚀 How to Run](#-how-to-run)
-- [📊 How to Evaluate](#-how-to-evaluate)
-- [🐛 How to Debug](#-how-to-debug)
-- [📱 How to Use with WhatsApp](#-how-to-use-with-whatsapp)
-- [🤝 How to Contribute](#-how-to-contribute)
-- [📄 License](#-license)
-
-## ⚠️ Disclaimer
-
-This project is for **educational, entertainment, and informational purposes only**. It is not intended for real trading or investment.
-
-- Not financial, investment, tax, or legal advice
-- No guarantees of accuracy, completeness, or fitness for any purpose
-- Outputs may be incorrect, incomplete, or out of date
-- Creator and contributors assume no liability for any financial losses or damages
-- Consult a licensed financial advisor before making investment decisions
-- Past performance does not indicate future results
-
-By using this software, you agree to use it solely for learning and informational purposes and accept all risks associated with its use.
-
-## 👋 Overview
-
-Dexter takes complex financial questions and turns them into clear, step-by-step research plans. It runs those tasks using live market data, checks its own work, and refines the results until it has a confident, data-backed answer.  
-
-**Key Capabilities:**
-- **Intelligent Task Planning**: Automatically decomposes complex queries into structured research steps
-- **Autonomous Execution**: Selects and executes the right tools to gather financial data
-- **Self-Validation**: Checks its own work and iterates until tasks are complete
-- **Real-Time Financial Data**: Access to income statements, balance sheets, and cash flow statements
-- **Safety Features**: Built-in loop detection and step limits to prevent runaway execution
+[virattt/dexter](https://github.com/virattt/dexter)(미국 시장 중심의 자율 금융 리서치 에이전트)를 포크해, 그 위에 **한국 주식 리서치 레이어**와 그 데이터가 조용히 깨지지 않게 받쳐주는 **견고성 레이어**를 얹은 것이 이 저장소의 핵심입니다.
 
 [![Twitter Follow](https://img.shields.io/twitter/follow/virattt?style=social)](https://twitter.com/virattt) [![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?style=social&logo=discord)](https://discord.gg/jpGHv2XB6T)
 
-<img width="1042" height="638" alt="Screenshot 2026-02-18 at 12 21 25 PM" src="https://github.com/user-attachments/assets/2a6334f9-863f-4bd2-a56f-923e42f4711e" />
+<img width="1042" height="638" alt="Dexter TUI" src="https://github.com/user-attachments/assets/2a6334f9-863f-4bd2-a56f-923e42f4711e" />
 
+---
 
-## ✅ Prerequisites
+**바로가기** · [무엇을 하나](#무엇을-하나) · [왜 따로 만들었나](#왜-한국-주식은-따로-만들어야-했나) · [도구](#도구) · [견고성](#견고성--조용히-깨지지-않기) · [한국 시장 튜닝](#한국-시장-튜닝) · [빠른 시작](#빠른-시작) · [예시](#예시) · [웹 챗봇 대비](#웹-챗봇-대비) · [한계](#정직한-한계) · [개발·평가](#개발--평가)
 
-- [Bun](https://bun.com) runtime (v1.0 or higher)
-- OpenAI API key (get [here](https://platform.openai.com/api-keys))
-- Financial Datasets API key (get [here](https://financialdatasets.ai))
-- Exa API key (get [here](https://exa.ai)) - optional, for web search
+## 무엇을 하나
 
-#### Installing Bun
+자연어로 질문을 던지면 — 시장을 지정할 필요 없이 — 에이전트가 티커 형태(6자리 숫자 = 한국)와 언어를 보고 알맞은 도구로 라우팅하고, 1차 출처를 호출해, 결과를 교차 종합한 뒤 인용된 답을 냅니다.
 
-If you don't have Bun installed, you can install it using curl:
-
-**macOS/Linux:**
-```bash
-curl -fsSL https://bun.com/install | bash
+```
+> 삼성전자 지금 투자 관점에서 어때?
 ```
 
-**Windows:**
-```bash
-powershell -c "irm bun.sh/install.ps1|iex"
-```
+이 한 줄이 내부에서는: **정규화 실적**(매출·영업이익·순이익·마진·ROE·FCF·YoY) + **외국인/기관/개인 일별 수급** + **공매도 잔고** + **5%룰 대량보유** + **목표주가 컨센서스**를 각각 1차 출처에서 끌어와, "수급·실적·지배구조가 같은 방향인지 충돌인지"를 판단하는 하나의 thesis로 묶입니다. 단순 지표 나열이 아니라 종합이 결과물입니다.
 
-After installation, restart your terminal and verify Bun is installed:
-```bash
-bun --version
-```
+모든 도구 호출은 스크래치패드(JSONL)에 기록되어 **무엇을 어디서 가져왔는지 감사·재현**할 수 있습니다.
 
-## 💻 How to Install
+## 왜 한국 주식은 따로 만들어야 했나
 
-1. Clone the repository:
-```bash
-git clone https://github.com/virattt/dexter.git
-cd dexter
-```
+미국용 도구를 6자리 한국 티커에 그대로 쓸 수 없습니다(애초에 티커를 해결하지 못함). 그리고 한국 데이터 소스는 미국의 깔끔한 키 기반 API와 다릅니다:
 
-2. Install dependencies with Bun:
+| 소스 | 무엇 | 현실 |
+|---|---|---|
+| **DART** (금감원 전자공시) | 재무·공시·지배구조 | 무료 공식 API지만 **일 20,000건 한도** |
+| **KRX** (한국거래소) | 공매도 잔고 | 2024–25부터 **회원 로그인 필수**(익명 차단) |
+| **Naver** 모바일 | 현재가·외국인 지분율 | **공식 계약 없는** JSON 엔드포인트 |
+| **국민연금** (data.go.kr) | 연기금 보유 | 분기 아닌 **연말 스냅샷**, 종목명 매칭 |
+
+그래서 두 가지가 필요했습니다 — **(1)** 각 소스를 제대로 호출하는 도구, **(2)** 그게 한도 초과·로그인 만료·응답 구조 변경에 **조용히 깨지지 않게** 받쳐주는 견고성 레이어. 아래 [견고성](#견고성--조용히-깨지지-않기) 섹션이 이 포크의 실제 차별점입니다.
+
+## 도구
+
+**DART 기반** — `DART_API_KEY`가 설정되면 자동 등록.
+
+| 도구 | 대응 미국 개념 | 내용 |
+|---|---|---|
+| `get_financials_kr` | `get_financials` (10-K/10-Q) | 사업·반기·분기보고서, K-IFRS 정규화 요약(연결/별도) |
+| `get_filings_kr` | SEC EDGAR | DART 공시 검색 |
+| `read_filings_kr` | `read_filings` (10-K 본문) | 보고서 본문 — 사업의 내용·주요제품·위험관리·MD&A **+ 지배구조·최대주주·특수관계자·계열회사·대주주 거래** |
+| `get_large_holders_kr` | 13F (5%+ 보유) | 대량보유상황보고서 |
+| `get_insider_trades_kr` | Form 4 (내부자) | 임원·주요주주 보고 |
+
+**Korea-specific** — DART에 없는 데이터. 소스·키가 도구마다 다름.
+
+| 도구 | 내용 (소스) | 활성화 |
+|---|---|---|
+| `get_market_data_kr` | 현재가·시총·PER/PBR/EPS/BPS·추정PER·배당·목표주가 컨센서스·peer (Naver) | **키 불필요** |
+| `get_foreign_ownership_kr` | 외국인 지분율 + 외국인/기관/개인 순매수 (Naver) | **키 불필요** |
+| `get_short_balance_kr` | 공매도 순보유잔고 (KRX) | `KRX_ID`+`KRX_PW` 또는 `KRX_COOKIE` |
+| `get_nps_holdings` | 국민연금 국내주식 보유 (data.go.kr) | `DATA_GO_KR_SERVICE_KEY` |
+
+> 현재가·외국인 지분율은 **키 하나 없이** 동작합니다. DART 키가 없어도 한국 종목의 시세·밸류에이션·외국인 수급은 바로 조회됩니다.
+
+## 견고성 — 조용히 깨지지 않기
+
+한국 소스의 거친 현실 위에서 잘못된 숫자를 사실처럼 답하지 않도록 다음을 내장했습니다.
+
+- **DART 쿼터 보호** — `get_financials_kr`(연도별) × 라우팅(종목별) × 에이전트(도구 병렬)가 곱해지면 "이 종목 분석" 한 번이 수십 개의 DART 호출로 번집니다. **공유 동시성 캡**(기본 4, `DART_MAX_CONCURRENCY`로 조정)이 일 20,000건 한도를 태우지 않게 막고, 한도 초과(`020`)가 감지되면 **서킷 브레이커**가 나머지 호출을 네트워크 낭비 없이 즉시 중단하고 명확한 한국어 메시지로 알린 뒤 쿨다운 후 자동 재시도합니다. (일일 한도엔 재시도 backoff가 무의미하므로 throttle + 명시적 알림으로 대응.)
+- **데이터 드리프트 감지(canary)** — Naver JSON은 비공식이라 어느 날 필드명이 바뀌면 값이 **조용히 null**이 될 수 있습니다. 핵심 필드(현재가·시총·일별 수급)가 비면 결과에 `_dataQualityWarning`을 붙여 모델이 깨진 값을 보고하지 않게 합니다. 일별 종가가 rename되어 **전일 종가로 가려지는** 최악 케이스까지 감지하고, ETF/ETN·펀드·무커버 종목처럼 본래 일부 지표가 없는 경우는 오탐을 내지 않습니다.
+- **keyless 플레이북 티어링** — DART 키가 없어도 keyless 도구만으로 **수급·밸류에이션 리서치 가이드가 살아 있습니다.** 키가 있으면 DART 1차 자료를 포함한 전체 교차신호 플레이북으로 확장됩니다(미등록 도구를 가리키지 않도록 등록 게이트와 단일 진실원으로 일치).
+- **결정적 재현(record/replay)** — 평가 하네스가 실제 DART·KRX·Naver 응답을 픽스처로 기록해두면, 같은 질문을 **키·네트워크 없이 결정적으로 재현·회귀 테스트**합니다. [개발·평가](#개발--평가) 참고.
+
+## 한국 시장 튜닝
+
+- **DCF 자동 분기** — 6자리 티커면 DCF 스킬이 한국 경로로 전환(법인세율 ~22%·국고채 무위험금리 ~3%·KRW). **순부채를 부채총계가 아니라 이자부채(차입금·사채)에서 현금·단기금융상품을 뺀 값으로** 산정 — 삼성처럼 순현금 기업은 순현금을 더해 주식가치가 EV보다 커집니다(부채총계로 잘못 빼면 부호가 뒤집혀 저평가). 거래세·배당세는 투자자 세후 실현수익률 주의사항으로 표기.
+- **지배구조·소유구조 본문** — 코리아 디스카운트의 1차 변수(최대주주·특수관계인·계열회사·순환출자·대주주 거래)를 DART 사업보고서 본문(VI 회사의 기관·VII 주주에 관한 사항·IX 계열회사·X 대주주 등과의 거래내용)에서 **추정이 아니라 1차 근거로** 추출.
+- **물적분할 분석** — LG화학→LG에너지솔루션 같은 분할 이벤트를 모회사 주주 관점(희석·지주사 디스카운트)에서 평가하는 전용 스킬.
+- **교차신호 종합** — 재무·외국인 수급·공매도·대량보유·공시를 단순 나열이 아니라 하나의 thesis로 엮음(대량보유 집중은 밸류에이션 요인으로 처리).
+- **K-IFRS 정규화** — 연결/별도 둘 다, 매출·영업이익·순이익·마진·ROE·FCF·YoY로 요약(원시 라인아이템은 파일로 보존해 드릴다운). 영업이익 정의가 미국 GAAP와 미묘하게 다른 점 반영.
+- **단위·시장 규칙** — 원(KRW)·억·조 자동 포맷, 09:00–15:30 KST 거래시간, ±30% 상하한가.
+- **종목 코드 해결** — "삼성전자" → 티커 → `corp_code`. DART 마스터(`corpCode.xml`)를 첫 실행 시 받아 `.dexter/cache/`에 저장하고 7일마다 갱신(신규 상장·사명 변경·물적분할 자동 반영). KRX용 티커→ISIN 매핑도 별도 관리.
+
+## 빠른 시작
+
+**필요한 것:** [Bun](https://bun.com) v1.0+ · LLM 키 하나(OpenAI/Anthropic/Google/xAI/OpenRouter/Ollama 등) · (선택) 시장 데이터 키.
+키가 하나도 없어도 한국 종목 현재가·외국인 지분율(Naver, 키 불필요)은 동작합니다.
+
 ```bash
+# Bun 설치 (없다면)
+curl -fsSL https://bun.com/install | bash          # macOS/Linux
+# powershell -c "irm bun.sh/install.ps1|iex"        # Windows
+
+git clone https://github.com/SangHyeonKwon/dexter-with-korea.git
+cd dexter-with-korea
 bun install
+
+cp env.example .env      # 키 채우기 (아래)
+bun start                # 대화형 실행  (bun dev = watch 모드)
 ```
 
-3. Set up your environment variables:
+**키** (`.env`, `your-`로 시작하는 값은 미설정으로 간주):
+
 ```bash
-# Copy the example environment file
-cp env.example .env
+# LLM — 최소 하나 필수
+OPENAI_API_KEY=your-openai-api-key
+# ANTHROPIC_API_KEY / GOOGLE_API_KEY / XAI_API_KEY / OPENROUTER_API_KEY / OLLAMA_BASE_URL …
 
-# Edit .env and add your API keys (if using cloud providers)
-# OPENAI_API_KEY=your-openai-api-key
-# ANTHROPIC_API_KEY=your-anthropic-api-key (optional)
-# GOOGLE_API_KEY=your-google-api-key (optional)
-# XAI_API_KEY=your-xai-api-key (optional)
-# OPENROUTER_API_KEY=your-openrouter-api-key (optional)
+# 미국 시장 데이터
+FINANCIAL_DATASETS_API_KEY=your-financial-datasets-api-key
 
-# Institutional-grade market data for agents
-# FINANCIAL_DATASETS_API_KEY=your-financial-datasets-api-key
+# 한국 시장
+DART_API_KEY=your-dart-api-key        # 재무·공시·지배구조 (무료, 일 20,000건 — opendart.fss.or.kr)
+# KRX_ID / KRX_PW                      # 공매도 잔고 (data.krx.co.kr 로그인)
+# KRX_COOKIE=JSESSIONID=...            # 소셜 로그인 계정은 브라우저 쿠키 붙여넣기
+# DATA_GO_KR_SERVICE_KEY=...           # 국민연금 (data.go.kr, Decoded 키)
+# DART_MAX_CONCURRENCY=4               # (선택) DART 동시 호출 상한
+# READ_FILINGS_KR_MODEL=...            # (선택) read_filings_kr 내부 요약 모델
 
-# (Optional) If using Ollama locally
-# OLLAMA_BASE_URL=http://127.0.0.1:11434
-
-# Web Search (Exa preferred, Tavily fallback)
-# EXASEARCH_API_KEY=your-exa-api-key
-# TAVILY_API_KEY=your-tavily-api-key
+# 웹 검색 (선택, Exa → Perplexity → Tavily → LangSearch 폴백) / X 센티먼트 (선택)
+# EXASEARCH_API_KEY / PERPLEXITY_API_KEY / TAVILY_API_KEY / LANGSEARCH_API_KEY / X_BEARER_TOKEN
 ```
 
-## 🚀 How to Run
+**활성화 규칙:** `DART_API_KEY` → 5개 DART 도구 · `KRX_ID`+`KRX_PW`(또는 `KRX_COOKIE`) → 공매도 · `DATA_GO_KR_SERVICE_KEY` → 국민연금. 현재가·외국인 지분율은 키 없이 항상 등록.
 
-Run Dexter in interactive mode:
+## 예시
+
+시장을 지정할 필요 없이 티커 형태와 언어로 라우팅됩니다.
+
+```
+# 재무 · 밸류에이션
+> 삼성전자 최근 5년 매출과 영업이익 추세 정리해줘
+> 삼성전자 DCF로 적정주가 계산하고 현재가랑 비교해줘        # 6자리면 KR 경로 자동 분기
+> 엔비디아와 SK하이닉스 HBM 관련 실적 비교 분석해줘          # 크로스마켓
+
+# 공시 · 지배구조 (DART)
+> 카카오 최근 1년 주요 공시 정리해줘
+> 삼성전자 최대주주·특수관계인 지분이랑 계열회사 관계 사업보고서 기준으로 정리해줘
+> 삼성전자 주요 리스크가 뭐야?
+
+# 한국 특화 데이터
+> 삼성전자 현재가랑 목표주가 컨센서스 알려줘                 # 키 불필요 (Naver)
+> 삼성전자 외국인 지분율 최근 추세 보여줘                    # 키 불필요 (Naver)
+> 에코프로비엠 공매도 순보유잔고 추이 어때?                  # KRX 키 필요
+> 국민연금이 보유한 삼성전자 지분율 알려줘                   # data.go.kr 키 필요
+
+# 이벤트 · 메모 · 종합
+> LG화학 물적분할이 기존 주주가치에 어떤 영향이었는지 분석해줘
+> 삼성전자 지금 투자 관점에서 어때?                          # 수급·실적·지배구조 교차 종합
+> 삼성전자 매수 논거를 투자 메모로 작성해줘
+```
+
+## 웹 챗봇 대비
+
+2026년 5월, 동일 질문 5개를 **Dexter(GPT-5.5)** 와 **claude.ai(Opus 4.8 + 웹검색)** 에 던져 실측했습니다. 둘 다 프런티어 모델이므로 차이는 모델이 아니라 **금융 하네스 — 1차 출처 도구 + 한국 시장 스킬** 에서 옵니다. *(각 도구가 반환한 값 그대로이며 별도 정밀 감사는 안 함. 삼성 손익은 정규화 개선 후 재측정, 네이버 DCF는 순부채 보정 이전 값이라 현행 코드론 더 높게 나올 수 있음.)*
+
+| 질문 | claude.ai (Opus 4.8 + 웹검색) | Dexter (GPT-5.5 + 하네스) |
+|---|---|---|
+| 삼성 매출/영업이익 | 333.6조 / 43.6조, 뉴스 출처 ✓ (단 "1Q 57조" 환각) | **333.6조 / 43.6조 (+10.9%/+33.2% YoY)** + 마진·ROE·FCF, DART 정규화 직접 추출 |
+| 외국인 지분율 | 48.42% (05-20), 뉴스 | **48.27% (05-29)** 일별 + 순매도량, Naver 직접 |
+| 네이버 DCF | 161,700원, 무위험금리 4.15% | ~200,000원, **KR 자동 분기**, 실시세 기반 |
+| LG화학 물적분할 | 다출처 서술 | DART 공시 9건 직접 인용 + 구조 분석 |
+| 에코프로비엠 공매도 | 1개 시점(5/07) + "KRX서 조회" 안내 | **18일 일별 잔고율·금액·수량** (KRX 직접) |
+
+핵심 차이는 **1차 출처 직접 호출**(뉴스 2차가 아님) · **구조화 시계열**(공매도 18일·외국인 일별) · **정확한 밸류에이션**(순현금 기업을 저평가하지 않는 순부채 계산) · **깨져도 조용하지 않음**(쿼터/드리프트 명시) · **감사·재현 가능**(스크래치패드 + record/replay)입니다.
+
+## 정직한 한계
+
+항상 이기는 도구가 아닙니다:
+
+- 표준 제조업 손익은 매끄럽게 정규화되지만, 은행·지주사의 비표준 K-IFRS 라벨(영업수익 등)은 일부 지표가 비어 raw 드릴다운으로 보완 — 커버리지가 균일하지 않음.
+- 정밀 컨센서스(브로커별 목표주가·추정치 분산)·세그먼트 재무는 FnGuide 등 유료 단말에 못 미침(keyless 소스는 단일 평균 목표주가뿐).
+- DCF 무위험금리·WACC는 밴드/근사값 고정이라 가정이 낡을 수 있음.
+- KRX 공매도는 로그인 의존, Naver는 비공식 엔드포인트 — 견고성 레이어가 충격을 줄이지만 상류 변경 자체를 막진 못함.
+- 전체 특수관계자 거래 *주석*은 표 중심이라 본문 narrative(대주주 거래)까지만 커버.
+
+Dexter의 우위는 "더 똑똑함"이 아니라 **1차 출처·구조화·감사가능·한국 튜닝**에 있습니다.
+
+## 개발 · 평가
+
+**런타임은 Bun.** 자주 쓰는 명령:
+
 ```bash
-bun start
+bun run typecheck    # tsc --noEmit (푸시 전 권장)
+bun test             # 전체 테스트 (Bun 러너)
+bun test path.test.ts
 ```
 
-Or with watch mode for development:
+**평가(eval)** — LLM-as-judge 채점:
+
 ```bash
-bun dev
+bun run src/evals/run.ts --sample 10   # 미국 중심 평가
+bun run kr-eval                        # 한국 질문 뱅크, 라이브 채점
+bun run kr-eval:record                 # 실제 DART·KRX·Naver 응답을 픽스처로 기록
+bun run kr-eval:replay                 # 픽스처로 결정적 재현 (키·네트워크 불필요)
 ```
 
-## 📊 How to Evaluate
+KR 채점 차원: 실적 YoY · 교차신호 · 지배구조 · grounding(환각 여부). "같은 질문 → 같은 데이터 경로"를 record/replay로 검증해 챗봇의 비결정적 답과 대비합니다.
 
-Dexter includes an evaluation suite that tests the agent against a dataset of financial questions. Evals use LangSmith for tracking and an LLM-as-judge approach for scoring correctness.
+**디버깅** — 모든 쿼리가 `.dexter/scratchpad/`에 JSONL로 기록됩니다(원본 쿼리·각 툴 호출의 인자/원시결과/LLM 요약·추론 단계). 에이전트가 무엇을 어디서 가져와 어떻게 해석했는지 한 줄씩 추적할 수 있습니다.
 
-**Run on all questions:**
-```bash
-bun run src/evals/run.ts
-```
+## 라이선스
 
-**Run on a random sample of data:**
-```bash
-bun run src/evals/run.ts --sample 10
-```
+MIT. 업스트림: [virattt/dexter](https://github.com/virattt/dexter).
 
-The eval runner displays a real-time UI showing progress, current question, and running accuracy statistics. Results are logged to LangSmith for analysis.
+## ⚠️ 면책 조항
 
-## 🐛 How to Debug
-
-Dexter logs all tool calls to a scratchpad file for debugging and history tracking. Each query creates a new JSONL file in `.dexter/scratchpad/`.
-
-**Scratchpad location:**
-```
-.dexter/scratchpad/
-├── 2026-01-30-111400_9a8f10723f79.jsonl
-├── 2026-01-30-143022_a1b2c3d4e5f6.jsonl
-└── ...
-```
-
-Each file contains newline-delimited JSON entries tracking:
-- **init**: The original query
-- **tool_result**: Each tool call with arguments, raw result, and LLM summary
-- **thinking**: Agent reasoning steps
-
-**Example scratchpad entry:**
-```json
-{"type":"tool_result","timestamp":"2026-01-30T11:14:05.123Z","toolName":"get_income_statements","args":{"ticker":"AAPL","period":"annual","limit":5},"result":{...},"llmSummary":"Retrieved 5 years of Apple annual income statements showing revenue growth from $274B to $394B"}
-```
-
-This makes it easy to inspect exactly what data the agent gathered and how it interpreted results.
-
-## 📱 How to Use with WhatsApp
-
-Chat with Dexter through WhatsApp by linking your phone to the gateway. Messages you send to yourself are processed by Dexter and responses are sent back to the same chat.
-
-**Quick start:**
-```bash
-# Link your WhatsApp account (scan QR code)
-bun run gateway:login
-
-# Start the gateway
-bun run gateway
-```
-
-Then open WhatsApp, go to your own chat (message yourself), and ask Dexter a question.
-
-For detailed setup instructions, configuration options, and troubleshooting, see the [WhatsApp Gateway README](src/gateway/channels/whatsapp/README.md).
-
-## 🤝 How to Contribute
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
-
-**Important**: Please keep your pull requests small and focused.  This will make it easier to review and merge.
-
-
-## 📄 License
-
-This project is licensed under the MIT License.
+**교육·정보 제공 목적 전용.** 실거래/투자를 위한 것이 아니며, 금융·투자·세무·법률 자문이 아닙니다. 정확성·완전성을 보장하지 않고, 출력이 부정확하거나 시점이 지난 것일 수 있습니다. 제작자·기여자는 어떠한 손실에도 책임지지 않습니다. 투자 결정 전 면허 보유 전문가와 상담하세요. 이 소프트웨어를 사용함으로써 모든 위험을 본인이 감수하는 데 동의합니다.

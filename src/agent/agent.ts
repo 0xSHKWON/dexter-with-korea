@@ -80,6 +80,10 @@ export class Agent {
     let tools = config.toolAllowlist
       ? allTools.filter(t => config.toolAllowlist!.includes(t.name))
       : allTools;
+    // KR eval harness swaps live KR tools for fixture-backed stubs in replay mode.
+    if (config.transformTools) {
+      tools = config.transformTools(tools);
+    }
     // CLI-only tools (interactive prompts) are dropped on non-CLI channels
     // (WhatsApp/gateway) and in headless runs, where there is no user at a keyboard.
     const isCli = !config.channel || config.channel === 'cli';

@@ -1,0 +1,17 @@
+{
+  "id": "nps-samsung",
+  "query": "국민연금이 삼성전자 얼마나 들고 있어?",
+  "meta": {
+    "model": "gpt-5.5"
+  },
+  "toolCalls": [
+    {
+      "tool": "get_nps_holdings",
+      "args": {
+        "ticker": "005930",
+        "limit": 5
+      },
+      "result": "{\"data\":{\"source\":\"NPS 국내주식 투자정보 (data.go.kr, year-end snapshot)\",\"query\":{\"name\":null,\"ticker\":\"005930\",\"resolvedName\":\"삼성전자\"},\"holdings\":[{\"name\":\"삼성전자\",\"evalAmount\":230421,\"weightPct\":16.7,\"shareRatioPct\":7.26},{\"name\":\"삼성전자우\",\"evalAmount\":1982,\"weightPct\":0.14,\"shareRatioPct\":0.54}]}}"
+    }
+  ]
+}

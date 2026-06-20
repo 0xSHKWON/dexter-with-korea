@@ -1,0 +1,17 @@
+{
+  "id": "institutional-vs-foreign",
+  "query": "오늘 삼성전자 기준으로 기관·외국인·개인 누가 사고 팔았어?",
+  "meta": {
+    "model": "gpt-5.5"
+  },
+  "toolCalls": [
+    {
+      "tool": "get_foreign_ownership_kr",
+      "args": {
+        "ticker": "005930",
+        "limit": 5
+      },
+      "result": "{\"data\":{\"ticker\":\"005930\",\"ownership\":[{\"date\":\"2026-06-01\",\"foreignHoldRatio\":48.3,\"foreignNetBuyQty\":-180865,\"orgNetBuyQty\":3832695,\"individualNetBuyQty\":-3173072,\"closePrice\":349000,\"tradingVolume\":45052488},{\"date\":\"2026-05-29\",\"foreignHoldRatio\":48.29,\"foreignNetBuyQty\":-1061741,\"orgNetBuyQty\":5314304,\"individualNetBuyQty\":-4237361,\"closePrice\":317000,\"tradingVolume\":37241537},{\"date\":\"2026-05-28\",\"foreignHoldRatio\":48.29,\"foreignNetBuyQty\":-5173125,\"orgNetBuyQty\":-1613562,\"individualNetBuyQty\":6500347,\"closePrice\":299500,\"tradingVolume\":30195334},{\"date\":\"2026-05-27\",\"foreignHoldRatio\":48.39,\"foreignNetBuyQty\":-274173,\"orgNetBuyQty\":1550904,\"individualNetBuyQty\":-1105685,\"closePrice\":307000,\"tradingVolume\":33916688},{\"date\":\"2026-05-26\",\"foreignHoldRatio\":48.37,\"foreignNetBuyQty\":1891734,\"orgNetBuyQty\":1513469,\"individualNetBuyQty\":-3263161,\"closePrice\":299000,\"tradingVolume\":23441371}]},\"sourceUrls\":[\"https://m.stock.naver.com/api/stock/005930/trend\"]}"
+    }
+  ]
+}

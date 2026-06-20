@@ -72,7 +72,43 @@ function summarizeToolResult(tool: string, args: Record<string, unknown>, result
       }
       if (typeof parsed.data === 'object') {
         const keys = Object.keys(parsed.data).filter((key) => !key.startsWith('_'));
-        if (tool === 'get_financials' || tool === 'get_market_data' || tool === 'stock_screener') {
+        if (tool === 'get_filings_kr') {
+          const n = Array.isArray(parsed.data.filings) ? parsed.data.filings.length : 0;
+          return `Found ${n} filings`;
+        }
+        if (tool === 'read_filings_kr') {
+          const n = Array.isArray(parsed.data.sections_found) ? parsed.data.sections_found.length : 0;
+          return `Read ${n} section${n !== 1 ? 's' : ''}`;
+        }
+        if (tool === 'get_large_holders_kr') {
+          const n = Array.isArray(parsed.data.holders) ? parsed.data.holders.length : 0;
+          return `Found ${n} holders`;
+        }
+        if (tool === 'get_insider_trades_kr') {
+          const n = Array.isArray(parsed.data.trades) ? parsed.data.trades.length : 0;
+          return `Found ${n} reports`;
+        }
+        if (tool === 'get_short_balance_kr') {
+          const n = Array.isArray(parsed.data.short) ? parsed.data.short.length : 0;
+          return `Found ${n} days`;
+        }
+        if (tool === 'get_foreign_ownership_kr') {
+          const n = Array.isArray(parsed.data.ownership) ? parsed.data.ownership.length : 0;
+          return `Found ${n} days`;
+        }
+        if (tool === 'get_market_data_kr') {
+          const price = parsed.data.quote?.price;
+          return typeof price === 'number' ? `Price ₩${price.toLocaleString()}` : 'Received snapshot';
+        }
+        if (tool === 'get_segments_kr') {
+          const n = Array.isArray(parsed.data.segments) ? parsed.data.segments.length : 0;
+          return `Found ${n} segment table${n !== 1 ? 's' : ''}`;
+        }
+        if (tool === 'get_nps_holdings') {
+          const n = Array.isArray(parsed.data.holdings) ? parsed.data.holdings.length : 0;
+          return `Found ${n} holdings`;
+        }
+        if (tool === 'get_financials' || tool === 'get_financials_kr' || tool === 'get_market_data' || tool === 'stock_screener') {
           if (keys.length === 0) return 'Done';
           return keys.length === 1 ? 'Called 1 data source' : `Called ${keys.length} data sources`;
         }
@@ -362,6 +398,7 @@ export async function runCli() {
   /search      Choose preferred web search provider
   /rules       Show research rules
   /clear       Clear conversation
+  /exit        Exit Dexter
   ↑ / ↓        Navigate input history`;
 
   const handleSlashCommand = async (command: string) => {
@@ -416,6 +453,10 @@ export async function runCli() {
         chatLog.addChild(new Text(theme.muted(HELP_TEXT), 0, 0));
         tui.requestRender();
         break;
+      case 'exit':
+      case 'quit':
+        tui.stop();
+        process.exit(0);
     }
   };
 

@@ -12,6 +12,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { name: 'heartbeat', description: 'Show your heartbeat monitoring checklist' },
   { name: 'history', description: 'Show recent conversation summaries' },
   { name: 'help', description: 'Show keyboard shortcuts and tips' },
+  { name: 'exit', description: 'Exit Dexter' },
 ];
 
 /**
