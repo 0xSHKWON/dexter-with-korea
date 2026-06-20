@@ -6,12 +6,14 @@
  * (see src/main/sidecar.ts → sidecarTarget()).
  *
  * Note: Playwright's Chromium binary lives in a separate cache (~/.cache/ms-playwright),
- * NOT in node_modules, so it is NOT bundled here — browser/short-balance(KRX) tools
- * won't work in the packaged build until Chromium is bundled too. All other tools
- * (DART, Naver, data.go.kr, web_search, LLMs) work.
+ * NOT in node_modules, so it is NOT bundled here — only the generic `browser` tool
+ * (src/tools/browser) needs Chromium, so it is the one tool that won't work in the
+ * packaged build until Chromium is bundled too. Everything else works: DART, Naver,
+ * data.go.kr, KRX short-balance (pure HTTP fetch, no browser), web_search, web_fetch
+ * (axios), LLMs.
  */
 import { execSync } from 'node:child_process';
-import { cpSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+import { cpSync, mkdirSync, rmSync, existsSync, realpathSync, chmodSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -25,14 +27,23 @@ console.log('Staging bun + core into resources/ …');
 
 // 1) bun runtime (current build platform)
 const whichCmd = process.platform === 'win32' ? 'where bun' : 'which bun';
-const bunSrc = execSync(whichCmd).toString().trim().split('\n')[0].trim();
-if (!bunSrc || !existsSync(bunSrc)) {
+const bunOnPath = execSync(whichCmd).toString().trim().split('\n')[0].trim();
+if (!bunOnPath || !existsSync(bunOnPath)) {
   throw new Error('bun not found on PATH — install bun before building');
 }
+// `which bun` is often a symlink (e.g. Homebrew → ../Cellar/...). Resolve it to the
+// REAL binary and dereference on copy — otherwise resources/bin/bun ships as a dangling
+// symlink to the build machine's path and the packaged app can't spawn the sidecar.
+const bunSrc = realpathSync(bunOnPath);
 mkdirSync(resBin, { recursive: true });
 const bunDest = join(resBin, process.platform === 'win32' ? 'bun.exe' : 'bun');
-cpSync(bunSrc, bunDest);
-console.log(`  bun: ${bunSrc} -> ${bunDest}`);
+// Remove any prior copy first: a stale dest symlink would resolve to the same real
+// path as bunSrc and cpSync({dereference}) errors with "src and dest cannot be the same".
+rmSync(bunDest, { force: true });
+cpSync(bunSrc, bunDest, { dereference: true });
+chmodSync(bunDest, 0o755);
+const bunMB = (statSync(bunDest).size / 1e6).toFixed(0);
+console.log(`  bun: ${bunSrc} -> ${bunDest} (${bunMB} MB real binary)`);
 
 // 2) core sources + deps
 rmSync(resCore, { recursive: true, force: true });
