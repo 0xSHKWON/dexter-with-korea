@@ -64,6 +64,7 @@
     ],
     "mac": {
       "icon": "build/icon.png",
+      "artifactName": "Dexter-mac-arm64.${ext}",
       "target": [
         {
           "target": "dmg",
@@ -76,6 +77,7 @@
     },
     "win": {
       "icon": "build/icon.png",
+      "artifactName": "Dexter-windows-x64.${ext}",
       "target": [
         "nsis"
       ]

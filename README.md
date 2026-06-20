@@ -2,6 +2,14 @@
 
 **한국 주식을 1차 출처에서 직접 리서치해 정리해 주는 AI 에이전트.**
 
+### ⬇ 다운로드
+
+[![macOS 다운로드](https://img.shields.io/badge/⬇%20macOS%20다운로드-0d1117?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/0xSHKWON/dexter-with-korea/releases/latest/download/Dexter-mac-arm64.dmg) &nbsp; [![Windows 다운로드](https://img.shields.io/badge/⬇%20Windows%20다운로드-0d1117?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/0xSHKWON/dexter-with-korea/releases/latest/download/Dexter-windows-x64.exe)
+
+받아서 설치 → 설정에서 API 키만 넣으면 바로 시작. *(macOS는 Apple Silicon · M1 이상)* · [모든 버전](https://github.com/0xSHKWON/dexter-with-korea/releases)
+
+---
+
 뉴스 요약이 아닙니다. DART(전자공시)·KRX(공매도)·Naver(시세·외국인)·국민연금을 **직접 호출**해, 흩어진 데이터를 하나의 투자 판단으로 엮어 **인용과 함께** 답합니다. 미국 종목도 같은 자리에서 묻고 비교할 수 있습니다.
 
 > **"삼성전자 지금 투자 관점에서 어때?"** -> 이 한 줄이면 실적·외국인 수급·공매도 잔고·대량보유·목표주가 컨센서스를 각각 출처에서 끌어와, 신호들이 같은 방향인지 충돌인지까지 정리해 줍니다.
@@ -83,7 +91,7 @@ LG화학 물적분할이 기존 주주가치에 어떤 영향이었는지 분석
 
 키가 하나도 없어도 **한국 종목 현재가·외국인 지분율(Naver)** 은 바로 동작합니다. 재무·공시·공매도·연기금 같은 깊은 리서치는 해당 키를 넣으면 자동으로 켜집니다.
 
-- **데스크톱 앱 (Windows/macOS)** — 설치 후 설정 화면에서 키만 입력하면 끝. [Releases](https://github.com/0xSHKWON/dexter-with-korea/releases)에서 받으세요. *(배포 준비 중)*
+- **데스크톱 앱 (Windows/macOS)** — 맨 위 **⬇ 다운로드** 버튼으로 받아 설치한 뒤, 설정 화면에서 키만 입력하면 끝.
 - **CLI · 개발자** — Bun으로 바로 실행. 설치·키·도구 상세·견고성·평가까지 전부 → **[개발 문서](DEVELOPMENT.md)**
 
 ## 정직한 한계
