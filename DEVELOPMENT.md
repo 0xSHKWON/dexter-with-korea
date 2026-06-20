@@ -42,6 +42,7 @@
 | `read_filings_kr` | `read_filings` (10-K 본문) | 보고서 본문 — 사업의 내용·주요제품·위험관리·MD&A **+ 지배구조·최대주주·특수관계자·계열회사·대주주 거래** |
 | `get_large_holders_kr` | 13F (5%+ 보유) | 대량보유상황보고서 |
 | `get_insider_trades_kr` | Form 4 (내부자) | 임원·주요주주 보고 |
+| `get_segments_kr` | 세그먼트 공시 | 사업부문별 매출·영업이익 기여도 (DART 본문) |
 
 **Korea-specific** — DART에 없는 데이터. 소스·키가 도구마다 다름.
 
@@ -52,7 +53,7 @@
 | `get_short_balance_kr` | 공매도 순보유잔고 (KRX) | `KRX_ID`+`KRX_PW` 또는 `KRX_COOKIE` |
 | `get_nps_holdings` | 국민연금 국내주식 보유 (data.go.kr) | `DATA_GO_KR_SERVICE_KEY` |
 
-미국 시장 도구(`get_financials`/`get_market_data`/`read_filings`/`stock_screener`)와 `web_search`도 같은 루프에서 동작합니다(키 설정 시).
+미국 시장 도구(`get_financials`/`get_market_data`/`read_filings`/`stock_screener`)와 범용 도구도 같은 루프에서 동작합니다: `web_search`·`web_fetch`(웹 검색/페이지 정독), `ask_user_question`(모호하면 되묻기), `spawn_subagent`(독립 하위 작업을 격리 서브에이전트로 위임 — 한 턴에 여러 개를 띄워 병렬 fan-out).
 
 > 현재가·외국인 지분율은 **키 하나 없이** 동작합니다. DART 키가 없어도 한국 종목의 시세·밸류에이션·외국인 수급은 바로 조회됩니다.
 
@@ -144,6 +145,6 @@ KR 채점 차원: 실적 YoY · 교차신호 · 지배구조 · grounding(환각
 
 - **에이전트 루프** — `src/agent/agent.ts`. 반복 도구 호출 루프, 스크래치패드가 쿼리 내 단일 진실원. 답변 품질은 시스템 프롬프트(`src/agent/prompts.ts`)가 좌우.
 - **도구 등록** — `src/tools/registry.ts`. 환경변수 기반 게이팅(위 활성화 규칙).
-- **스킬** — `src/skills/`. `SKILL.md` 디렉터리를 드롭하면 자동 발견(DCF·물적분할·메모 등).
+- **스킬** — `src/skills/`. `SKILL.md` 디렉터리를 드롭하면 자동 발견. DCF·물적분할(kr-spinoff)·메모, 그리고 상대가치(kr-relative-valuation)·지주사 SOTP(kr-sotp-holdco)·주주환원(kr-shareholder-return)·이익의 질(kr-earnings-quality).
 - **데스크톱 앱** — `desktop/` (Electron + React). 코어를 `src/sidecar/`의 헤드리스 사이드카로 구동.
 - 더 깊은 컨벤션·함정은 [`CLAUDE.md`](CLAUDE.md), 업스트림 기여자 문서는 [`AGENTS.md`](AGENTS.md) 참고.
