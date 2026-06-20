@@ -1,6 +1,7 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { fetchNaverTrend } from './naver-api.js';
+import { resolveKrSecurity } from './resolve-kr.js';
 import { parseKrxNumber, toIsoDate, deadColumns } from './utils.js';
 import { formatToolResult } from '../types.js';
 import { TTL_6H } from '../finance/utils.js';
@@ -12,8 +13,8 @@ Each daily row includes the foreign holding ratio as a % of shares (foreignHoldR
 const InputSchema = z.object({
   ticker: z
     .string()
-    .regex(/^\d{6}$/, 'Korean ticker must be a 6-digit string (e.g. 005930 for Samsung).')
-    .describe('6-digit Korean stock ticker (e.g. 005930 for Samsung Electronics).'),
+    .min(1)
+    .describe('6-digit Korean stock ticker (e.g. 005930) OR the company name (e.g. 삼성전자) — a name is resolved to its listing automatically.'),
   limit: z
     .number()
     .int()
@@ -51,8 +52,15 @@ export const getForeignOwnershipKr = new DynamicStructuredTool({
   description: GET_FOREIGN_OWNERSHIP_KR_DESCRIPTION,
   schema: InputSchema,
   func: async (input) => {
-    const ticker = input.ticker.trim();
-    const base = { ticker, ownership: [] as ForeignOwnershipRow[] };
+    const resolved = await resolveKrSecurity(input.ticker);
+    if (!resolved) {
+      return formatToolResult(
+        { ticker: input.ticker, ownership: [] as ForeignOwnershipRow[], _error: `Could not resolve "${input.ticker}" to a Korean listing — pass a 6-digit ticker or an exact company name` },
+        [],
+      );
+    }
+    const ticker = resolved.stockCode;
+    const base = { ticker, name: resolved.name, ownership: [] as ForeignOwnershipRow[] };
     try {
       const { rows, url } = await fetchNaverTrend(ticker, { cacheable: true, ttlMs: TTL_6H });
       const ownership = rows

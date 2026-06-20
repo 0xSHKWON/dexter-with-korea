@@ -2,7 +2,7 @@ import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { existsSync, mkdirSync, writeFileSync, readdirSync, statSync, unlinkSync } from 'fs';
 import { dartApi } from '../api.js';
-import { resolveTicker } from '../../../data/ticker-registry.js';
+import { resolveKrSecurity } from '../resolve-kr.js';
 import { dexterPath } from '../../../utils/paths.js';
 import { formatToolResult } from '../../types.js';
 import { TTL_24H } from '../../finance/utils.js';
@@ -20,8 +20,8 @@ type ReportType = keyof typeof REPORT_TYPE_CODES;
 const InputSchema = z.object({
   ticker: z
     .string()
-    .regex(/^\d{6}$/, 'Korean ticker must be a 6-digit string (e.g. 005930 for Samsung).')
-    .describe('6-digit Korean stock ticker (e.g. 005930 for Samsung Electronics).'),
+    .min(1)
+    .describe('6-digit Korean stock ticker (e.g. 005930) OR the company name (e.g. 삼성전자) — a name is resolved to its DART listing automatically.'),
   report_type: z
     .enum(['annual', 'semiannual', 'quarterly_1', 'quarterly_3'])
     .default('annual')
@@ -96,13 +96,15 @@ export const getBusinessReport = new DynamicStructuredTool({
     'persisted to rawLineItemsFile for drill-down.',
   schema: InputSchema,
   func: async (input) => {
-    const ticker = input.ticker.trim();
-    const resolved = await resolveTicker(ticker);
-    if (!resolved) {
+    const sec = await resolveKrSecurity(input.ticker);
+    if (!sec?.corpCode) {
       return formatToolResult({
-        error: `Ticker ${ticker} not found in DART corp registry`,
+        ticker: input.ticker,
+        error: `Could not resolve "${input.ticker}" to a DART corp_code — pass a 6-digit ticker or an exact company name`,
       }, []);
     }
+    const ticker = sec.stockCode;
+    const resolved = { corp_code: sec.corpCode, corp_name: sec.name ?? '' };
 
     const endYear = input.year ?? defaultYear();
     const years = Array.from({ length: input.period_count }, (_, i) => endYear - i);

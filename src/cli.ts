@@ -99,6 +99,10 @@ function summarizeToolResult(tool: string, args: Record<string, unknown>, result
           const price = parsed.data.quote?.price;
           return typeof price === 'number' ? `Price ₩${price.toLocaleString()}` : 'Received snapshot';
         }
+        if (tool === 'get_segments_kr') {
+          const n = Array.isArray(parsed.data.segments) ? parsed.data.segments.length : 0;
+          return `Found ${n} segment table${n !== 1 ? 's' : ''}`;
+        }
         if (tool === 'get_nps_holdings') {
           const n = Array.isArray(parsed.data.holdings) ? parsed.data.holdings.length : 0;
           return `Found ${n} holdings`;
