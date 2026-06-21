@@ -13,9 +13,32 @@
  * (axios), LLMs.
  */
 import { execSync } from 'node:child_process';
-import { cpSync, mkdirSync, rmSync, existsSync, realpathSync, chmodSync, statSync } from 'node:fs';
+import {
+  cpSync, mkdirSync, rmSync, existsSync, realpathSync, chmodSync, statSync, readdirSync,
+} from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+/**
+ * Recursively delete symlinks under a dir. macOS codesign rejects symlinks inside
+ * an app bundle ("invalid destination for symbolic link in bundle"), which voids
+ * even ad-hoc signing → the downloaded app shows "is damaged and can't be opened".
+ * The only symlinks here are node_modules/.bin CLI shims, never used at runtime
+ * (the sidecar require()s packages directly). Returns the count removed.
+ */
+function stripSymlinks(dir) {
+  let n = 0;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, entry.name);
+    if (entry.isSymbolicLink()) {
+      rmSync(p, { force: true });
+      n++;
+    } else if (entry.isDirectory()) {
+      n += stripSymlinks(p);
+    }
+  }
+  return n;
+}
 
 const here = dirname(fileURLToPath(import.meta.url));
 const desktopRoot = join(here, '..');
@@ -55,5 +78,9 @@ for (const item of ITEMS) {
   cpSync(from, join(resCore, item), { recursive: true });
   console.log(`  core: ${item}`);
 }
+
+// Remove symlinks so macOS code signing (incl. ad-hoc) stays valid.
+const removed = stripSymlinks(resCore);
+console.log(`  stripped ${removed} symlink(s) from core (codesign-safe)`);
 
 console.log('Done staging resources/.');

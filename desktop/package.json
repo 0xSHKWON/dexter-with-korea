@@ -44,6 +44,7 @@
   "build": {
     "appId": "com.dexter.desktop",
     "productName": "Dexter",
+    "afterPack": "scripts/after-pack.cjs",
     "directories": {
       "output": "release"
     },
