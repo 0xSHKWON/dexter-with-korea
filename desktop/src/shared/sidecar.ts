@@ -37,10 +37,29 @@ export interface ConversionRecord {
   result: ConvertResult;
 }
 
+/**
+ * One entry in an assistant turn's reasoning timeline — either a tool call
+ * (with its live/finished state) or a chunk of the model's reasoning text.
+ */
+export interface ChatStep {
+  kind: 'tool' | 'text';
+  /** Runtime correlation id (tool_call id); persisted but only used live. */
+  id?: string;
+  /** tool steps */
+  tool?: string;
+  arg?: string;
+  state?: 'running' | 'done' | 'error';
+  detail?: string;
+  /** text steps */
+  text?: string;
+}
+
 /** A persisted chat message (completed turns only — no pending/streaming state). */
 export interface StoredMessage {
   role: 'user' | 'assistant';
   content: string;
+  /** The reasoning timeline (tool calls + thoughts) shown before the answer. */
+  steps?: ChatStep[];
 }
 
 /** An archived chat conversation. */

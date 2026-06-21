@@ -2,12 +2,14 @@ import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import ThreeLogo from './ThreeLogo';
-import type { AgentEvent, ChatConversation, SidecarToMain } from '../../../shared/sidecar';
+import type { AgentEvent, ChatConversation, ChatStep, SidecarToMain } from '../../../shared/sidecar';
 
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  /** Reasoning timeline (tool calls + thoughts) shown before the final answer. */
+  steps?: ChatStep[];
   pending?: boolean;
   status?: string;
 }
@@ -62,6 +64,101 @@ function toolStatus(ev: AgentEvent): string {
   return arg ? `${label} · ${arg} …` : `${label} …`;
 }
 
+function truncate(s: string, n: number): string {
+  return s.length > n ? `${s.slice(0, n)}…` : s;
+}
+
+/** Commit any interim narration that streamed into `content` as a text step. */
+function flushText(steps: ChatStep[], content: string): ChatStep[] {
+  const t = content.trim();
+  return t ? [...steps, { kind: 'text', text: t }] : steps;
+}
+
+function appendTool(steps: ChatStep[], ev: AgentEvent): ChatStep[] {
+  return [
+    ...steps,
+    {
+      kind: 'tool',
+      id: typeof ev.toolCallId === 'string' ? ev.toolCallId : undefined,
+      tool: ev.tool,
+      arg: argSummary(ev.args),
+      state: 'running',
+    },
+  ];
+}
+
+/** Patch the tool step a tool_end/error/progress belongs to (by id, else last running). */
+function patchTool(steps: ChatStep[], ev: AgentEvent, change: Partial<ChatStep>): ChatStep[] {
+  const id = typeof ev.toolCallId === 'string' ? ev.toolCallId : undefined;
+  let idx = -1;
+  for (let i = steps.length - 1; i >= 0; i--) {
+    const s = steps[i];
+    if (s.kind !== 'tool') continue;
+    if (id ? s.id === id : s.state === 'running' && (!ev.tool || s.tool === ev.tool)) {
+      idx = i;
+      break;
+    }
+  }
+  if (idx < 0) return steps;
+  const next = steps.slice();
+  next[idx] = { ...next[idx], ...change };
+  return next;
+}
+
+function stepLabel(step: ChatStep): string {
+  if (step.kind === 'text') return '추론';
+  const label = TOOL_LABELS[step.tool ?? ''] ?? step.tool ?? '데이터 조회';
+  return step.arg ? `${label} · ${step.arg}` : label;
+}
+
+function stepGlyph(state?: ChatStep['state']): string {
+  if (state === 'done') return '✓';
+  if (state === 'error') return '✕';
+  return '◐'; // running
+}
+
+/**
+ * Collapsible reasoning timeline. Each tool call / thought lands as its own
+ * row, one by one, while the turn is live (block stays expanded). Once the
+ * answer arrives it auto-collapses into a toggle; manual toggle wins after.
+ */
+function StepsBlock({ steps, live }: { steps: ChatStep[]; live: boolean }): JSX.Element {
+  const [open, setOpen] = useState(live);
+  const wasLive = useRef(live);
+  useEffect(() => {
+    if (wasLive.current && !live) setOpen(false); // run finished → collapse
+    if (!wasLive.current && live) setOpen(true); // run (re)started → expand
+    wasLive.current = live;
+  }, [live]);
+
+  return (
+    <div className={`reasoning${open ? ' open' : ''}`}>
+      <button type="button" className="reasoning-toggle" onClick={() => setOpen((o) => !o)}>
+        <span className="reasoning-caret">{open ? '▾' : '▸'}</span>
+        <span className="reasoning-label">사고 과정 · {steps.length}단계</span>
+        {live && <span className="reasoning-live">진행 중…</span>}
+      </button>
+      {open && (
+        <div className="reasoning-body">
+          {steps.map((s, i) =>
+            s.kind === 'text' ? (
+              <div key={i} className="reasoning-step reasoning-text">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{s.text ?? ''}</ReactMarkdown>
+              </div>
+            ) : (
+              <div key={i} className={`reasoning-step reasoning-tool state-${s.state ?? 'running'}`}>
+                <span className="step-glyph">{stepGlyph(s.state)}</span>
+                <span className="step-label">{stepLabel(s)}</span>
+                {s.detail && <span className="step-detail">{s.detail}</span>}
+              </div>
+            ),
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ChatView({ conversation, onSaved, onOpenSettings, seed, onSeedConsumed }: Props): JSX.Element {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -94,7 +191,12 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
     currentIdRef.current = conversation?.id ?? null;
     setMessages(
       conversation
-        ? conversation.messages.map((m) => ({ id: crypto.randomUUID(), role: m.role, content: m.content }))
+        ? conversation.messages.map((m) => ({
+            id: crypto.randomUUID(),
+            role: m.role,
+            content: m.content,
+            steps: m.steps,
+          }))
         : [],
     );
   }, [conversation?.id]);
@@ -114,7 +216,11 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
     if (!id) return;
     const stored = msgs
       .filter((m) => !m.pending && m.content.trim())
-      .map((m) => ({ role: m.role, content: m.content }));
+      .map((m) => ({
+        role: m.role,
+        content: m.content,
+        ...(m.steps && m.steps.length ? { steps: m.steps } : {}),
+      }));
     if (stored.length < 2) return;
     const title = (stored.find((m) => m.role === 'user')?.content ?? '대화').slice(0, 40);
     const conv: ChatConversation = { id, createdAt: Date.now(), updatedAt: Date.now(), title, messages: stored };
@@ -141,19 +247,57 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
         const ev = msg.event;
         switch (ev.type) {
           case 'text_delta':
+            // Streams live into the bubble. If a tool_start follows, this text
+            // turns out to be interim narration and gets flushed into a step;
+            // otherwise it's the final answer and stays put.
             if (typeof ev.text === 'string') {
               patch((m) => ({ ...m, content: m.content + ev.text, status: undefined }));
             }
             break;
           case 'thinking':
-            patch((m) => ({ ...m, status: m.content ? undefined : '분석 중…' }));
+            // Some models emit reasoning text alongside tool calls — record it
+            // as its own step (the same text may have streamed into `content`).
+            if (typeof ev.message === 'string' && ev.message.trim()) {
+              const text = ev.message.trim();
+              patch((m) => ({
+                ...m,
+                steps: [...flushText(m.steps ?? [], m.content), { kind: 'text', text }],
+                content: '',
+                status: undefined,
+              }));
+            }
             break;
           case 'tool_start':
-            patch((m) => ({ ...m, content: '', status: toolStatus(ev) }));
+            patch((m) => ({
+              ...m,
+              steps: appendTool(flushText(m.steps ?? [], m.content), ev),
+              content: '',
+              status: undefined,
+            }));
+            break;
+          case 'tool_progress':
+            if (typeof ev.message === 'string' && ev.message.trim()) {
+              const detail = truncate(ev.message.trim(), 80);
+              patch((m) => ({ ...m, steps: patchTool(m.steps ?? [], ev, { detail }) }));
+            }
             break;
           case 'tool_end':
+            patch((m) => ({
+              ...m,
+              steps: patchTool(m.steps ?? [], ev, {
+                state: 'done',
+                detail: typeof ev.duration === 'number' ? `${(ev.duration / 1000).toFixed(1)}s` : undefined,
+              }),
+            }));
+            break;
           case 'tool_error':
-            patch((m) => ({ ...m, status: '정리 중…' }));
+            patch((m) => ({
+              ...m,
+              steps: patchTool(m.steps ?? [], ev, {
+                state: 'error',
+                detail: typeof ev.error === 'string' ? truncate(ev.error, 80) : '오류',
+              }),
+            }));
             break;
           case 'done':
             if (typeof ev.answer === 'string') {
@@ -266,11 +410,15 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
             {messages.map((m) => (
               <div key={m.id} className={`msg msg-${m.role}`}>
                 {m.role === 'assistant' ? (
-                  m.content ? (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
-                  ) : (
-                    <span className="typing">{m.status ?? '●●●'}</span>
-                  )
+                  <>
+                    {m.steps && m.steps.length > 0 && <StepsBlock steps={m.steps} live={!!m.pending} />}
+                    {m.content ? (
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                    ) : (
+                      m.pending &&
+                      (!m.steps || m.steps.length === 0) && <span className="typing">{m.status ?? '●●●'}</span>
+                    )}
+                  </>
                 ) : (
                   m.content
                 )}
