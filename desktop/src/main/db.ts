@@ -45,7 +45,39 @@ export function initDb(): Database.Database {
       messages   TEXT NOT NULL
     );
   `);
+  migrateBadModelIds(db);
   return db;
+}
+
+/**
+ * Self-heal a stored `modelId` that was persisted from an older build's bad
+ * provider default (e.g. the bare `gemini-3`, which is a provider-family alias,
+ * NOT a real API model id, and 404s at call-time). Bumping the app alone does
+ * not rewrite already-stored settings, so existing users would stay broken
+ * without this. Keys are the dead ids; values are the valid replacement from
+ * `../../../src/utils/model.ts` (PROVIDER_MODELS).
+ */
+const MODEL_ID_UPGRADES: Record<string, string> = {
+  'gemini-3': 'gemini-3-flash-preview',
+  'grok-4-1': 'grok-4-0709',
+};
+
+function migrateBadModelIds(database: Database.Database): void {
+  const row = database.prepare("SELECT value FROM settings WHERE key = 'modelId'").get() as
+    | { value: string }
+    | undefined;
+  if (!row) return;
+  let current: string;
+  try {
+    current = JSON.parse(row.value) as string;
+  } catch {
+    return;
+  }
+  const replacement = MODEL_ID_UPGRADES[current];
+  if (!replacement) return;
+  database
+    .prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('modelId', ?)")
+    .run(JSON.stringify(replacement));
 }
 
 function getDb(): Database.Database {
