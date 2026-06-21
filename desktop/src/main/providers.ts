@@ -1,9 +1,15 @@
 /**
  * LLM provider metadata for the desktop settings UI.
  *
- * ⚠️ Kept in sync (by hand for now) with the core source of truth at
- * `../../../src/providers.ts`. Once the Bun core sidecar lands, the desktop app
- * should fetch this list over the sidecar protocol instead of duplicating it.
+ * ⚠️ Kept in sync (by hand for now) with two core sources of truth:
+ *   - provider ids / displayName / apiKeyEnvVar → `../../../src/providers.ts`
+ *   - defaultModel / suggestedModels → the per-provider model lists in
+ *     `../../../src/utils/model.ts` (PROVIDER_MODELS). `defaultModel` must be
+ *     the FIRST id there (matches `getDefaultModelForProvider`), and every
+ *     `suggestedModels` id must exist in that list — a value that isn't a real
+ *     API model id 404s at call-time (e.g. the bare `gemini-3` regression).
+ * Once the Bun core sidecar lands, the desktop app should fetch this list over
+ * the sidecar protocol instead of duplicating it.
  *
  * `apiKeyEnvVar` is the env var name the core (`src/model/llm.ts:getApiKey`)
  * reads at runtime — so storing a key here under that name is exactly what the
@@ -21,7 +27,7 @@ export const PROVIDERS: ProviderMeta[] = [
     apiKeyEnvVar: 'OPENAI_API_KEY',
     requiresKey: true,
     defaultModel: 'gpt-5.5',
-    suggestedModels: ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini'],
+    suggestedModels: ['gpt-5.5', 'gpt-5.4'],
   },
   {
     id: 'anthropic',
@@ -29,23 +35,23 @@ export const PROVIDERS: ProviderMeta[] = [
     apiKeyEnvVar: 'ANTHROPIC_API_KEY',
     requiresKey: true,
     defaultModel: 'claude-sonnet-4-6',
-    suggestedModels: ['claude-opus-4-8', 'claude-sonnet-4-6', 'claude-haiku-4-5'],
+    suggestedModels: ['claude-sonnet-4-6', 'claude-opus-4-8', 'claude-fable-5'],
   },
   {
     id: 'google',
     displayName: 'Google',
     apiKeyEnvVar: 'GOOGLE_API_KEY',
     requiresKey: true,
-    defaultModel: 'gemini-3',
-    suggestedModels: ['gemini-3', 'gemini-3-flash-preview'],
+    defaultModel: 'gemini-3-flash-preview',
+    suggestedModels: ['gemini-3-flash-preview', 'gemini-3.1-pro-preview'],
   },
   {
     id: 'xai',
     displayName: 'xAI',
     apiKeyEnvVar: 'XAI_API_KEY',
     requiresKey: true,
-    defaultModel: 'grok-4-1',
-    suggestedModels: ['grok-4-1', 'grok-4-1-fast-reasoning'],
+    defaultModel: 'grok-4-0709',
+    suggestedModels: ['grok-4-0709', 'grok-4-1-fast-reasoning'],
   },
   {
     id: 'moonshot',
