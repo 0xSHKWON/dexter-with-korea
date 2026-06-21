@@ -68,16 +68,23 @@ chmodSync(bunDest, 0o755);
 const bunMB = (statSync(bunDest).size / 1e6).toFixed(0);
 console.log(`  bun: ${bunSrc} -> ${bunDest} (${bunMB} MB real binary)`);
 
-// 2) core sources + deps
+// 2) core sources (NOT node_modules — we install production-only deps below)
 rmSync(resCore, { recursive: true, force: true });
 mkdirSync(resCore, { recursive: true });
-const ITEMS = ['src', 'node_modules', 'package.json', 'tsconfig.json', 'SOUL.md', 'AGENTS.md'];
+const ITEMS = ['src', 'package.json', 'tsconfig.json', 'SOUL.md', 'AGENTS.md', 'bun.lock'];
 for (const item of ITEMS) {
   const from = join(coreRoot, item);
   if (!existsSync(from)) continue;
   cpSync(from, join(resCore, item), { recursive: true });
   console.log(`  core: ${item}`);
 }
+
+// Install production deps only. Drops devDependencies (jest/babel/typescript/istanbul
+// ≈ 250MB+) that the runtime sidecar never imports — bun runs the .ts directly, no
+// build toolchain needed. --ignore-scripts skips playwright's Chromium download (we
+// don't bundle the browser tool) and native rebuilds (the sidecar uses bun:sqlite).
+console.log('  installing production deps into core …');
+execSync('bun install --production --ignore-scripts', { cwd: resCore, stdio: 'inherit' });
 
 // Remove symlinks so macOS code signing (incl. ad-hoc) stays valid.
 const removed = stripSymlinks(resCore);
