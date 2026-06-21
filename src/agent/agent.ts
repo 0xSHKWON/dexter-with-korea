@@ -9,7 +9,7 @@ import { estimateTokens, getAutoCompactThreshold, KEEP_TOOL_USES } from '../util
 import { exceedsSizeCap, persistLargeResult, buildPersistedContent } from '../utils/tool-result-storage.js';
 import { enforceResultBudget } from '../utils/tool-result-budget.js';
 import { formatUserFacingError, isContextOverflowError } from '../utils/errors.js';
-import type { AgentConfig, AgentEvent, CompactionEvent, ContextClearedEvent, MicrocompactEvent, QueueDrainEvent, StreamMode, StreamProgressEvent, TokenUsage } from '../agent/types.js';
+import type { AgentConfig, AgentEvent, CompactionEvent, ContextClearedEvent, MicrocompactEvent, QueueDrainEvent, StreamMode, StreamProgressEvent, TextDeltaEvent, TokenUsage } from '../agent/types.js';
 import type { MessageQueue } from '../utils/message-queue.js';
 import { compactContext, MAX_CONSECUTIVE_COMPACTION_FAILURES, MIN_TOOL_RESULTS_FOR_COMPACTION } from './compact.js';
 import { microcompactMessages } from './microcompact.js';
@@ -302,7 +302,7 @@ export class Agent {
    */
   private async *callModelWithStreaming(
     messages: BaseMessage[],
-  ): AsyncGenerator<StreamProgressEvent, { response: AIMessage; usage?: TokenUsage }> {
+  ): AsyncGenerator<StreamProgressEvent | TextDeltaEvent, { response: AIMessage; usage?: TokenUsage }> {
     try {
       return yield* this.streamAndAccumulate(messages);
     } catch {
@@ -320,7 +320,7 @@ export class Agent {
    */
   private async *streamAndAccumulate(
     messages: BaseMessage[],
-  ): AsyncGenerator<StreamProgressEvent, { response: AIMessage; usage?: TokenUsage }> {
+  ): AsyncGenerator<StreamProgressEvent | TextDeltaEvent, { response: AIMessage; usage?: TokenUsage }> {
     yield { type: 'stream_progress', charDelta: 0, mode: 'requesting' };
 
     let accumulated: AIMessageChunk | null = null;
@@ -331,7 +331,10 @@ export class Agent {
       signal: this.signal,
     })) {
       accumulated = accumulated ? accumulated.concat(chunk) : chunk;
-      const { charDelta, mode } = inspectChunkContent(chunk);
+      const { charDelta, mode, text } = inspectChunkContent(chunk);
+      if (text) {
+        yield { type: 'text_delta', text };
+      }
       if (charDelta > 0 || mode !== 'responding') {
         yield { type: 'stream_progress', charDelta, mode };
       }
@@ -675,23 +678,27 @@ const MODE_PRIORITY: Record<StreamMode, number> = {
  * "advanced" mode the chunk contains. LangChain content can be a plain string
  * (most providers) or an array of typed parts (Anthropic).
  */
-function inspectChunkContent(chunk: AIMessageChunk): { charDelta: number; mode: StreamMode } {
+function inspectChunkContent(chunk: AIMessageChunk): { charDelta: number; mode: StreamMode; text: string } {
   const content = chunk.content;
   if (typeof content === 'string') {
-    return { charDelta: content.length, mode: 'responding' };
+    return { charDelta: content.length, mode: 'responding', text: content };
   }
   if (!Array.isArray(content)) {
-    return { charDelta: 0, mode: 'responding' };
+    return { charDelta: 0, mode: 'responding', text: '' };
   }
 
   let charDelta = 0;
   let mode: StreamMode = 'responding';
+  let text = '';
   for (const part of content) {
     if (!part || typeof part !== 'object') continue;
     const partType = (part as { type?: string }).type;
     if (partType === 'text') {
-      const text = (part as { text?: string }).text;
-      if (typeof text === 'string') charDelta += text.length;
+      const t = (part as { text?: string }).text;
+      if (typeof t === 'string') {
+        charDelta += t.length;
+        text += t;
+      }
       if (MODE_PRIORITY.responding > MODE_PRIORITY[mode]) mode = 'responding';
     } else if (partType === 'thinking' || partType === 'redacted_thinking') {
       const thinkingText = (part as { thinking?: string }).thinking;
@@ -703,5 +710,5 @@ function inspectChunkContent(chunk: AIMessageChunk): { charDelta: number; mode: 
       if (MODE_PRIORITY['tool-input'] > MODE_PRIORITY[mode]) mode = 'tool-input';
     }
   }
-  return { charDelta, mode };
+  return { charDelta, mode, text };
 }

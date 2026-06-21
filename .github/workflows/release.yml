@@ -1,0 +1,67 @@
+name: Release Desktop
+
+# Build the desktop app on each OS's own runner so the bundled bun binary matches
+# the target platform (prepare-core.mjs stages the host's bun). Pushing a tag like
+# `v1.0.0` publishes a DRAFT GitHub Release with the dmg/exe; review then publish.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch: # manual run → uploads installers as workflow artifacts (no publish)
+
+# electron-builder needs write access to create/upload the draft GitHub Release.
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14 # Apple Silicon (arm64)
+          - os: windows-latest # x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Core deps for the staged sidecar. --ignore-scripts skips the playwright/
+      # better-sqlite3 build (the sidecar uses bun:sqlite, no chromium).
+      - name: Install core dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      # Desktop deps. postinstall runs electron-rebuild for better-sqlite3 against
+      # this runner's Electron ABI — must happen on the target OS.
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - name: Stage core, build, package${{ startsWith(github.ref, 'refs/tags/') && ' & publish' || '' }}
+        working-directory: desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Unsigned for now. To sign: add CSC_LINK/CSC_KEY_PASSWORD (mac) and
+          # WIN_CSC_LINK/WIN_CSC_KEY_PASSWORD (win) as repo secrets and drop this.
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: |
+          npm run stage
+          npx electron-vite build
+          npx electron-builder --publish ${{ startsWith(github.ref, 'refs/tags/') && 'always' || 'never' }}
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: dexter-${{ matrix.os }}
+          path: |
+            desktop/release/*.dmg
+            desktop/release/*.exe
+            desktop/release/*.blockmap
+            desktop/release/latest*.yml
+          if-no-files-found: warn
