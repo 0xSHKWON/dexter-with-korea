@@ -226,7 +226,7 @@ export default function App(): JSX.Element {
         <SidebarStatus status={status} />
 
         <div className="sidebar-actions">
-          <span className="version">v0.0.1</span>
+          <span className="version">v{update?.current ?? '1.0.0'}</span>
           <div className="action-icons">
             <button
               className={`icon-btn ${view === 'help' ? 'active' : ''}`}

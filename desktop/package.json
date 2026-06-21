@@ -1,6 +1,6 @@
 {
   "name": "dexter-desktop",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Dexter desktop app (Windows/macOS) — GUI shell for the Dexter financial research agent.",
   "main": "./out/main/index.js",
   "author": "Dexter",

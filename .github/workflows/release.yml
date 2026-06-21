@@ -8,6 +8,10 @@ on:
     tags: ['v*']
   workflow_dispatch: # manual run → uploads installers as workflow artifacts (no publish)
 
+# electron-builder needs write access to create/upload the draft GitHub Release.
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
