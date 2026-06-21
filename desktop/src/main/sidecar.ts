@@ -61,9 +61,18 @@ function collectKeyEnv(): Record<string, string> {
 class SidecarManager {
   private proc: ChildProcessWithoutNullStreams | null = null;
   private onMessage: ((msg: SidecarToMain) => void) | null = null;
+  // run/convert ids awaiting a terminal reply — so a crash/stop fails them
+  // instead of leaving the UI spinning forever.
+  private active = new Set<string>();
 
   start(onMessage: (msg: SidecarToMain) => void): void {
     this.onMessage = onMessage;
+  }
+
+  /** Emit an error for every in-flight run so the renderer recovers. */
+  private failActive(message: string): void {
+    for (const id of this.active) this.onMessage?.({ type: 'error', id, message });
+    this.active.clear();
   }
 
   private ensureProc(): ChildProcessWithoutNullStreams {
@@ -81,20 +90,31 @@ class SidecarManager {
     rl.on('line', (line) => {
       const t = line.trim();
       if (!t) return;
+      let msg: SidecarToMain;
       try {
-        this.onMessage?.(JSON.parse(t) as SidecarToMain);
+        msg = JSON.parse(t) as SidecarToMain;
       } catch {
-        /* ignore non-JSON */
+        return; // ignore non-JSON
       }
+      // terminal replies clear the run from the in-flight set
+      if (
+        (msg.type === 'done' || msg.type === 'error' || msg.type === 'convert_result') &&
+        'id' in msg
+      ) {
+        this.active.delete(msg.id);
+      }
+      this.onMessage?.(msg);
     });
     proc.stderr.on('data', (d: Buffer) => process.stderr.write(`[sidecar] ${d.toString()}`));
     proc.on('error', (err) => {
       process.stderr.write(`[sidecar] spawn error: ${err.message}\n`);
       if (this.proc === proc) this.proc = null;
+      this.failActive(`백그라운드 엔진을 시작할 수 없습니다: ${err.message}`);
     });
     proc.on('exit', (code) => {
       process.stderr.write(`[sidecar] exited (code ${code})\n`);
       if (this.proc === proc) this.proc = null;
+      this.failActive('백그라운드 엔진이 중단되었습니다. 다시 시도해 주세요.');
     });
 
     this.proc = proc;
@@ -102,6 +122,7 @@ class SidecarManager {
   }
 
   send(req: MainToSidecar): void {
+    if (req.type === 'run' || req.type === 'convert') this.active.add(req.id);
     this.ensureProc().stdin.write(JSON.stringify(req) + '\n');
   }
 
