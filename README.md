@@ -2,7 +2,7 @@
 
 **한국 주식을 1차 출처에서 직접 리서치해 정리해 주는 AI 에이전트.**
 
-### ⬇ 다운로드
+### 다운로드
 
 [![macOS 다운로드](https://img.shields.io/badge/⬇%20macOS%20다운로드-0d1117?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/0xSHKWON/dexter-with-korea/releases/latest/download/Dexter-mac-arm64.dmg) &nbsp; [![Windows 다운로드](https://img.shields.io/badge/⬇%20Windows%20다운로드-0d1117?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/0xSHKWON/dexter-with-korea/releases/latest/download/Dexter-windows-x64.exe)
 
