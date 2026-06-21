@@ -7,7 +7,7 @@ import HistoryView from './components/HistoryView';
 import UpdateGate from './components/UpdateGate';
 import SidebarStatus, { type SideStatus } from './components/SidebarStatus';
 import type { ChatConversation, ConversionRecord } from '../../shared/sidecar';
-import type { UpdateInfo } from '../../shared/types';
+import type { UpdateInfo, AutoUpdateStatus } from '../../shared/types';
 
 type View = 'chat' | 'work' | 'history' | 'settings' | 'help';
 
@@ -86,6 +86,7 @@ export default function App(): JSX.Element {
 
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [updateDismissed, setUpdateDismissed] = useState(false);
+  const [autoUpdate, setAutoUpdate] = useState<AutoUpdateStatus | null>(null);
 
   async function loadStatus(): Promise<void> {
     try {
@@ -117,6 +118,8 @@ export default function App(): JSX.Element {
     void window.dexter.chat.listConversations().then(setChats).catch(() => {});
     void window.dexter.work.list().then(setWorks).catch(() => {});
     void window.dexter.update.check().then(setUpdate).catch(() => {});
+    const off = window.dexter.update.onStatus(setAutoUpdate);
+    return off;
   }, []);
 
   // Help example → start a fresh chat with the prompt prefilled in the composer.
@@ -174,7 +177,9 @@ export default function App(): JSX.Element {
     return <UpdateGate info={update} />;
   }
 
-  const showUpdateBanner = update?.status === 'optional' && !updateDismissed;
+  // Windows auto-update (electron-updater) takes over the optional nudge when active.
+  const autoActive = autoUpdate?.state === 'downloading' || autoUpdate?.state === 'downloaded';
+  const showUpdateBanner = update?.status === 'optional' && !updateDismissed && !autoActive;
 
   return (
     <div className={`app ${collapsed ? 'collapsed' : ''}`}>
@@ -258,6 +263,26 @@ export default function App(): JSX.Element {
           >
             <PanelIcon />
           </button>
+        )}
+        {autoActive && autoUpdate && (
+          <div className="update-banner">
+            {autoUpdate.state === 'downloaded' ? (
+              <>
+                <span>
+                  업데이트 준비 완료{autoUpdate.version ? ` (v${autoUpdate.version})` : ''} — 재시작하면 적용됩니다.
+                </span>
+                <div className="update-banner-actions">
+                  <button className="btn primary sm" onClick={() => void window.dexter.update.install()}>
+                    재시작하여 설치
+                  </button>
+                </div>
+              </>
+            ) : (
+              <span>
+                새 버전{autoUpdate.version ? ` v${autoUpdate.version}` : ''} 다운로드 중… {autoUpdate.percent ?? 0}%
+              </span>
+            )}
+          </div>
         )}
         {showUpdateBanner && update && (
           <div className="update-banner">

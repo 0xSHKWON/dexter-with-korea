@@ -3,6 +3,7 @@ import { app, BrowserWindow, shell } from 'electron';
 import { initDb } from './db';
 import { registerIpc } from './ipc';
 import { sidecar } from './sidecar';
+import { initAutoUpdater } from './auto-updater';
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -51,6 +52,9 @@ app.whenReady().then(() => {
       if (!w.isDestroyed()) w.webContents.send('chat:event', msg);
     }
   });
+
+  // Windows in-app auto-update (no-op in dev / on macOS).
+  initAutoUpdater();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

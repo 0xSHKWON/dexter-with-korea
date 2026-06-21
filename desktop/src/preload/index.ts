@@ -42,6 +42,12 @@ const api: DexterApi = {
   update: {
     check: () => ipcRenderer.invoke('update:check'),
     open: (url) => ipcRenderer.invoke('update:open', url),
+    install: () => ipcRenderer.invoke('update:install'),
+    onStatus: (cb) => {
+      const listener = (_e: IpcRendererEvent, s: Parameters<typeof cb>[0]): void => cb(s);
+      ipcRenderer.on('update:status', listener);
+      return () => ipcRenderer.off('update:status', listener);
+    },
   },
 };
 

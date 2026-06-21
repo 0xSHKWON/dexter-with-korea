@@ -47,6 +47,14 @@ export interface UpdateInfo {
   notes: string;
 }
 
+/** electron-updater progress, pushed from main (Windows in-app auto-update). */
+export interface AutoUpdateStatus {
+  state: 'checking' | 'downloading' | 'downloaded' | 'none' | 'error';
+  version?: string;
+  percent?: number;
+  message?: string;
+}
+
 /** API surface exposed to the renderer via contextBridge as `window.dexter`. */
 export interface DexterApi {
   providers: {
@@ -93,5 +101,9 @@ export interface DexterApi {
     check(): Promise<UpdateInfo>;
     /** Open the download/Releases page in the OS browser. */
     open(url: string): Promise<void>;
+    /** Quit and install a downloaded update (Windows auto-update). */
+    install(): Promise<void>;
+    /** Subscribe to electron-updater progress (Windows); returns unsubscribe. */
+    onStatus(cb: (s: AutoUpdateStatus) => void): () => void;
   };
 }
