@@ -1316,6 +1316,35 @@ select:focus {
   margin: 0 0 14px;
 }
 
+/* Help: two-tab switch (프롬프트 예시 / API 키 가이드) */
+.help-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+  margin: 14px 0 4px;
+}
+
+.help-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+
+.help-tab:hover {
+  color: var(--text);
+}
+
+.help-tab.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
 /* Help: flat sections */
 .help-sec {
   padding: 22px 0;

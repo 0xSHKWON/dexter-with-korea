@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 interface KeyGuide {
   label: string;
   envVar: string;
@@ -114,53 +116,75 @@ const SECTIONS: Section[] = [
 ];
 
 export default function HelpView({ onUsePrompt }: { onUsePrompt: (text: string) => void }): JSX.Element {
+  const [tab, setTab] = useState<'prompts' | 'keys'>('prompts');
+
   return (
     <div className="help">
       <header className="page-head">
         <h1>도움말</h1>
-        <p className="sub">예시를 눌러 바로 실행해 보세요. 아래쪽에 API 키 발급 방법이 있습니다.</p>
+        <p className="sub">
+          {tab === 'prompts'
+            ? '예시를 눌러 챗에 바로 입력해 보세요.'
+            : '키 발급처와 입력 방법입니다. 키는 이 컴퓨터에 암호화 저장돼요.'}
+        </p>
       </header>
 
-      <section className="help-sec">
-        <h2 className="help-sec-title">예시 프롬프트</h2>
-        <p className="sec-intro">다른 챗봇·분석 서비스가 따라오기 힘든 질문들 — 누르면 챗에 입력됩니다.</p>
-        {PROMPT_GROUPS.map((g) => (
-          <div className="ex-group" key={g.label}>
-            <div className="ex-group-label">{g.label}</div>
-            {g.items.map((it) => (
-              <button className="ex-row" key={it.p} onClick={() => onUsePrompt(it.p)}>
-                <span className="ex-p">{it.p}</span>
-                {it.why && <span className="ex-why">{it.why}</span>}
-              </button>
-            ))}
-          </div>
-        ))}
-      </section>
+      <div className="help-tabs">
+        <button
+          className={`help-tab ${tab === 'prompts' ? 'active' : ''}`}
+          onClick={() => setTab('prompts')}
+        >
+          프롬프트 예시
+        </button>
+        <button
+          className={`help-tab ${tab === 'keys' ? 'active' : ''}`}
+          onClick={() => setTab('keys')}
+        >
+          API 키 가이드
+        </button>
+      </div>
 
-      {SECTIONS.map((section) => (
-        <section className="help-sec" key={section.title}>
-          <h2 className="help-sec-title">{section.title}</h2>
-          {section.intro && <p className="sec-intro">{section.intro}</p>}
-          <div className="key-list">
-            {section.items.map((item) => (
-              <div className="key-item" key={item.envVar}>
-                <div className="key-item-head">
-                  <div className="key-item-title">
-                    <span className="key-label">{item.label}</span>
-                    {item.required && <span className="sec-tag req">권장</span>}
-                  </div>
-                  <a className="link-btn" href={item.url} target="_blank" rel="noreferrer">
-                    {item.urlLabel} ↗
-                  </a>
-                </div>
-                <code className="key-env">{item.envVar}</code>
-                <p className="key-desc">{item.desc}</p>
-              </div>
-            ))}
-          </div>
-          {section.footnote && <p className="hint">{section.footnote}</p>}
+      {tab === 'prompts' ? (
+        <section className="help-sec">
+          <p className="sec-intro">다른 챗봇·분석 서비스가 따라오기 힘든 질문들 — 누르면 챗에 입력됩니다.</p>
+          {PROMPT_GROUPS.map((g) => (
+            <div className="ex-group" key={g.label}>
+              <div className="ex-group-label">{g.label}</div>
+              {g.items.map((it) => (
+                <button className="ex-row" key={it.p} onClick={() => onUsePrompt(it.p)}>
+                  <span className="ex-p">{it.p}</span>
+                  {it.why && <span className="ex-why">{it.why}</span>}
+                </button>
+              ))}
+            </div>
+          ))}
         </section>
-      ))}
+      ) : (
+        SECTIONS.map((section) => (
+          <section className="help-sec" key={section.title}>
+            <h2 className="help-sec-title">{section.title}</h2>
+            {section.intro && <p className="sec-intro">{section.intro}</p>}
+            <div className="key-list">
+              {section.items.map((item) => (
+                <div className="key-item" key={item.envVar}>
+                  <div className="key-item-head">
+                    <div className="key-item-title">
+                      <span className="key-label">{item.label}</span>
+                      {item.required && <span className="sec-tag req">권장</span>}
+                    </div>
+                    <a className="link-btn" href={item.url} target="_blank" rel="noreferrer">
+                      {item.urlLabel} ↗
+                    </a>
+                  </div>
+                  <code className="key-env">{item.envVar}</code>
+                  <p className="key-desc">{item.desc}</p>
+                </div>
+              ))}
+            </div>
+            {section.footnote && <p className="hint">{section.footnote}</p>}
+          </section>
+        ))
+      )}
     </div>
   );
 }
