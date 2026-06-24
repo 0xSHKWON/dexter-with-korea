@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, Menu, shell } from 'electron';
 import { initDb } from './db';
 import { registerIpc } from './ipc';
 import { sidecar } from './sidecar';
@@ -42,6 +42,10 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
+  // Windows/Linux render the menu bar inside the window (File/Edit/View/Window),
+  // which clutters the chat UI. macOS keeps it in the system menu bar, so leave it.
+  if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
+
   initDb();
   registerIpc();
   createWindow();
