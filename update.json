@@ -1,6 +1,6 @@
 {
-  "latest": "1.1.0",
+  "latest": "1.1.1",
   "minRequired": "1.0.0",
   "url": "https://github.com/0xSHKWON/dexter-with-korea/releases/latest",
-  "notes": "데스크탑 채팅에 '사고 과정' 표시 추가 — 리서치 진행 단계를 실시간으로 보여주고 답변이 나오면 토글로 접습니다."
+  "notes": "Windows/Linux에서 창 상단에 표시되던 메뉴바(File·Edit·View·Window)를 제거해 화면을 더 깔끔하게 정리했습니다."
 }
