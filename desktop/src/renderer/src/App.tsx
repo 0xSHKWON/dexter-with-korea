@@ -105,6 +105,7 @@ export default function App(): JSX.Element {
           { label: 'DART', connected: !!sec['DART_API_KEY'] },
           { label: 'KRX', connected: !!sec['KRX_ID'] && !!sec['KRX_PW'] },
           { label: '국민연금', connected: !!sec['DATA_GO_KR_SERVICE_KEY'] },
+          { label: 'ECOS', connected: !!sec['ECOS_API_KEY'] },
           { label: '웹 검색', connected: SEARCH_ENVS.some((e) => sec[e]) },
         ],
       });

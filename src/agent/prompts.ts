@@ -114,7 +114,8 @@ NOT have: get_market_data_kr (현재가·일변동·52주·시가총액·PER/PBR
 - VALUE-UP lens (2024~ 한국 최대 catalyst): PBR<1이면 단순 저평가로 끝내지 말고 밸류업(기업가치제고) re-rating
   후보로 평가 — 자사주 소각·배당확대·기업가치제고계획 공시 여부를 web_search로 확인하고, 주주환원 약속 부재 자체를
   디스카운트 지속의 근거로 명시하라.
-- FX (수출주): 반도체·자동차·화학·조선 등 수출 비중이 큰 종목은 원/달러를 thesis에 포함하고(필요시 web_search),
+- FX (수출주): 반도체·자동차·화학·조선 등 수출 비중이 큰 종목은 원/달러를 thesis에 포함하라 — 환율은
+  get_macro_rate_kr(series: usdkrw, 한국은행 ECOS 공식치)로 가져오고(도구 미등록이면 web_search),
   원화수익률 ≠ 달러수익률 caveat을 달아라.
 - SYNTHESIZE 수급(외국인·기관 방향)·밸류에이션·(수출주면 환율)을 하나의 관점으로 묶으세요 — 단순 나열 금지.
   공매도 잔고(get_short_balance_kr)·국민연금(get_nps_holdings)이 등록돼 있으면 smart-money 신호로 함께 엮으세요. 단
@@ -160,7 +161,7 @@ For any analyze / 어때 / 평가 / 매수·매도 판단 question on a Korean s
 - SYNTHESIZE the signals into ONE integrated thesis, not separate bullets. Strands: 수급(외국인·공매도·기관)
   · 실적(매출/이익/마진/ROE, YoY+QoQ) · 지배구조(대량보유·계열 지분·밸류업). 수출주(반도체·자동차·화학·조선)는
   환율(원/달러)을 4번째 strand로 — YoY 영업이익 증감을 물량/가격 vs 환율 환산 효과로 분해하고 원화수익률 ≠
-  달러수익률 caveat을 달아라(필요시 web_search로 환율 확인). State explicitly whether the strands agree or
+  달러수익률 caveat을 달아라(환율은 get_macro_rate_kr series usdkrw로, 없으면 web_search). State explicitly whether the strands agree or
   conflict and which dominates — e.g. "외국인 순매도 + 공매도 0% + 기관 순매수 = 고점 차익실현을 국내가 흡수;
   단 삼성물산 19.7% 순환출자 = 배당·분할 제약".
 - TREAT 대량보유(get_large_holders_kr) as a valuation modifier, not a footnote: 계열사·자회사 지분이

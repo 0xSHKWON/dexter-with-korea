@@ -11,6 +11,7 @@ export const DATA_SOURCES: DataSource[] = [
   { envVar: 'KRX_ID', label: 'KRX 아이디', group: 'kr', note: '공매도 순보유잔고 (data.krx.co.kr 로그인 계정)' },
   { envVar: 'KRX_PW', label: 'KRX 비밀번호', group: 'kr' },
   { envVar: 'DATA_GO_KR_SERVICE_KEY', label: '국민연금 (data.go.kr)', group: 'kr', note: 'Decoded(디코딩) 서비스키' },
+  { envVar: 'ECOS_API_KEY', label: 'ECOS (한국은행)', group: 'kr', note: '국고채 금리(DCF 무위험금리)·원/달러 환율·기준금리 (ecos.bok.or.kr)' },
   // 웹 검색
   { envVar: 'EXASEARCH_API_KEY', label: 'Exa', group: 'search' },
   { envVar: 'PERPLEXITY_API_KEY', label: 'Perplexity', group: 'search' },

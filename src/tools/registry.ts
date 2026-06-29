@@ -21,6 +21,7 @@ import { getShortBalanceKr, GET_SHORT_BALANCE_KR_DESCRIPTION } from './finance-k
 import { getForeignOwnershipKr, GET_FOREIGN_OWNERSHIP_KR_DESCRIPTION } from './finance-kr/get-foreign-ownership-kr.js';
 import { getMarketDataKr, GET_MARKET_DATA_KR_DESCRIPTION } from './finance-kr/get-market-data-kr.js';
 import { getNpsHoldings_tool, GET_NPS_HOLDINGS_DESCRIPTION } from './finance-kr/get-nps-holdings.js';
+import { getMacroRateKr, GET_MACRO_RATE_KR_DESCRIPTION } from './finance-kr/get-macro-rate-kr.js';
 import { GET_MARKET_DATA_DESCRIPTION } from './finance/get-market-data.js';
 import { READ_FILINGS_DESCRIPTION } from './finance/read-filings.js';
 import { SCREEN_STOCKS_DESCRIPTION } from './finance/screen-stocks.js';
@@ -301,6 +302,18 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       tool: getNpsHoldings_tool,
       description: GET_NPS_HOLDINGS_DESCRIPTION,
       compactDescription: 'Korean National Pension Service (국민연금) equity holdings by stock name or 6-digit ticker.',
+      concurrencySafe: true,
+    });
+  }
+
+  // 한국은행 ECOS macro rates (국고채 Rf, 원/달러, 기준금리) — keyed, replaces web_search.
+  if (process.env.ECOS_API_KEY && !process.env.ECOS_API_KEY.startsWith('your-')) {
+    tools.push({
+      name: 'get_macro_rate_kr',
+      tool: getMacroRateKr,
+      description: GET_MACRO_RATE_KR_DESCRIPTION,
+      compactDescription:
+        'Korean macro rates from 한국은행 ECOS — 국고채 수익률(DCF Rf), 원/달러 환율, 기준금리.',
       concurrencySafe: true,
     });
   }

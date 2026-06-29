@@ -93,6 +93,7 @@ const SECTIONS: Section[] = [
       { label: 'KRX 공매도 잔고 (ID)', envVar: 'KRX_ID', url: 'https://data.krx.co.kr', urlLabel: 'data.krx.co.kr', desc: 'KRX 데이터마켓플레이스 회원가입·로그인 후, 그 계정 아이디를 입력.' },
       { label: 'KRX 공매도 잔고 (비밀번호)', envVar: 'KRX_PW', url: 'https://data.krx.co.kr', urlLabel: 'data.krx.co.kr', desc: '위 계정의 비밀번호. 소셜/네이버 로그인이라 비밀번호가 없으면 대신 KRX_COOKIE를 씁니다(추후 지원).' },
       { label: '국민연금 보유', envVar: 'DATA_GO_KR_SERVICE_KEY', url: 'https://www.data.go.kr', urlLabel: 'data.go.kr', desc: '공공데이터포털 회원가입 → 데이터 3070507 활용신청 → Decoded(디코딩) 서비스키를 입력.' },
+      { label: 'ECOS 한국은행', envVar: 'ECOS_API_KEY', url: 'https://ecos.bok.or.kr', urlLabel: 'ecos.bok.or.kr', desc: 'OpenAPI 인증키 신청 (무료). 국고채 수익률(DCF 무위험금리)·원/달러 환율·기준금리를 공식 출처로 가져와 web_search 추론을 대체합니다.' },
     ],
     footnote: '현재가·시세·외국인 지분율은 키 없이도 항상 작동합니다 (네이버 공개 데이터).',
   },

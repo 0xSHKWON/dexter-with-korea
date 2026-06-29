@@ -108,6 +108,13 @@ function summarizeToolResult(tool: string, args: Record<string, unknown>, result
           const n = Array.isArray(parsed.data.holdings) ? parsed.data.holdings.length : 0;
           return `Found ${n} holdings`;
         }
+        if (tool === 'get_macro_rate_kr') {
+          const v = parsed.data.latest?.value;
+          const unit = typeof parsed.data.unit === 'string' ? parsed.data.unit : '';
+          return typeof v === 'number'
+            ? `${v}${unit} as of ${parsed.data.latest?.date ?? '—'}`
+            : 'No data';
+        }
         if (tool === 'get_financials' || tool === 'get_financials_kr' || tool === 'get_market_data' || tool === 'stock_screener') {
           if (keys.length === 0) return 'Done';
           return keys.length === 1 ? 'Called 1 data source' : `Called ${keys.length} data sources`;
