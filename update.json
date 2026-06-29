@@ -1,6 +1,6 @@
 {
-  "latest": "1.1.1",
+  "latest": "1.1.2",
   "minRequired": "1.0.0",
   "url": "https://github.com/0xSHKWON/dexter-with-korea/releases/latest",
-  "notes": "Windows/Linux에서 창 상단에 표시되던 메뉴바(File·Edit·View·Window)를 제거해 화면을 더 깔끔하게 정리했습니다."
+  "notes": "한국은행 ECOS 연동 추가 — 국고채 금리(DCF 무위험금리)·원/달러 환율·기준금리를 공식 출처로 가져옵니다. 설정에 ECOS 키를 넣으면 적용됩니다."
 }
