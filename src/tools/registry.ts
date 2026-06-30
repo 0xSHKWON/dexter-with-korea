@@ -20,6 +20,7 @@ import { getSegmentsKr, GET_SEGMENTS_KR_DESCRIPTION } from './finance-kr/get-seg
 import { getShortBalanceKr, GET_SHORT_BALANCE_KR_DESCRIPTION } from './finance-kr/get-short-balance-kr.js';
 import { getForeignOwnershipKr, GET_FOREIGN_OWNERSHIP_KR_DESCRIPTION } from './finance-kr/get-foreign-ownership-kr.js';
 import { getMarketDataKr, GET_MARKET_DATA_KR_DESCRIPTION } from './finance-kr/get-market-data-kr.js';
+import { getBetaKr, GET_BETA_KR_DESCRIPTION } from './finance-kr/get-beta-kr.js';
 import { getNpsHoldings_tool, GET_NPS_HOLDINGS_DESCRIPTION } from './finance-kr/get-nps-holdings.js';
 import { getMacroRateKr, GET_MACRO_RATE_KR_DESCRIPTION } from './finance-kr/get-macro-rate-kr.js';
 import { GET_MARKET_DATA_DESCRIPTION } from './finance/get-market-data.js';
@@ -270,6 +271,17 @@ export function getToolRegistry(model: string): RegisteredTool[] {
     description: GET_MARKET_DATA_KR_DESCRIPTION,
     compactDescription:
       'Korean price + market cap + PER/PBR + 목표주가 컨센서스 snapshot for 6-digit tickers (get_market_data equivalent).',
+    concurrencySafe: true,
+  });
+
+  // Regression beta vs KOSPI/KOSDAQ, also from Naver's keyless chart API — the
+  // authoritative β source for a Korean DCF cost of equity.
+  tools.push({
+    name: 'get_beta_kr',
+    tool: getBetaKr,
+    description: GET_BETA_KR_DESCRIPTION,
+    compactDescription:
+      'Korean equity β (regression vs KOSPI/KOSDAQ, Blume-adjusted) for a DCF cost of equity, for 6-digit tickers.',
     concurrencySafe: true,
   });
 

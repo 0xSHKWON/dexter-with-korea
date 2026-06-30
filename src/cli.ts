@@ -100,6 +100,12 @@ function summarizeToolResult(tool: string, args: Record<string, unknown>, result
           const price = parsed.data.quote?.price;
           return typeof price === 'number' ? `Price ₩${price.toLocaleString()}` : 'Received snapshot';
         }
+        if (tool === 'get_beta_kr') {
+          const b = parsed.data.adjustedBeta;
+          return typeof b === 'number'
+            ? `β=${b} (adj, ${parsed.data.index ?? '—'})`
+            : 'No beta';
+        }
         if (tool === 'get_segments_kr') {
           const n = Array.isArray(parsed.data.segments) ? parsed.data.segments.length : 0;
           return `Found ${n} segment table${n !== 1 ? 's' : ''}`;
