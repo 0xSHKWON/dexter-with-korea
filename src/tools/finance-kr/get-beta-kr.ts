@@ -4,14 +4,14 @@ import { formatToolResult } from '../types.js';
 import { resolveKrSecurity } from './resolve-kr.js';
 import { fetchNaverAutocomplete } from './naver-api.js';
 import { fetchNaverPriceHistory, type NaverIndexCode } from '../../data/fetchers/naver-price-history.js';
-import { computeBetaKr, type BetaFrequency } from '../../data/compute-beta-kr.js';
+import { computeBetaKr } from '../../data/compute-beta-kr.js';
 import { TTL_1H } from '../finance/utils.js';
 
 export const GET_BETA_KR_DESCRIPTION = `Computes an equity beta (β) for a Korean (KOSPI/KOSDAQ) listing by regressing the stock's historical returns on its home index — the authoritative, sourced replacement for a web_search-inferred or sector-proxy beta in a DCF cost of equity (Ke = Rf + β × ERP).
 
-Method (defaults): 2-year WEEKLY returns, regressed on KOSPI for KOSPI-listed names / KOSDAQ for KOSDAQ-listed names (auto-detected, keyless via Naver). Returns rawBeta and Blume-adjusted beta (0.67·raw + 0.33, the WACC input), plus R², observation count, and the regression window — so the number is auditable. Prices from Naver Finance (keyless).
+Method (defaults): 2-year WEEKLY returns regressed on KOSPI/KOSDAQ (the listing market, auto-detected, keyless via Naver), Blume-adjusted (0.67·raw + 0.33) — the Bloomberg-standard convention; override with the years/frequency/index params. Returns rawBeta and adjustedBeta (the WACC input) plus the FACTS needed to judge it yourself: R², observation count, and the regression window (requested vs actually-covered). Prices from Naver Finance (keyless).
 
-Use this for the β in a Korean DCF/WACC instead of guessing or web_search. Accepts a 6-digit ticker (e.g. 005930) or a company name (삼성전자). Note the quality fields: if observations are few (newly listed) or R² is very low (idiosyncratic small cap), treat the figure with care and consider a sector proxy — the tool reports this rather than hiding it.`;
+Use this for the β in a Korean DCF/WACC instead of guessing or web_search. Accepts a 6-digit ticker (e.g. 005930) or a company name (삼성전자). This tool does NOT bake in a reliability verdict — it reports R²/observations/window and leaves interpretation to you: a low R² (weak index fit — defensive/idiosyncratic names) or a window shorter than requested (newly listed) is a cue to disclose that and cross-check a sector proxy.`;
 
 const InputSchema = z.object({
   ticker: z
@@ -23,21 +23,23 @@ const InputSchema = z.object({
     .min(1)
     .max(5)
     .default(2)
-    .describe('Lookback length in years for the regression window (default 2).'),
+    .describe('Lookback length in years for the regression window (default 2 — Bloomberg-standard window).'),
   frequency: z
     .enum(['daily', 'weekly', 'monthly'])
     .default('weekly')
-    .describe('Return sampling frequency (default weekly — the standard for beta).'),
+    .describe('Return sampling frequency (default weekly — the Bloomberg-standard convention for beta).'),
   index: z
     .enum(['auto', 'KOSPI', 'KOSDAQ'])
     .default('auto')
     .describe('Benchmark index. Default auto = match the listing market.'),
 });
 
-/** Minimum aligned returns for the regression to be considered reliable, by frequency. */
-const MIN_RELIABLE_OBS: Record<BetaFrequency, number> = { daily: 200, weekly: 52, monthly: 24 };
+/** ISO YYYY-MM-DD for a Date (the requested window start, for coverage disclosure). */
+function isoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
 
-function marketToIndex(market: string | null): NaverIndexCode {
+export function marketToIndex(market: string | null): NaverIndexCode {
   return market && market.toUpperCase().includes('KOSDAQ') ? 'KOSDAQ' : 'KOSPI';
 }
 
@@ -89,18 +91,9 @@ export const getBetaKr = new DynamicStructuredTool({
         );
       }
 
-      const minObs = MIN_RELIABLE_OBS[input.frequency];
-      const reliable = beta.observations >= minObs && beta.rSquared >= 0.05;
-      const notes: string[] = [];
-      if (beta.observations < minObs)
-        notes.push(
-          `관측치 ${beta.observations}개 < 권장 ${minObs}개(${input.years}년 ${input.frequency}) — 상장 이력이 짧아 β 신뢰도가 낮다. 섹터 대용치 병행 검토.`,
-        );
-      if (beta.rSquared < 0.05)
-        notes.push(
-          `R²=${beta.rSquared} 로 매우 낮음 — 지수와의 설명력이 약한 개별주(idiosyncratic). β를 그대로 쓰기보다 섹터 대용치와 교차확인.`,
-        );
-
+      // No baked reliability verdict: report the regression FACTS (R², observations,
+      // requested-vs-covered window) and let the caller judge. A low R² or a covered
+      // window shorter than requested is visible here, interpreted in the DCF skill.
       return formatToolResult(
         {
           ticker,
@@ -112,11 +105,14 @@ export const getBetaKr = new DynamicStructuredTool({
           rSquared: beta.rSquared,
           observations: beta.observations,
           frequency: beta.frequency,
-          window: { years: input.years, startDate: beta.startDate, asOf: beta.asOf },
-          reliable,
-          method: `${input.years}y ${input.frequency} returns regressed on ${indexCode}, Blume-adjusted (0.67·raw + 0.33)`,
+          window: {
+            years: input.years,
+            requestedFrom: isoDate(start),
+            coveredFrom: beta.startDate,
+            asOf: beta.asOf,
+          },
+          method: `${input.years}y ${input.frequency} returns regressed on ${indexCode}, Blume-adjusted (0.67·raw + 0.33; Bloomberg-standard default)`,
           source: 'Naver Finance 차트(일별 시세) — keyless',
-          ...(notes.length ? { _dataQualityWarning: notes.join(' ') } : {}),
         },
         [stock.url, idx.url],
       );
