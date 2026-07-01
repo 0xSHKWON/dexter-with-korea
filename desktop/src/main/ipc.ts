@@ -10,6 +10,7 @@ import type {
   ConversionRecord,
   ChatConversation,
   StoredMessage,
+  UserAnswers,
 } from '../shared/sidecar';
 import {
   getAllSettings,
@@ -83,6 +84,9 @@ export function registerIpc(): void {
   });
   ipcMain.handle('chat:cancel', (_e, runId: string) => {
     sidecar.send({ type: 'cancel', id: runId });
+  });
+  ipcMain.handle('chat:answer', (_e, questionId: string, answers: UserAnswers) => {
+    sidecar.send({ type: 'answer', questionId, answers });
   });
   ipcMain.handle('chat:reset', () => {
     sidecar.send({ type: 'reset' });

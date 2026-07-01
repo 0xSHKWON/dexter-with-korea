@@ -17,6 +17,7 @@ import { callLlm } from '../model/llm.js';
 import { InMemoryChatHistory } from '../utils/in-memory-chat-history.js';
 import type { DoneEvent } from '../agent/types.js';
 import type { SidecarRequest, SidecarMessage, ConvertResult } from './protocol.js';
+import { createUserInputBridge } from './user-input-bridge.js';
 
 // stdout is the protocol channel — keep stray logging off it.
 console.log = (...args: unknown[]) => process.stderr.write(args.map(String).join(' ') + '\n');
@@ -31,6 +32,15 @@ const activeRuns = new Map<string, AbortController>();
 function send(msg: SidecarMessage): void {
   process.stdout.write(JSON.stringify(msg) + '\n');
 }
+
+// Bridges ask_user_question ↔ the shell: emits `question` messages and awaits
+// matching `answer` requests. Interactive on the desktop (unlike the headless
+// fallback), so the agent can pause mid-turn for a user choice.
+const userInput = createUserInputBridge({
+  genId: () => crypto.randomUUID(),
+  emitQuestion: ({ runId, questionId, questions }) =>
+    send({ type: 'question', id: runId, questionId, questions }),
+});
 
 async function handleRun(req: Extract<SidecarRequest, { type: 'run' }>): Promise<void> {
   const controller = new AbortController();
@@ -47,6 +57,8 @@ async function handleRun(req: Extract<SidecarRequest, { type: 'run' }>): Promise
       signal: controller.signal,
       // Persistent memory off for the first cut — keeps the sidecar dependency-light.
       memoryEnabled: false,
+      // Let ask_user_question pause the turn for a desktop-rendered choice.
+      requestUserInput: userInput.requestUserInput(req.id),
     });
 
     for await (const event of agent.run(req.query, history)) {
@@ -65,6 +77,8 @@ async function handleRun(req: Extract<SidecarRequest, { type: 'run' }>): Promise
     send({ type: 'error', id: req.id, message });
   } finally {
     activeRuns.delete(req.id);
+    // Unblock any question still open if the run ended (error/normal completion).
+    userInput.abandonRun(req.id);
   }
 }
 
@@ -130,10 +144,15 @@ rl.on('line', (line) => {
     void handleRun(req);
   } else if (req.type === 'cancel') {
     activeRuns.get(req.id)?.abort();
+    // Release any open question so the aborted turn doesn't hang on it.
+    userInput.abandonRun(req.id);
+  } else if (req.type === 'answer') {
+    userInput.resolveAnswer(req.questionId, req.answers);
   } else if (req.type === 'convert') {
     void handleConvert(req);
   } else if (req.type === 'reset') {
     history.clear();
+    userInput.abandonAll();
   }
 });
 

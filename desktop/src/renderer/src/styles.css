@@ -1578,3 +1578,103 @@ select:focus {
   gap: 8px;
   flex-shrink: 0;
 }
+
+/* ── ask_user_question inline panel ─────────────────────────────────────── */
+.question-prompt {
+  align-self: flex-start;
+  max-width: 760px;
+  width: 100%;
+  margin: 4px 0 12px;
+  padding: 14px 16px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.qp-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.qp-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.qp-question {
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.qp-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.qp-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  padding: 9px 12px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.qp-option:hover {
+  border-color: var(--accent);
+}
+
+.qp-option.on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-elev-2));
+}
+
+.qp-opt-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.qp-opt-desc {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.qp-other {
+  padding: 0;
+}
+
+.qp-other input {
+  width: 100%;
+  padding: 9px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+
+.qp-other input::placeholder {
+  color: var(--muted);
+}
+
+.qp-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

@@ -1,5 +1,5 @@
 /** Types shared across main, preload, and renderer. Pure types only. */
-import type { SidecarToMain, ConvertResult, ConversionRecord, ChatConversation } from './sidecar';
+import type { SidecarToMain, ConvertResult, ConversionRecord, ChatConversation, UserAnswers } from './sidecar';
 
 export interface ProviderMeta {
   id: string;
@@ -76,6 +76,8 @@ export interface DexterApi {
   chat: {
     send(query: string): Promise<{ runId: string }>;
     cancel(runId: string): Promise<void>;
+    /** Reply to a `question` sidecar message (ask_user_question). */
+    answer(questionId: string, answers: UserAnswers): Promise<void>;
     /** Subscribe to sidecar messages; returns an unsubscribe function. Shared by chat + work. */
     onEvent(cb: (msg: SidecarToMain) => void): () => void;
     /** Clear the sidecar's in-memory history (new/switched chat). */
