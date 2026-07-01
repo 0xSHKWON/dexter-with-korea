@@ -2,7 +2,15 @@ import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import ThreeLogo from './ThreeLogo';
-import type { AgentEvent, ChatConversation, ChatStep, SidecarToMain } from '../../../shared/sidecar';
+import QuestionPrompt from './QuestionPrompt';
+import type {
+  AgentEvent,
+  ChatConversation,
+  ChatStep,
+  Question,
+  SidecarToMain,
+  UserAnswers,
+} from '../../../shared/sidecar';
 
 interface ChatMessage {
   id: string;
@@ -164,6 +172,7 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [hasLlmKey, setHasLlmKey] = useState<boolean | null>(null);
+  const [pendingQuestion, setPendingQuestion] = useState<{ questionId: string; questions: Question[] } | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -305,9 +314,13 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
             }
             break;
         }
+      } else if (msg.type === 'question') {
+        // Agent paused on ask_user_question — show the inline choice panel.
+        setPendingQuestion({ questionId: msg.questionId, questions: msg.questions });
       } else if (msg.type === 'done') {
         activeRef.current = null;
         setSending(false);
+        setPendingQuestion(null);
         setMessages((prev) => {
           persist(prev);
           return prev;
@@ -316,6 +329,7 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
         patch((m) => ({ ...m, content: `오류: ${msg.message}`, pending: false, status: undefined }));
         activeRef.current = null;
         setSending(false);
+        setPendingQuestion(null);
       }
     }
 
@@ -324,7 +338,7 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [messages]);
+  }, [messages, pendingQuestion]);
 
   async function send(): Promise<void> {
     const text = input.trim();
@@ -363,7 +377,20 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
       );
       activeRef.current = null;
     }
+    setPendingQuestion(null); // sidecar declines it on cancel; just drop the panel
     setSending(false);
+  }
+
+  function answerQuestion(answers: UserAnswers): void {
+    if (!pendingQuestion) return;
+    void window.dexter.chat.answer(pendingQuestion.questionId, answers);
+    setPendingQuestion(null);
+  }
+
+  function dismissQuestion(): void {
+    if (!pendingQuestion) return;
+    void window.dexter.chat.answer(pendingQuestion.questionId, { answers: [], declined: true });
+    setPendingQuestion(null);
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>): void {
@@ -426,6 +453,13 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
               </div>
             ))}
           </div>
+        )}
+        {pendingQuestion && (
+          <QuestionPrompt
+            questions={pendingQuestion.questions}
+            onSubmit={answerQuestion}
+            onDismiss={dismissQuestion}
+          />
         )}
       </div>
 

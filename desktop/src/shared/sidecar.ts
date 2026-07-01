@@ -28,6 +28,38 @@ export interface ConvertResult {
   warnings: string[];
 }
 
+// ── ask_user_question (mirrors core src/tools/ask-user-question/types.ts) ─────
+
+export interface QuestionOption {
+  label: string;
+  description: string;
+}
+
+export interface Question {
+  question: string;
+  /** Short chip/tab label (<=12 chars). */
+  header: string;
+  multiSelect: boolean;
+  /** Model-supplied options; the "Other" free-text choice is added by the UI. */
+  options: QuestionOption[];
+}
+
+export interface QuestionAnswer {
+  header: string;
+  question: string;
+  /** Chosen option label(s). */
+  selected: string[];
+  /** Free text from the "Other" choice, if used. */
+  otherText?: string;
+  notes?: string;
+}
+
+export interface UserAnswers {
+  answers: QuestionAnswer[];
+  /** True when the user dismissed the prompt without answering. */
+  declined?: boolean;
+}
+
 /** A saved (archived) conversion. */
 export interface ConversionRecord {
   id: string;
@@ -76,10 +108,12 @@ export type SidecarToMain =
   | { type: 'event'; id: string; event: AgentEvent }
   | { type: 'done'; id: string; answer: string }
   | { type: 'error'; id: string; message: string }
-  | { type: 'convert_result'; id: string; result: ConvertResult };
+  | { type: 'convert_result'; id: string; result: ConvertResult }
+  | { type: 'question'; id: string; questionId: string; questions: Question[] };
 
 export type MainToSidecar =
   | { type: 'run'; id: string; query: string; model: string; modelProvider: string }
   | { type: 'cancel'; id: string }
   | { type: 'reset' }
-  | { type: 'convert'; id: string; rawData: string; model: string; modelProvider: string };
+  | { type: 'convert'; id: string; rawData: string; model: string; modelProvider: string }
+  | { type: 'answer'; questionId: string; answers: UserAnswers };

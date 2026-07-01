@@ -96,7 +96,7 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       name: 'ask_user_question',
       tool: createAskUserQuestion(),
       description: ASK_USER_QUESTION_DESCRIPTION,
-      compactDescription: 'Ask the user 1-4 multiple-choice questions mid-turn and wait for their answers. CLI only.',
+      compactDescription: 'Ask the user 1-4 multiple-choice questions mid-turn and wait for their answers (CLI + desktop).',
       concurrencySafe: false,
     },
     {

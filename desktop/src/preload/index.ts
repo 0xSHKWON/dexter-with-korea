@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { DexterApi } from '../shared/types';
-import type { SidecarToMain } from '../shared/sidecar';
+import type { SidecarToMain, UserAnswers } from '../shared/sidecar';
 
 const api: DexterApi = {
   providers: {
@@ -22,6 +22,8 @@ const api: DexterApi = {
   chat: {
     send: (query) => ipcRenderer.invoke('chat:send', query),
     cancel: (runId) => ipcRenderer.invoke('chat:cancel', runId),
+    answer: (questionId: string, answers: UserAnswers) =>
+      ipcRenderer.invoke('chat:answer', questionId, answers),
     onEvent: (cb) => {
       const listener = (_e: IpcRendererEvent, msg: SidecarToMain) => cb(msg);
       ipcRenderer.on('chat:event', listener);

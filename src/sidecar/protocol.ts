@@ -9,6 +9,7 @@
  * to stderr (the sidecar entry redirects console.* to stderr).
  */
 import type { AgentEvent } from '../agent/types.js';
+import type { Question, UserAnswers } from '../tools/ask-user-question/types.js';
 
 export type SidecarRequest =
   | {
@@ -23,6 +24,13 @@ export type SidecarRequest =
       maxIterations?: number;
     }
   | { type: 'cancel'; id: string }
+  | {
+      /** The shell's answer to a `question` message (ask_user_question). */
+      type: 'answer';
+      /** Correlates to the `question` message's questionId. */
+      questionId: string;
+      answers: UserAnswers;
+    }
   | {
       /** Clear the in-memory conversation history (new chat / switched chat). */
       type: 'reset';
@@ -60,4 +68,13 @@ export type SidecarMessage =
   | { type: 'event'; id: string; event: AgentEvent }
   | { type: 'done'; id: string; answer: string }
   | { type: 'error'; id: string; message: string }
-  | { type: 'convert_result'; id: string; result: ConvertResult };
+  | { type: 'convert_result'; id: string; result: ConvertResult }
+  | {
+      /** The agent (ask_user_question) is waiting on the user; the shell must reply
+       *  with an `answer` request carrying the same questionId. */
+      type: 'question';
+      /** Run this question belongs to (so the shell binds it to the active turn). */
+      id: string;
+      questionId: string;
+      questions: Question[];
+    };
