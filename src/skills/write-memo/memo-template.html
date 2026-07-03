@@ -281,7 +281,7 @@
     </div>
     <div class="header-right">
       <div><span class="label">As of</span>{{date}}</div>
-      <div><span class="label">Last</span>${{price_current}}</div>
+      <div><span class="label">Last</span>{{currency}}{{price_current}}</div>
     </div>
   </div>
 
@@ -292,7 +292,7 @@
     </div>
     <div class="tag">
       <span class="label">Target</span>
-      <span class="value">${{price_target_base}}</span>
+      <span class="value">{{currency}}{{price_target_base}}</span>
     </div>
     <div class="tag">
       <span class="label">Return</span>
@@ -381,6 +381,11 @@
         {{monitoring_kpis}}
       </ol>
     </div>
+  </section>
+
+  <section>
+    <h2>Valuation Assumptions &amp; Sources</h2>
+    {{valuation_assumptions}}
   </section>
 
   <footer>

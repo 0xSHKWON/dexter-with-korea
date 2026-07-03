@@ -14,6 +14,7 @@ import { GET_FINANCIALS_DESCRIPTION } from './finance/get-financials.js';
 import { createGetFinancialsKr, GET_FINANCIALS_KR_DESCRIPTION } from './finance-kr/get-financials-kr.js';
 import { getFilingsKr, GET_FILINGS_KR_DESCRIPTION } from './finance-kr/get-filings-kr.js';
 import { getLargeHoldersKr, GET_LARGE_HOLDERS_KR_DESCRIPTION } from './finance-kr/get-large-holders-kr.js';
+import { getEquityInvestmentsKr, GET_EQUITY_INVESTMENTS_KR_DESCRIPTION } from './finance-kr/get-equity-investments-kr.js';
 import { getInsiderTradesKr, GET_INSIDER_TRADES_KR_DESCRIPTION } from './finance-kr/get-insider-trades-kr.js';
 import { createReadFilingsKr, READ_FILINGS_KR_DESCRIPTION } from './finance-kr/read-filings-kr.js';
 import { getSegmentsKr, GET_SEGMENTS_KR_DESCRIPTION } from './finance-kr/get-segments-kr.js';
@@ -112,7 +113,10 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       tool: browserTool,
       description: BROWSER_DESCRIPTION,
       compactDescription: 'JavaScript-rendered pages and interactive navigation. Actions: navigate, snapshot, act, read, close.',
-      concurrencySafe: true,
+      // The browser tool shares ONE module-global page + currentRefs; two parallel
+      // calls in the same turn race each other's navigation and can attribute the
+      // winning page's content to both calls. Must run serialized.
+      concurrencySafe: false,
     },
     {
       name: 'read_file',
@@ -228,6 +232,14 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       tool: getLargeHoldersKr,
       description: GET_LARGE_HOLDERS_KR_DESCRIPTION,
       compactDescription: 'Korean 5%룰 대량보유 major shareholders for 6-digit tickers (13F-equivalent).',
+      concurrencySafe: true,
+    });
+    tools.push({
+      name: 'get_equity_investments_kr',
+      tool: getEquityInvestmentsKr,
+      description: GET_EQUITY_INVESTMENTS_KR_DESCRIPTION,
+      compactDescription:
+        'Korean 타법인 출자현황 — every equity stake a company holds in other corps (지분율·장부가, listed+unlisted), from DART 정기보고서. Parent-side holdco/SOTP stake mapping.',
       concurrencySafe: true,
     });
     tools.push({

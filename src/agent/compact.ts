@@ -119,6 +119,62 @@ Data retrieved from tool calls:
 ${toolResults}${NO_TOOLS_TRAILER}`;
 }
 
+/**
+ * No-tools framing for the SALVAGE prompt. Deliberately NOT the compaction
+ * preamble/trailer: those demand an <analysis>/<summary> block format, which is
+ * correct for the internal compaction summary but would leak raw XML into the
+ * user-facing final answer the salvage call produces.
+ */
+const NO_TOOLS_ANSWER_PREAMBLE = `CRITICAL: Respond with TEXT ONLY. Do NOT call any tools.
+
+- Do NOT use any tool calls. You already have all the context you need below.
+- Tool calls will be REJECTED and will waste your only turn — you will fail the task.
+- Write the final answer directly as plain prose — no XML tags, no <analysis> or <summary> wrappers.
+
+`;
+
+const NO_TOOLS_ANSWER_TRAILER =
+  '\n\nREMINDER: Do NOT call any tools and do NOT wrap the answer in XML blocks — ' +
+  'respond with the plain-text final answer only.';
+
+/**
+ * The salvage prompt carries the scratchpad's full tool-result text, which is
+ * NOT bounded by the per-turn context budgets (large results are persisted to
+ * disk as previews in context but kept whole in the scratchpad — which also
+ * keeps context tokens low enough that compaction never fires). Cap it here so
+ * the salvage call can't overflow the main model's context or bill an unbounded
+ * prompt: keep the head (early key data) and a larger tail (most recent results).
+ */
+export const SALVAGE_INPUT_MAX_CHARS = 150_000;
+const SALVAGE_HEAD_CHARS = 30_000;
+
+export function capSalvageInput(toolResults: string, maxChars = SALVAGE_INPUT_MAX_CHARS): string {
+  if (toolResults.length <= maxChars) return toolResults;
+  const tailChars = maxChars - SALVAGE_HEAD_CHARS;
+  const omitted = toolResults.length - maxChars;
+  return `${toolResults.slice(0, SALVAGE_HEAD_CHARS)}\n\n[... ${omitted.toLocaleString('en-US')} characters of tool output omitted for length — note in the answer that some retrieved data could not be included ...]\n\n${toolResults.slice(-tailChars)}`;
+}
+
+/**
+ * Prompt for the iteration-limit salvage pass: one final NO-TOOLS call that turns
+ * the scratchpad's accumulated tool results into a partial ANSWER instead of
+ * discarding ten iterations of retrieved data behind a canned apology.
+ */
+export function buildSalvagePrompt(query: string, toolResults: string): string {
+  return `${NO_TOOLS_ANSWER_PREAMBLE}You are finalizing a research session that reached its tool-call iteration limit. No more tools can run. Write the best FINAL ANSWER possible from the tool data below.
+
+Rules:
+- Answer the user's query directly, in the user's language.
+- Ground every number in the tool data below — never invent values or fill gaps from memory.
+- Start with one short line noting this is a partial answer because the tool-call limit was reached.
+- End with a short "미확보 데이터" (data not retrieved) list naming exactly what could not be fetched, so the user knows what is missing.
+
+Original query: ${query}
+
+Data retrieved from tool calls:
+${capSalvageInput(toolResults)}${NO_TOOLS_ANSWER_TRAILER}`;
+}
+
 // ---------------------------------------------------------------------------
 // Summary formatting
 // ---------------------------------------------------------------------------
@@ -185,6 +241,31 @@ export interface CompactResult {
   rawSummary: string;
   /** Token usage of the compaction LLM call. */
   usage?: TokenUsage;
+}
+
+/**
+ * One final no-tools call that turns the scratchpad's tool results into a partial
+ * ANSWER when the agent hits its iteration limit. Uses the MAIN model (this is the
+ * user-facing final answer, not an internal summary). Throws on failure — the
+ * caller falls back to the canned limit notice.
+ */
+export async function salvagePartialAnswer(params: {
+  model: string;
+  query: string;
+  toolResults: string;
+  signal?: AbortSignal;
+}): Promise<string> {
+  const { model, query, toolResults, signal } = params;
+  const result = await callLlm(buildSalvagePrompt(query, toolResults), { model, signal });
+  let text = typeof result.response === 'string' ? result.response : String(result.response);
+  // Defense in depth: a model conditioned on the compaction format may still emit
+  // <analysis>/<summary> wrappers — strip them so raw XML never reaches the user.
+  text = text.replace(/<analysis>[\s\S]*?<\/analysis>/g, '');
+  text = text.replace(/<\/?summary>/g, '');
+  if (!text.trim()) {
+    throw new Error('Salvage returned empty response');
+  }
+  return text.trim();
 }
 
 /**

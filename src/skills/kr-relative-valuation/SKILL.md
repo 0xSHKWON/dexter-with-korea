@@ -27,7 +27,7 @@ KR 상대가치 분석 진행:
 
 ## Step 1: 대상 + peer 수집
 
-대상 티커(또는 회사명)로 `get_market_data_kr`를 호출한다. 반환에서 `valuation.{per, pbr, eps, bps, forwardPer, forwardEps}`, `quote.{price, high52w, low52w}`, 그리고 `peers[]`(동종 ticker·시총)를 읽는다. `peers`가 비었거나 부적절하면 `web_search`로 동종 2~4개를 보완한다(같은 KRX 업종·사업모델).
+대상 티커(또는 회사명)로 `get_market_data_kr`를 호출한다. 반환에서 `valuation.{per, pbr, eps, bps, forwardPer, forwardEps}`(각 지표의 기준시점은 `valuation.basis` — TTM 기준 분기·배당 기준 연도), `quote.{price, high52w, low52w}`, 그리고 `peers[]`(동종 ticker·시총)를 읽는다. `peers`가 비었거나 부적절하면 `web_search`로 동종 2~4개를 보완하되(같은 KRX 업종·사업모델), **웹으로 고른 peer는 comp 표에 `(웹 선정)` 표기 + 선정 근거 한 줄**을 남겨 도구가 준 peer와 구분되게 하라 — peer 구성이 밴드를 결정하므로 어디서 왔는지가 감사 대상이다.
 
 ## Step 2: comp 표 구성
 
@@ -42,10 +42,11 @@ KR 상대가치 분석 진행:
 
 ## Step 4: 적정가치 밴드
 
-적정 멀티플(동종 중앙값을 펀더멘털 격차로 조정)을 대상 지표에 곱한다:
-- 적정주가(PER 기준) = 적정 PER × 대상 EPS. PBR 기준 = 적정 PBR × BPS.
-- 보수/기본/낙관 3개 멀티플로 **밴드**를 제시하고 현재가 대비 상승/하락 여력(%)을 계산한다.
-- 가능하면 `get_market_data_kr`의 `consensus.targetPrice`와 대조해 내 밴드가 컨센서스와 얼마나 다른지 밝힌다.
+적정 멀티플을 대상 지표에 곱한다 — **밴드의 세 값은 임의 ±가 아니라 peer 분포에서 도출한다**:
+- **기본 = 동종 중앙값** (Step 3의 펀더멘털 정규화로 조정했으면 조정 근거를 한 줄로 명시).
+- **보수/낙관 = comp 표 안 peer 멀티플의 최저/최고**(peer가 5개 이상이면 25/75분위). 어느 peer의 값인지 표기해 재현 가능하게 하라 — 같은 comp 표에서 같은 밴드가 나와야 한다.
+- 적정주가(PER 기준) = 적정 PER × 대상 EPS. PBR 기준 = 적정 PBR × BPS. 각 멀티플·지표의 기준시점(`valuation.basis`)을 표에 병기.
+- 현재가 대비 상승/하락 여력(%)을 계산하고, 가능하면 `consensus.targetPrice`와 대조해 내 밴드가 컨센서스와 얼마나 다른지 밝힌다.
 
 ## Step 5: 출력 형식
 

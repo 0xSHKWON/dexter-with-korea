@@ -84,6 +84,10 @@ function summarizeToolResult(tool: string, args: Record<string, unknown>, result
           const n = Array.isArray(parsed.data.holders) ? parsed.data.holders.length : 0;
           return `Found ${n} holders`;
         }
+        if (tool === 'get_equity_investments_kr') {
+          const n = Array.isArray(parsed.data.investments) ? parsed.data.investments.length : 0;
+          return `Found ${n} stakes`;
+        }
         if (tool === 'get_insider_trades_kr') {
           const n = Array.isArray(parsed.data.trades) ? parsed.data.trades.length : 0;
           return `Found ${n} reports`;

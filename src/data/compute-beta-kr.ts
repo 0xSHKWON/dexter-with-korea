@@ -32,6 +32,19 @@ export interface BetaResult {
   /** First and last date of the aligned return series (ISO). */
   startDate: string;
   asOf: string;
+  /**
+   * Zero-volume stock bars (trading halts / suspensions) excluded before
+   * resampling — flat carried-over closes would otherwise enter the regression
+   * as 0% returns and bias beta toward 0.
+   */
+  excludedZeroVolumeBars: number;
+  /**
+   * First post-resume returns dropped from the regression. After halt bars are
+   * removed, the first return following a halt spans the WHOLE gap (a multi-week
+   * catch-up move) while the index return at that date covers one period — that
+   * mismatched pair would dominate cov(s,m), so it is excluded and counted here.
+   */
+  excludedGapReturns: number;
 }
 
 /** Monday (UTC) of the week containing `iso`, as a YYYY-MM-DD key. */
@@ -136,7 +149,32 @@ export function computeBetaKr(
   indexBars: PriceBar[],
   frequency: BetaFrequency = 'weekly',
 ): BetaResult | null {
-  const s = toReturns(resample(stockBars, frequency));
+  // Drop trading-halt days (volume === 0): Naver carries the last close through a
+  // suspension, and those flat 0%-return rows dilute cov(s,m) → beta biased low.
+  // volume === null (field absent) is NOT treated as a halt. Index bars stay as-is.
+  const traded = stockBars.filter((b) => b.volume !== 0);
+  const excludedZeroVolumeBars = stockBars.length - traded.length;
+
+  // Removing halt bars makes the first post-resume return span the whole gap
+  // (e.g. a ±25% multi-week catch-up move) while the index return at that date is
+  // single-period — one such mismatched pair can dominate the regression. Drop the
+  // return that lands in each resume period instead.
+  const resumePeriods = new Set<string>();
+  let inHalt = false;
+  for (const b of stockBars) {
+    if (b.volume === 0) {
+      inHalt = true;
+      continue;
+    }
+    if (inHalt) {
+      resumePeriods.add(periodKey(b.date, frequency));
+      inHalt = false;
+    }
+  }
+
+  const sAll = toReturns(resample(traded, frequency));
+  const s = resumePeriods.size > 0 ? sAll.filter((r) => !resumePeriods.has(periodKey(r.date, frequency))) : sAll;
+  const excludedGapReturns = sAll.length - s.length;
   const m = toReturns(resample(indexBars, frequency));
   const aligned = alignReturns(s, m);
   const fit = ols(aligned.m, aligned.s); // regress stock (y) on index (x)
@@ -150,5 +188,7 @@ export function computeBetaKr(
     frequency,
     startDate: aligned.dates[0],
     asOf: aligned.dates[aligned.dates.length - 1],
+    excludedZeroVolumeBars,
+    excludedGapReturns,
   };
 }

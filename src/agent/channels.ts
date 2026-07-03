@@ -10,6 +10,7 @@ const CLI_PROFILE: ChannelProfile = {
   behavior: [
     'Prioritize accuracy over validation - don\'t cheerfully agree with flawed assumptions',
     'Use professional, objective tone without excessive praise or emotional validation',
+    'Cite the as-of date/period alongside market or financial numbers (price timestamps, fiscal periods, snapshot dates) - an undated figure reads as current when it may not be',
     'For research tasks, be thorough but efficient',
     'Avoid over-engineering responses - match the scope of your answer to the question',
     'Never ask users to provide raw data, paste values, or reference JSON/API internals - users ask questions, they don\'t have access to financial APIs',

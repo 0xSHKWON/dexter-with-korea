@@ -1,0 +1,23 @@
+{
+  "id": "preferred-share-samsung",
+  "query": "삼성전자우(005935)랑 보통주(005930) 괴리율 어때?",
+  "meta": {
+    "model": "gpt-5.5"
+  },
+  "toolCalls": [
+    {
+      "tool": "get_market_data_kr",
+      "args": {
+        "ticker": "005935"
+      },
+      "result": "{\"data\":{\"ticker\":\"005935\",\"name\":\"삼성전자우\",\"quote\":{\"date\":\"2026-07-03\",\"price\":208000,\"change\":19300,\"changePct\":10.23,\"direction\":\"상승\",\"priceSource\":\"live\",\"asOf\":\"2026-07-03T16:10:18+09:00\",\"marketStatus\":\"CLOSE\",\"tradingStatus\":\"TRADING\",\"open\":191000,\"high\":208500,\"low\":188100,\"high52w\":243500,\"low52w\":50200,\"volume\":4938964},\"valuation\":{\"snapshotAsOf\":\"2026-07-03T12:01:26.896Z\",\"marketCap\":166893200000000,\"marketCapDisplay\":\"166조 8,932억\",\"sharesOutstanding\":802371154,\"per\":16.81,\"pbr\":2.89,\"eps\":12372,\"bps\":71907,\"forwardPer\":4.57,\"forwardEps\":45534,\"dividendYieldPct\":0.8,\"dividendPerShare\":1669,\"basis\":{\"per\":\"2026.03.\",\"eps\":\"2026.03.\",\"pbr\":\"2026.03.\",\"bps\":\"2026.03.\",\"dividendYieldPct\":\"2025.12.\",\"dividendPerShare\":\"2025.12.\"}},\"consensus\":{\"date\":\"2026-07-02\",\"targetPrice\":501458,\"recommendationMean\":4.04,\"upsidePct\":141.09},\"peers\":[{\"ticker\":\"005930\",\"name\":\"삼성전자\",\"price\":309500,\"changePct\":8.22,\"marketCap\":1809423229000000},{\"ticker\":\"000660\",\"name\":\"SK하이닉스\",\"price\":2425000,\"changePct\":10.88,\"marketCap\":1728303235000000},{\"ticker\":\"402340\",\"name\":\"SK스퀘어\",\"price\":1589000,\"changePct\":4.2,\"marketCap\":209681875000000},{\"ticker\":\"042700\",\"name\":\"한미반도체\",\"price\":232500,\"changePct\":5.92,\"marketCap\":22160086000000},{\"ticker\":\"036930\",\"name\":\"주성엔지니어링\",\"price\":192600,\"changePct\":-15.34,\"marketCap\":8952263000000},{\"ticker\":\"007660\",\"name\":\"이수페타시스\",\"price\":110100,\"changePct\":-8.1,\"marketCap\":8082355000000}],\"preferredListings\":[]},\"sourceUrls\":[\"https://m.stock.naver.com/api/stock/005935/integration\",\"https://m.stock.naver.com/api/stock/005935/basic\"]}"
+    },
+    {
+      "tool": "get_market_data_kr",
+      "args": {
+        "ticker": "005930"
+      },
+      "result": "{\"data\":{\"ticker\":\"005930\",\"name\":\"삼성전자\",\"quote\":{\"date\":\"2026-07-03\",\"price\":309500,\"change\":23500,\"changePct\":8.22,\"direction\":\"상승\",\"priceSource\":\"live\",\"asOf\":\"2026-07-03T16:10:20+09:00\",\"marketStatus\":\"CLOSE\",\"tradingStatus\":\"TRADING\",\"open\":286000,\"high\":315000,\"low\":278000,\"high52w\":380000,\"low52w\":60100,\"volume\":57354047},\"valuation\":{\"snapshotAsOf\":\"2026-07-03T12:01:26.868Z\",\"marketCap\":1809423200000000,\"marketCapDisplay\":\"1,809조 4,232억\",\"sharesOutstanding\":5846278514,\"per\":25.02,\"pbr\":4.3,\"eps\":12372,\"bps\":71907,\"forwardPer\":6.8,\"forwardEps\":45534,\"dividendYieldPct\":0.54,\"dividendPerShare\":1668,\"basis\":{\"per\":\"2026.03.\",\"eps\":\"2026.03.\",\"pbr\":\"2026.03.\",\"bps\":\"2026.03.\",\"dividendYieldPct\":\"2025.12.\",\"dividendPerShare\":\"2025.12.\"}},\"consensus\":{\"date\":\"2026-07-02\",\"targetPrice\":501458,\"recommendationMean\":4.04,\"upsidePct\":62.02},\"peers\":[{\"ticker\":\"000660\",\"name\":\"SK하이닉스\",\"price\":2425000,\"changePct\":10.88,\"marketCap\":1728303235000000},{\"ticker\":\"402340\",\"name\":\"SK스퀘어\",\"price\":1589000,\"changePct\":4.2,\"marketCap\":209681875000000},{\"ticker\":\"042700\",\"name\":\"한미반도체\",\"price\":232500,\"changePct\":5.92,\"marketCap\":22160086000000},{\"ticker\":\"036930\",\"name\":\"주성엔지니어링\",\"price\":192600,\"changePct\":-15.34,\"marketCap\":8952263000000},{\"ticker\":\"007660\",\"name\":\"이수페타시스\",\"price\":110100,\"changePct\":-8.1,\"marketCap\":8082355000000},{\"ticker\":\"240810\",\"name\":\"원익IPS\",\"price\":133100,\"changePct\":1.14,\"marketCap\":6533067000000}],\"preferredListings\":[{\"ticker\":\"005935\",\"name\":\"삼성전자우\",\"price\":208000,\"marketCap\":166893200000000}]},\"sourceUrls\":[\"https://m.stock.naver.com/api/stock/005930/integration\",\"https://m.stock.naver.com/api/stock/005930/basic\"]}"
+    }
+  ]
+}

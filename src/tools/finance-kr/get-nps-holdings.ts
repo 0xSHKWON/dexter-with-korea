@@ -1,13 +1,15 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { getNpsHoldings } from '../../data/nps-registry.js';
+import { getNpsSnapshot, type NpsSnapshot } from '../../data/nps-registry.js';
 import { resolveTicker } from '../../data/ticker-registry.js';
 import { formatToolResult } from '../types.js';
 import type { NpsHoldingEntry } from '../../data/fetchers/nps-holdings.js';
 
 export const GET_NPS_HOLDINGS_DESCRIPTION = `Retrieves 국민연금공단 (National Pension Service, NPS) domestic-equity holdings — Korea's largest institutional investor. There is no direct US equivalent; this is the canonical "what does the national pension fund own" dataset.
 
-Data is the NPS year-end disclosure (most recent published): per stock, the evaluation amount in 억원 (evalAmount), the weight within the domestic-equity book in % (weightPct), and the stake as a % of the company's shares (shareRatioPct). Provide a Korean stock name (e.g. "삼성전자") or a 6-digit ticker to look up a specific holding, or omit both to get the largest holdings by value. Note: this is a periodic year-end snapshot, not real-time.`;
+Data is the NPS year-end disclosure (most recent published): per stock, the evaluation amount in 억원 (evalAmount), the weight within the domestic-equity book in % (weightPct), and the stake as a % of the company's shares (shareRatioPct). Provide a Korean stock name (e.g. "삼성전자") or a 6-digit ticker to look up a specific holding, or omit both to get the largest holdings by value.
+
+Freshness caveats — ALWAYS state these when reporting the numbers: (1) this is a YEAR-END snapshot, not real-time — current holdings can differ by many months of trading; the dataset does not carry its own 기준일 column, so cite it as "연말 스냅샷 기준" (see asOf in the output for when the snapshot was downloaded). (2) The source is a pinned data.go.kr dataset endpoint: if NPS publishes a NEWER year-end snapshot as a separate dataset, this tool may keep serving the older one — if the figures conflict with a recent NPS disclosure, distrust this snapshot's vintage, not the disclosure.`;
 
 const InputSchema = z.object({
   name: z
@@ -61,13 +63,14 @@ export const getNpsHoldings_tool = new DynamicStructuredTool({
   description: GET_NPS_HOLDINGS_DESCRIPTION,
   schema: InputSchema,
   func: async (input) => {
-    let entries: NpsHoldingEntry[];
+    let snapshot: NpsSnapshot;
     try {
-      entries = await getNpsHoldings();
+      snapshot = await getNpsSnapshot();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return formatToolResult({ holdings: [], _error: message }, []);
     }
+    const entries = snapshot.entries;
 
     const target = input.name ?? (input.ticker ? await tryResolveName(input.ticker) : null);
 
@@ -80,8 +83,15 @@ export const getNpsHoldings_tool = new DynamicStructuredTool({
 
     return formatToolResult({
       source: 'NPS 국내주식 투자정보 (data.go.kr, year-end snapshot)',
+      asOf: {
+        basis: '연말 스냅샷 — 원 데이터셋에 기준 연도 컬럼이 없어 정확한 연말 시점은 미상; 실시간 보유가 아님을 반드시 명시',
+        snapshotFetchedAt: snapshot.fetchedAt,
+      },
       query: { name: input.name ?? null, ticker: input.ticker ?? null, resolvedName: target },
       holdings,
+      ...(snapshot.stale
+        ? { _dataQualityWarning: `data.go.kr 갱신 실패로 ${snapshot.fetchedAt}에 받아둔 스냅샷을 그대로 서빙 중입니다(stale fallback) — 수치 인용 시 이 시점을 명시하십시오.` }
+        : {}),
     });
   },
 });

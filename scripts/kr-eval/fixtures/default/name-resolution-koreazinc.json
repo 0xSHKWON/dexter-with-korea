@@ -1,0 +1,24 @@
+{
+  "id": "name-resolution-koreazinc",
+  "query": "고려아연 외국인 지분율이랑 현재가 어때?",
+  "meta": {
+    "model": "gpt-5.5"
+  },
+  "toolCalls": [
+    {
+      "tool": "get_foreign_ownership_kr",
+      "args": {
+        "ticker": "고려아연",
+        "limit": 10
+      },
+      "result": "{\"data\":{\"ticker\":\"010130\",\"name\":\"고려아연\",\"ownership\":[{\"date\":\"2026-07-03\",\"foreignHoldRatio\":28.13,\"foreignNetBuyQty\":-1498,\"orgNetBuyQty\":3927,\"individualNetBuyQty\":-2447,\"closePrice\":1115000,\"tradingVolume\":17556},{\"date\":\"2026-07-02\",\"foreignHoldRatio\":28.14,\"foreignNetBuyQty\":-3023,\"orgNetBuyQty\":5481,\"individualNetBuyQty\":-2493,\"closePrice\":1084000,\"tradingVolume\":16906},{\"date\":\"2026-07-01\",\"foreignHoldRatio\":28.15,\"foreignNetBuyQty\":2160,\"orgNetBuyQty\":-2513,\"individualNetBuyQty\":354,\"closePrice\":1095000,\"tradingVolume\":20535},{\"date\":\"2026-06-30\",\"foreignHoldRatio\":28.14,\"foreignNetBuyQty\":-6455,\"orgNetBuyQty\":3227,\"individualNetBuyQty\":2471,\"closePrice\":1080000,\"tradingVolume\":22208},{\"date\":\"2026-06-29\",\"foreignHoldRatio\":28.17,\"foreignNetBuyQty\":-3453,\"orgNetBuyQty\":6129,\"individualNetBuyQty\":-2728,\"closePrice\":1125000,\"tradingVolume\":19117},{\"date\":\"2026-06-26\",\"foreignHoldRatio\":28.19,\"foreignNetBuyQty\":257,\"orgNetBuyQty\":52,\"individualNetBuyQty\":-390,\"closePrice\":1056000,\"tradingVolume\":21702},{\"date\":\"2026-06-25\",\"foreignHoldRatio\":28.19,\"foreignNetBuyQty\":1335,\"orgNetBuyQty\":157,\"individualNetBuyQty\":-1486,\"closePrice\":1110000,\"tradingVolume\":18084},{\"date\":\"2026-06-24\",\"foreignHoldRatio\":28.19,\"foreignNetBuyQty\":1243,\"orgNetBuyQty\":236,\"individualNetBuyQty\":-1440,\"closePrice\":1098000,\"tradingVolume\":24566},{\"date\":\"2026-06-23\",\"foreignHoldRatio\":28.18,\"foreignNetBuyQty\":7289,\"orgNetBuyQty\":-7538,\"individualNetBuyQty\":136,\"closePrice\":1084000,\"tradingVolume\":30016},{\"date\":\"2026-06-22\",\"foreignHoldRatio\":28.14,\"foreignNetBuyQty\":612,\"orgNetBuyQty\":-898,\"individualNetBuyQty\":636,\"closePrice\":1147000,\"tradingVolume\":17172}]},\"sourceUrls\":[\"https://m.stock.naver.com/api/stock/010130/trend\"]}"
+    },
+    {
+      "tool": "get_market_data_kr",
+      "args": {
+        "ticker": "고려아연"
+      },
+      "result": "{\"data\":{\"ticker\":\"010130\",\"name\":\"고려아연\",\"quote\":{\"date\":\"2026-07-03\",\"price\":1115000,\"change\":31000,\"changePct\":2.86,\"direction\":\"상승\",\"priceSource\":\"live\",\"asOf\":\"2026-07-03T16:10:18+09:00\",\"marketStatus\":\"CLOSE\",\"tradingStatus\":\"TRADING\",\"open\":1076000,\"high\":1121000,\"low\":1049000,\"high52w\":2189000,\"low52w\":745000,\"volume\":21858},\"valuation\":{\"snapshotAsOf\":\"2026-07-03T11:57:49.582Z\",\"marketCap\":23273400000000,\"marketCapDisplay\":\"23조 2,734억\",\"sharesOutstanding\":20873004,\"per\":23.25,\"pbr\":2.03,\"eps\":47960,\"bps\":549805,\"forwardPer\":17.6,\"forwardEps\":63362,\"dividendYieldPct\":1.79,\"dividendPerShare\":20000,\"basis\":{\"per\":\"2026.03.\",\"eps\":\"2026.03.\",\"pbr\":\"2026.03.\",\"bps\":\"2026.03.\",\"dividendYieldPct\":\"2025.12.\",\"dividendPerShare\":\"2025.12.\"}},\"consensus\":{\"date\":\"2026-07-02\",\"targetPrice\":1791600,\"recommendationMean\":4,\"upsidePct\":60.68},\"peers\":[{\"ticker\":\"103140\",\"name\":\"풍산\",\"price\":66800,\"changePct\":1.83,\"marketCap\":1872021000000},{\"ticker\":\"295310\",\"name\":\"에이치브이엠\",\"price\":57400,\"changePct\":4.17,\"marketCap\":691473000000},{\"ticker\":\"006110\",\"name\":\"삼아알미늄\",\"price\":38850,\"changePct\":-0.13,\"marketCap\":587546000000},{\"ticker\":\"005810\",\"name\":\"풍산홀딩스\",\"price\":34450,\"changePct\":0.29,\"marketCap\":496675000000},{\"ticker\":\"009160\",\"name\":\"SIMPAC\",\"price\":4660,\"changePct\":0.32,\"marketCap\":304628000000},{\"ticker\":\"058430\",\"name\":\"포스코스틸리온\",\"price\":5030,\"changePct\":-0.4,\"marketCap\":301800000000}],\"preferredListings\":[]},\"sourceUrls\":[\"https://m.stock.naver.com/api/stock/010130/integration\",\"https://m.stock.naver.com/api/stock/010130/basic\"]}"
+    }
+  ]
+}

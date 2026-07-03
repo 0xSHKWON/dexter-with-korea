@@ -27,10 +27,21 @@ export interface DartRow {
   thstrm_amount?: string;
   frmtrm_amount?: string;
   /**
-   * 전년 동기 누적 — present only on quarterly/semiannual flow statements (IS/CIS/CF).
-   * DART leaves frmtrm_amount empty there and puts the prior-year SAME period here.
+   * 전년 동기 — present only on quarterly/semiannual flow statements (IS/CIS/CF).
+   * DART leaves frmtrm_amount empty there and puts the prior-year SAME period here
+   * (for IS rows that is the prior-year 3-MONTH figure, matching thstrm_amount).
    */
   frmtrm_q_amount?: string;
+  /**
+   * 당기 누적 — on quarterly/semiannual IS/CIS rows, thstrm_amount is the 3-MONTH
+   * STANDALONE figure and THIS field carries the fiscal-YTD cumulative. CF rows have
+   * no add field: their thstrm_amount is already cumulative. Verified against live
+   * DART payloads (005930 2025 Q3: 매출 thstrm=86.1조(3M) vs add=239.8조(9M YTD);
+   * 반기 thstrm=74.6조(2Q 3M) vs add=153.7조(6M); Q1 thstrm=add).
+   */
+  thstrm_add_amount?: string;
+  /** 전년 동기 누적 — the prior-year counterpart of thstrm_add_amount. */
+  frmtrm_add_amount?: string;
   [key: string]: unknown;
 }
 
@@ -42,6 +53,16 @@ export interface MetricVal {
   label: string | null;
   /** Human-readable current value (조/억 for amounts, 원 for per-share). */
   display: string | null;
+  /**
+   * Fiscal-YTD cumulative — present ONLY on income-statement metrics of
+   * quarterly/semiannual reports, where `current`/`prior` are the 3-MONTH
+   * STANDALONE amounts (DART thstrm_amount / frmtrm_q_amount) and these carry
+   * thstrm_add_amount / frmtrm_add_amount. Absent on annual reports and on
+   * BS/CF metrics (quarterly CF is already cumulative in `current`).
+   */
+  ytdCurrent?: number | null;
+  ytdPrior?: number | null;
+  ytdDisplay?: string | null;
 }
 
 export interface FinancialSummary {
@@ -68,6 +89,14 @@ export interface FinancialSummary {
      */
     totalDebt: MetricVal;
     totalEquity: MetricVal;
+    /**
+     * 비지배지분 (non-controlling interests, book value) — the consolidated equity
+     * that belongs to subsidiary minority holders, NOT to this company's own
+     * shareholders. An EV→Equity bridge must subtract it (Equity Value = EV −
+     * Net Debt − NCI) or a consolidated DCF attributes 100% of subsidiary value
+     * to the parent's shareholders.
+     */
+    nonControllingInterests: MetricVal;
     cashAndEquivalents: MetricVal;
     /** 단기금융상품 — short-term financial instruments, cash-equivalent for the net-debt bridge. */
     shortTermInvestments: MetricVal;
@@ -77,6 +106,15 @@ export interface FinancialSummary {
     investing: MetricVal;
     financing: MetricVal;
     capex: MetricVal;
+    /** 이자의 지급 — needed to normalize FCF to FCFF when a filer classifies it as operating. */
+    interestPaid: MetricVal;
+    /**
+     * Where 이자의 지급 sits in the cash-flow statement (K-IFRS allows either).
+     * 'operating' → the reported CFO is already net of interest, so FCFF needs
+     * back-adding after-tax interest; 'financing' → CFO is pre-interest (no
+     * adjustment); null → not found or classification unknown (sentinel id).
+     */
+    interestPaidClassification: 'operating' | 'financing' | null;
   };
   ratios: {
     operatingMarginPct: number | null;
@@ -180,6 +218,16 @@ export const ACCOUNT_SPECS: Record<string, AccountSpec> = {
     kind: 'amount',
     statement: 'BS',
   },
+  // 비지배지분 — BS only (IS/CIS also carry rows literally named '비지배지분' for the
+  // P&L attribution, so the sj_div filter is what keeps this on the equity balance).
+  // id/nm verified live: 삼성전자 FY2024 10.5조, LG화학 FY2024 14.7조.
+  nonControllingInterests: {
+    sjDivs: ['BS'],
+    accountIds: ['ifrs-full_NoncontrollingInterests'],
+    accountNms: ['비지배지분', '비지배주주지분'],
+    kind: 'amount',
+    statement: 'BS',
+  },
   cashAndEquivalents: {
     sjDivs: ['BS'],
     accountIds: ['ifrs-full_CashAndCashEquivalents'],
@@ -217,13 +265,25 @@ export const ACCOUNT_SPECS: Record<string, AccountSpec> = {
     kind: 'amount',
     statement: 'CF',
   },
-  capex: {
-    sjDivs: ['CF'],
-    accountIds: ['ifrs-full_PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities'],
-    accountNms: ['유형자산의 취득', '유형자산의 증가'],
-    kind: 'amount',
-    statement: 'CF',
-  },
+};
+
+/**
+ * Capex for the FCF calc: 유형자산 취득 + 무형자산 취득, summed. Intangible purchases
+ * are real investing cash outflows — 통신 주파수이용권, 자본화 개발비(바이오), 소프트웨어
+ * (게임·플랫폼) — so a PP&E-only capex systematically overstates FCF exactly in the
+ * sectors the DCF skill treats as DCF-suitable. Verified against live DART CFS
+ * (005930 FY2024): 유형자산의 취득 51.4조 + 무형자산의 취득 2.3조, both under the
+ * standard ifrs-full ids. 처분(proceeds) lines use different ids/labels and are
+ * excluded by the exact-match rule.
+ */
+export const CAPEX_SUM_SPEC: SumSpec = {
+  sjDiv: 'CF',
+  kind: 'amount',
+  accountIds: [
+    'ifrs-full_PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities',
+    'ifrs-full_PurchaseOfIntangibleAssetsClassifiedAsInvestingActivities',
+  ],
+  accountNms: ['유형자산의 취득', '유형자산의 증가', '무형자산의 취득', '무형자산의 증가'],
 };
 
 /**
@@ -275,11 +335,17 @@ export const DEBT_SUM_SPEC: SumSpec = {
   ],
 };
 
+// Verified against live DART payloads (005930 2025 Q1/반기/Q3) — quarterly IS
+// thstrm_amount is the 3-MONTH figure, NOT cumulative; the cumulative lives in
+// thstrm_add_amount (exposed as ytdCurrent). Quarterly CF has no add field and
+// its thstrm_amount IS cumulative. Mislabeling this direction is a 3x error.
 const BASIS_NOTES: Record<ReportType, string> = {
-  annual: '연간(thstrm=당기, frmtrm=전기). 손익·현금흐름 YoY 비교 가능.',
-  semiannual: '반기 누적(thstrm=당반기 누적, frmtrm=전년 동기 누적). 손익·현금흐름은 6개월 YTD.',
-  quarterly_1: '1분기 누적(thstrm=당기, frmtrm=전년 동기). 손익·현금흐름은 YTD; BS는 분기말 vs 전년말.',
-  quarterly_3: '3분기 누적(9개월 YTD, 분기 단독 아님). 손익·현금흐름은 누적; 분기 단독값은 별도 계산 필요.',
+  annual: '연간(current=당기, prior=전기). 손익·현금흐름 YoY 비교 가능.',
+  semiannual:
+    '반기: 손익 current=2분기 3개월 단독(prior=전년 동기 3개월), ytdCurrent=상반기 6개월 누적(ytdPrior=전년 동기 누적). 현금흐름은 6개월 누적(FCF 포함). BS는 반기말 vs 전년말.',
+  quarterly_1: '1분기: 손익·현금흐름 모두 3개월(단독=누적; ytdCurrent=current). BS는 분기말 vs 전년말.',
+  quarterly_3:
+    '3분기: 손익 current=3분기 3개월 단독(prior=전년 동기 3개월), ytdCurrent=9개월 누적(ytdPrior=전년 동기 누적). 현금흐름은 9개월 누적(3개월 단독 아님; FCF도 누적 기준). BS는 분기말 vs 전년말.',
 };
 
 /** Parse a DART numeric string ("-1,234" / "" / "-") into a number or null. */
@@ -324,7 +390,7 @@ const EMPTY_METRIC: MetricVal = { current: null, prior: null, label: null, displ
  * match exists (banks/holdcos with non-standard labels), the metric stays null and the
  * model drills into rawLineItemsFile instead.
  */
-export function findMetric(list: DartRow[], spec: AccountSpec): MetricVal {
+export function findMetric(list: DartRow[], spec: AccountSpec, opts?: { withYtd?: boolean }): MetricVal {
   for (const sjDiv of spec.sjDivs) {
     const rows = list.filter((r) => r.sj_div === sjDiv);
     if (rows.length === 0) continue;
@@ -332,13 +398,13 @@ export function findMetric(list: DartRow[], spec: AccountSpec): MetricVal {
     // 1. Stable account_id (preference-ordered).
     for (const id of spec.accountIds) {
       const row = rows.find((r) => r.account_id === id);
-      if (row) return toMetric(row, spec.kind);
+      if (row) return toMetric(row, spec.kind, opts?.withYtd);
     }
     // 2. Exact account_nm (whitespace-insensitive) — no substring matching, see above.
     for (const nm of spec.accountNms) {
       const target = squash(nm);
       const row = rows.find((r) => r.account_nm && squash(r.account_nm) === target);
-      if (row) return toMetric(row, spec.kind);
+      if (row) return toMetric(row, spec.kind, opts?.withYtd);
     }
   }
   return { ...EMPTY_METRIC };
@@ -355,13 +421,21 @@ function priorAmount(row: DartRow): number | null {
   return priorQ !== null ? priorQ : parseAmount(row.frmtrm_amount);
 }
 
-function toMetric(row: DartRow, kind: MetricKind): MetricVal {
+function toMetric(row: DartRow, kind: MetricKind, withYtd = false): MetricVal {
   const current = parseAmount(row.thstrm_amount);
-  return {
+  const base: MetricVal = {
     current,
     prior: priorAmount(row),
     label: row.account_nm ?? null,
     display: formatDisplay(current, kind),
+  };
+  if (!withYtd) return base;
+  const ytdCurrent = parseAmount(row.thstrm_add_amount);
+  return {
+    ...base,
+    ytdCurrent,
+    ytdPrior: parseAmount(row.frmtrm_add_amount),
+    ytdDisplay: formatDisplay(ytdCurrent, kind),
   };
 }
 
@@ -402,6 +476,33 @@ export function sumMetrics(list: DartRow[], spec: SumSpec): MetricVal {
   };
 }
 
+/**
+ * 이자의 지급 with its cash-flow classification. K-IFRS (IAS 7) allows interest paid
+ * under operating OR financing; the standard account_id encodes which. When only the
+ * bare label matches (sentinel account_id), the classification is unknowable from the
+ * flat row list → null, and the caller must not assume either way.
+ * Verified live: 삼성전자·LG화학 both use InterestPaidClassifiedAsOperatingActivities.
+ */
+const INTEREST_PAID_IDS: ReadonlyArray<readonly [string, 'operating' | 'financing']> = [
+  ['ifrs-full_InterestPaidClassifiedAsOperatingActivities', 'operating'],
+  ['ifrs-full_InterestPaidClassifiedAsFinancingActivities', 'financing'],
+];
+
+export function findInterestPaid(list: DartRow[]): {
+  metric: MetricVal;
+  classification: 'operating' | 'financing' | null;
+} {
+  const cfRows = list.filter((r) => r.sj_div === 'CF');
+  for (const [id, classification] of INTEREST_PAID_IDS) {
+    const row = cfRows.find((r) => r.account_id === id);
+    if (row) return { metric: toMetric(row, 'amount'), classification };
+  }
+  const names = new Set(['이자의지급', '이자지급', '이자의지급액'].map(squash));
+  const row = cfRows.find((r) => r.account_nm && names.has(squash(r.account_nm)));
+  if (row) return { metric: toMetric(row, 'amount'), classification: null };
+  return { metric: { ...EMPTY_METRIC }, classification: null };
+}
+
 function yoyPct(m: MetricVal): number | null {
   if (m.current === null || m.prior === null || m.prior === 0) return null;
   return round1(((m.current - m.prior) / Math.abs(m.prior)) * 100);
@@ -425,34 +526,40 @@ export interface SummarizeOpts {
 /** Build the normalized summary for one reporting period from its raw line items. */
 export function summarizePeriod(list: DartRow[], opts: SummarizeOpts): FinancialSummary {
   const m = (key: keyof typeof ACCOUNT_SPECS): MetricVal => findMetric(list, ACCOUNT_SPECS[key]);
+  // Quarterly/semiannual IS rows carry 3-month standalone in thstrm_amount and the
+  // fiscal-YTD cumulative in thstrm_add_amount — expose BOTH so neither gets mislabeled.
+  const withYtd = opts.report_type !== 'annual';
+  const is = (key: keyof typeof ACCOUNT_SPECS): MetricVal => findMetric(list, ACCOUNT_SPECS[key], { withYtd });
 
-  const revenue = m('revenue');
-  const operatingProfit = m('operatingProfit');
-  const netIncome = m('netIncome');
-  const controllingNetIncome = m('controllingNetIncome');
-  const eps = m('eps');
+  const revenue = is('revenue');
+  const operatingProfit = is('operatingProfit');
+  const netIncome = is('netIncome');
+  const controllingNetIncome = is('controllingNetIncome');
+  const eps = is('eps');
   const totalAssets = m('totalAssets');
   const totalLiabilities = m('totalLiabilities');
   const totalDebt = sumMetrics(list, DEBT_SUM_SPEC);
   const totalEquity = m('totalEquity');
+  const nonControllingInterests = m('nonControllingInterests');
   const cashAndEquivalents = m('cashAndEquivalents');
   const shortTermInvestments = m('shortTermInvestments');
   const cfo = m('cfo');
   const cfi = m('cfi');
   const cff = m('cff');
-  const capex = m('capex');
+  const capex = sumMetrics(list, CAPEX_SUM_SPEC);
+  const interestPaid = findInterestPaid(list);
 
-  // FCF = operating cash flow − capex. capex (유형자산의 취득) is reported as a cash
-  // outflow; treat it as a use regardless of reported sign.
+  // FCF = operating cash flow − capex. capex (유·무형자산의 취득 합산) is reported as a
+  // cash outflow; treat it as a use regardless of reported sign.
   const freeCashFlow =
     cfo.current === null || capex.current === null
       ? null
       : cfo.current - Math.abs(capex.current);
 
   // ROE mixes a flow (net income) with a stock (equity); only meaningful over a full
-  // year. Quarterly/semiannual net income is YTD-cumulative, so skip to avoid a
-  // misleadingly low partial-year ROE. Basis: total net income / total equity (both
-  // incl. non-controlling interests for CFS).
+  // year. Quarterly/semiannual net income covers 3 months (current) or a partial-year
+  // cumulative (ytdCurrent) — either denominator mismatch would mislead, so skip.
+  // Basis: total net income / total equity (both incl. non-controlling interests for CFS).
   const roePct = opts.report_type === 'annual' ? ratioPct(netIncome.current, totalEquity.current) : null;
 
   return {
@@ -462,8 +569,15 @@ export function summarizePeriod(list: DartRow[], opts: SummarizeOpts): Financial
     unit: 'KRW',
     basis: BASIS_NOTES[opts.report_type],
     incomeStatement: { revenue, operatingProfit, netIncome, controllingNetIncome, eps },
-    balanceSheet: { totalAssets, totalLiabilities, totalDebt, totalEquity, cashAndEquivalents, shortTermInvestments },
-    cashFlow: { operating: cfo, investing: cfi, financing: cff, capex },
+    balanceSheet: { totalAssets, totalLiabilities, totalDebt, totalEquity, nonControllingInterests, cashAndEquivalents, shortTermInvestments },
+    cashFlow: {
+      operating: cfo,
+      investing: cfi,
+      financing: cff,
+      capex,
+      interestPaid: interestPaid.metric,
+      interestPaidClassification: interestPaid.classification,
+    },
     ratios: {
       operatingMarginPct: ratioPct(operatingProfit.current, revenue.current),
       netMarginPct: ratioPct(netIncome.current, revenue.current),

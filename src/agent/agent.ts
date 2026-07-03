@@ -11,7 +11,7 @@ import { enforceResultBudget } from '../utils/tool-result-budget.js';
 import { formatUserFacingError, isContextOverflowError } from '../utils/errors.js';
 import type { AgentConfig, AgentEvent, CompactionEvent, ContextClearedEvent, MicrocompactEvent, QueueDrainEvent, StreamMode, StreamProgressEvent, TextDeltaEvent, TokenUsage } from '../agent/types.js';
 import type { MessageQueue } from '../utils/message-queue.js';
-import { compactContext, MAX_CONSECUTIVE_COMPACTION_FAILURES, MIN_TOOL_RESULTS_FOR_COMPACTION } from './compact.js';
+import { compactContext, salvagePartialAnswer, MAX_CONSECUTIVE_COMPACTION_FAILURES, MIN_TOOL_RESULTS_FOR_COMPACTION } from './compact.js';
 import { microcompactMessages } from './microcompact.js';
 import { createRunContext, type RunContext } from './run-context.js';
 import { AgentToolExecutor } from './tool-executor.js';
@@ -279,11 +279,30 @@ export class Agent {
       }
     }
 
-    // Max iterations reached
+    // Max iterations reached — salvage a partial answer from the collected tool
+    // results (one final no-tools call) instead of discarding up to ten iterations
+    // of retrieved data behind a canned apology. Best-effort: any failure falls
+    // back to the canned notice.
+    let answer = `Reached maximum iterations (${this.maxIterations}). I was unable to complete the research in the allotted steps.`;
+    const collected = ctx.scratchpad.getToolResults();
+    if (collected.trim().length > 0) {
+      yield { type: 'stream_progress', charDelta: 0, mode: 'requesting' };
+      try {
+        const salvaged = await salvagePartialAnswer({
+          model: this.model,
+          query,
+          toolResults: collected,
+          signal: this.signal,
+        });
+        answer = `[Reached the ${this.maxIterations}-iteration tool limit — partial answer from the data already collected]\n\n${salvaged}`;
+      } catch {
+        // keep the canned notice
+      }
+    }
     const totalTime = Date.now() - ctx.startTime;
     yield {
       type: 'done',
-      answer: `Reached maximum iterations (${this.maxIterations}). I was unable to complete the research in the allotted steps.`,
+      answer,
       toolCalls: ctx.scratchpad.getToolCallRecords(),
       iterations: ctx.iteration,
       totalTime,

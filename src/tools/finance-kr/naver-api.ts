@@ -66,6 +66,17 @@ export async function fetchNaverTrend(
 export interface NaverIntegrationResult {
   data: Record<string, unknown> | null;
   url: string;
+  /** When this payload was obtained from Naver (ISO) — the cache write time when served from cache. Lets callers label snapshot-derived figures honestly. */
+  fetchedAt: string | null;
+}
+
+/**
+ * True when a Naver fetch error means "this 6-digit code does not exist"
+ * (409/404 from /integration) as opposed to a transient network/server failure.
+ * Callers use this to decide whether a negative result may be cached permanently.
+ */
+export function isNaverNoDataError(message: string): boolean {
+  return message.includes('no data for ticker');
 }
 
 /**
@@ -89,6 +100,7 @@ export async function fetchNaverIntegration(
       return {
         data: payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : null,
         url: cached.url,
+        fetchedAt: cached.cachedAt,
       };
     }
   }
@@ -121,6 +133,38 @@ export async function fetchNaverIntegration(
   if (options?.cacheable) {
     writeCache(endpoint, params, { payload: data }, url);
   }
+  return { data, url, fetchedAt: new Date().toISOString() };
+}
+
+export interface NaverBasicResult {
+  data: Record<string, unknown> | null;
+  url: string;
+}
+
+/**
+ * Fetch the `/basic` payload for a 6-digit ticker — the LIVE quote endpoint.
+ * Unlike `/integration` (whose dealTrendInfos daily rows lag until the session
+ * closes, so an intraday call returns yesterday's close as "price"), `/basic`
+ * carries the real-time `closePrice`, `compareToPreviousClosePrice`,
+ * `fluctuationsRatio`, plus `localTradedAt` (quote timestamp), `marketStatus`
+ * (OPEN/CLOSE) and `tradeStopType` (trading-halt state). Never cached: the whole
+ * point is a fresh price. Returns `{ data: null }` on any failure so callers can
+ * fall back to the /integration close WITH a staleness label.
+ */
+export async function fetchNaverBasic(ticker: string): Promise<NaverBasicResult> {
+  const url = `${BASE_URL}/${ticker}/basic`;
+  let response: Response;
+  try {
+    response = await fetch(url, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' } });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.warn(`[Naver API] /basic network error: ${ticker} — ${message}`);
+    return { data: null, url };
+  }
+  if (!response.ok) return { data: null, url };
+  const json = (await response.json().catch(() => null)) as unknown;
+  const data =
+    json && typeof json === 'object' && !Array.isArray(json) ? (json as Record<string, unknown>) : null;
   return { data, url };
 }
 

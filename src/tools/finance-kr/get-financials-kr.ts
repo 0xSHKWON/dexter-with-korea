@@ -21,14 +21,14 @@ Intelligent meta-tool for retrieving Korean (KOSPI/KOSDAQ) listed company financ
 ## When NOT to Use
 
 - US-listed stocks (use get_financials for AAPL, MSFT, etc.)
-- Korean stock prices or news (Phase 2 — not yet implemented)
-- 5%룰, 임원 거래, 국민연금 보유 (Phase 2/3 — not yet implemented)
+- Korean stock prices / valuation multiples / consensus (use get_market_data_kr)
+- 5%룰 (use get_large_holders_kr), 임원 거래 (get_insider_trades_kr), 국민연금 보유 (get_nps_holdings), 공시 검색 (get_filings_kr)
 - General web searches (use web_search)
 
 ## Usage Notes
 
 - Call ONCE with the complete natural language query — the router handles internal complexity
-- Ticker must be the 6-digit Korean code (e.g. 005930, not "005930.KS" or "삼성전자")
+- Identify the company by its 6-digit code (e.g. 005930) or its exact Korean name (e.g. 삼성전자) — names are resolved deterministically; do NOT guess a code from memory for less-common names
 - Handles year inference: "작년", "올해", "지난 분기" — converts to bsns_year + reprt_code
 - Returns a normalized per-period \`summary\` (revenue, operating profit, net income, EPS, assets/liabilities/equity, cash flow, capex, plus margins, ROE, FCF, YoY) in KRW. Full raw DART line items are saved to \`rawLineItemsFile\` for drill-down into non-standard accounts.
 `.trim();
@@ -135,9 +135,22 @@ export function createGetFinancialsKr(model: string): DynamicStructuredTool {
       const allUrls = results.flatMap((r) => r.sourceUrls);
 
       for (const result of results.filter((r) => r.error === null)) {
-        const ticker = (result.args as Record<string, unknown>).ticker as string | undefined;
-        const key = ticker ? `${result.tool}_${ticker}` : result.tool;
-        combinedData[key] = result.data;
+        const argsRec = result.args as Record<string, unknown>;
+        const ticker = argsRec.ticker as string | undefined;
+        // Key on tool + ticker + the remaining args: the router legitimately emits
+        // several calls for the SAME ticker (annual + quarterly, CFS + OFS, different
+        // years) and a ticker-only key would silently drop all but the last one.
+        const discriminator = Object.entries(argsRec)
+          .filter(([k, v]) => k !== 'ticker' && v !== undefined && v !== null)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([k, v]) => `${k}=${String(v)}`)
+          .join(',');
+        let key = ticker ? `${result.tool}_${ticker}` : result.tool;
+        if (discriminator) key = `${key}(${discriminator})`;
+        // Identical duplicate calls still must not overwrite each other.
+        let unique = key;
+        for (let i = 2; unique in combinedData; i++) unique = `${key}#${i}`;
+        combinedData[unique] = result.data;
       }
 
       const failed = results.filter((r) => r.error !== null);

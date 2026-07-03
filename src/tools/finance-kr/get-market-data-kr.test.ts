@@ -4,6 +4,8 @@ import {
   parseKoreanMarketCapToKRW,
   hasNoMarketData,
   marketDataQualityWarning,
+  preferredCandidateCodes,
+  isPreferredNameOf,
 } from './get-market-data-kr.js';
 import { parseNaverMetric } from './utils.js';
 
@@ -21,13 +23,13 @@ const SAMSUNG_RAW = {
     { code: 'foreignRate', key: '외인소진율', value: '48.30%' },
     { code: 'highPriceOf52Weeks', key: '52주 최고', value: '377,000' },
     { code: 'lowPriceOf52Weeks', key: '52주 최저', value: '56,800' },
-    { code: 'per', key: 'PER', value: '28.69배' },
-    { code: 'eps', key: 'EPS', value: '12,372원' },
+    { code: 'per', key: 'PER', value: '28.69배', valueDesc: '2026.03.' },
+    { code: 'eps', key: 'EPS', value: '12,372원', valueDesc: '2026.03.' },
     { code: 'cnsPer', key: '추정PER', value: '8.24배' },
     { code: 'cnsEps', key: '추정EPS', value: '43,098원' },
     { code: 'pbr', key: 'PBR', value: '4.94배' },
     { code: 'bps', key: 'BPS', value: '71,907원' },
-    { code: 'dividendYieldRatio', key: '배당수익률', value: '0.47%' },
+    { code: 'dividendYieldRatio', key: '배당수익률', value: '0.47%', valueDesc: '2025.12.' },
     { code: 'dividend', key: '주당배당금', value: '1,668원' },
   ],
   dealTrendInfos: [
@@ -82,7 +84,7 @@ describe('parseKoreanMarketCapToKRW', () => {
 describe('mapMarketData', () => {
   const m = mapMarketData('005930', SAMSUNG_RAW as Record<string, unknown>);
 
-  it('maps the latest quote with computed daily change %', () => {
+  it('maps the latest quote with computed daily change % (no live /basic payload)', () => {
     expect(m.name).toBe('삼성전자');
     expect(m.quote).toEqual({
       date: '2026-06-01',
@@ -90,6 +92,10 @@ describe('mapMarketData', () => {
       change: 32000,
       changePct: 10.09, // 32000 / (349000 - 32000)
       direction: '상승',
+      priceSource: 'snapshotClose', // no live quote → the snapshot's close
+      asOf: null, // no /basic payload → no quote timestamp
+      marketStatus: null,
+      tradingStatus: null,
       open: 356000,
       high: 377000,
       low: 342000,
@@ -97,6 +103,102 @@ describe('mapMarketData', () => {
       low52w: 56800,
       volume: 45052488,
     });
+  });
+
+  it('prefers the live /basic quote over the lagging /integration daily row', () => {
+    // Intraday shape captured from m.stock.naver.com/api/stock/005930/basic: the
+    // /integration daily row still shows yesterday's close (349,000) while /basic
+    // carries the live trade — the quote must come from /basic, with timestamp.
+    const basic = {
+      stockName: '삼성전자',
+      closePrice: '294,500',
+      compareToPreviousClosePrice: '8,500',
+      compareToPreviousPrice: { code: '2', text: '상승', name: 'RISING' },
+      fluctuationsRatio: '2.97',
+      marketStatus: 'OPEN',
+      localTradedAt: '2026-07-03T09:09:00+09:00',
+      tradeStopType: { code: '1', text: '운영.Trading', name: 'TRADING' },
+    };
+    const live = mapMarketData('005930', SAMSUNG_RAW as Record<string, unknown>, basic);
+    expect(live.quote.price).toBe(294500);
+    expect(live.quote.priceSource).toBe('live');
+    expect(live.quote.change).toBe(8500);
+    expect(live.quote.changePct).toBe(2.97); // Naver's own signed ratio, not recomputed
+    expect(live.quote.asOf).toBe('2026-07-03T09:09:00+09:00');
+    expect(live.quote.marketStatus).toBe('OPEN');
+    expect(live.quote.tradingStatus).toBe('TRADING');
+    // Derived shares pair 시총 with the SAME snapshot's close (349,000), never the
+    // live price — the snapshot may be up to 1h cached, and dividing a stale 시총
+    // by a moved live price would put the intraday move into the share count.
+    expect(live.valuation.sharesOutstanding).toBe(Math.round(2_075_428_900_000_000 / 349000));
+    // Consensus upside IS against the live price (both are "now" quantities).
+    expect(live.consensus.upsidePct).toBe(36.25); // (401250 - 294500) / 294500
+  });
+
+  it('never labels a fallback price with the live timestamp (closePrice unparseable)', () => {
+    // /basic can return a timestamp with an unparseable closePrice (halt placeholder,
+    // field rename). The price falls back to the snapshot close — asOf must NOT carry
+    // the live timestamp, and priceSource must say so.
+    const basic = {
+      closePrice: '-',
+      compareToPreviousClosePrice: '-',
+      compareToPreviousPrice: { code: '3', text: '보합', name: 'EVEN' },
+      fluctuationsRatio: '-',
+      marketStatus: 'OPEN',
+      localTradedAt: '2026-07-03T09:09:00+09:00',
+      tradeStopType: { code: '1', text: '운영.Trading', name: 'TRADING' },
+    };
+    const q = mapMarketData('005930', SAMSUNG_RAW as Record<string, unknown>, basic).quote;
+    expect(q.price).toBe(349000); // snapshot close fallback
+    expect(q.priceSource).toBe('snapshotClose');
+    expect(q.asOf).toBeNull(); // live timestamp must not label a fallback price
+  });
+
+  it('keeps priceSource live when only the timestamp is missing', () => {
+    const basic = {
+      closePrice: '294,500',
+      compareToPreviousClosePrice: '8,500',
+      compareToPreviousPrice: { code: '2', text: '상승', name: 'RISING' },
+      fluctuationsRatio: '2.97',
+      marketStatus: 'OPEN',
+      tradeStopType: { code: '1', text: '운영.Trading', name: 'TRADING' },
+    };
+    const q = mapMarketData('005930', SAMSUNG_RAW as Record<string, unknown>, basic).quote;
+    expect(q.price).toBe(294500);
+    expect(q.priceSource).toBe('live'); // no false "stale price" signal
+    expect(q.asOf).toBeNull();
+  });
+
+  it('forces the change sign negative on a falling day (direction code 5)', () => {
+    // Naver can return the change magnitude unsigned with the sign only in the
+    // direction object — a -7% day must never render as a positive change.
+    const basic = {
+      closePrice: '292,250',
+      compareToPreviousClosePrice: '22,250',
+      compareToPreviousPrice: { code: '5', text: '하락', name: 'FALLING' },
+      fluctuationsRatio: '7.07',
+      marketStatus: 'OPEN',
+      localTradedAt: '2026-07-03T10:00:00+09:00',
+      tradeStopType: { code: '1', text: '운영.Trading', name: 'TRADING' },
+    };
+    const live = mapMarketData('005930', SAMSUNG_RAW as Record<string, unknown>, basic);
+    expect(live.quote.change).toBe(-22250);
+    expect(live.quote.changePct).toBe(-7.07);
+    expect(live.quote.direction).toBe('하락');
+  });
+
+  it('surfaces a trading-halt state from tradeStopType', () => {
+    const basic = {
+      closePrice: '10,000',
+      compareToPreviousClosePrice: '0',
+      compareToPreviousPrice: { code: '3', text: '보합', name: 'EVEN' },
+      fluctuationsRatio: '0.00',
+      marketStatus: 'OPEN',
+      localTradedAt: '2026-07-03T10:00:00+09:00',
+      tradeStopType: { code: '2', text: '정지.Suspension', name: 'SUSPENSION' },
+    };
+    const live = mapMarketData('005930', SAMSUNG_RAW as Record<string, unknown>, basic);
+    expect(live.quote.tradingStatus).toBe('SUSPENSION');
   });
 
   it('maps valuation and derives shares outstanding from market cap / price', () => {
@@ -111,6 +213,14 @@ describe('mapMarketData', () => {
     expect(m.valuation.forwardEps).toBe(43098);
     expect(m.valuation.dividendYieldPct).toBe(0.47);
     expect(m.valuation.dividendPerShare).toBe(1668);
+  });
+
+  it('carries each multiple\'s 기준시점 (valueDesc) so metrics are never undated', () => {
+    expect(m.valuation.basis).toEqual({
+      per: '2026.03.',
+      eps: '2026.03.',
+      dividendYieldPct: '2025.12.',
+    });
   });
 
   it('maps consensus with implied upside to target', () => {
@@ -136,6 +246,30 @@ describe('mapMarketData', () => {
     expect(empty.valuation.sharesOutstanding).toBeNull();
     expect(empty.consensus.targetPrice).toBeNull();
     expect(empty.peers).toEqual([]);
+    expect(empty.preferredListings).toEqual([]);
+  });
+});
+
+describe('preferred-share listing detection', () => {
+  it('generates class-code candidates only for a common (…0) ticker', () => {
+    expect(preferredCandidateCodes('005930')).toEqual(['005935', '005937', '005939']);
+    expect(preferredCandidateCodes('005380')).toEqual(['005385', '005387', '005389']);
+    expect(preferredCandidateCodes('005935')).toEqual([]); // already a preferred class
+    expect(preferredCandidateCodes('00104K')).toEqual([]); // alphanumeric — out of scope
+    expect(preferredCandidateCodes('삼성전자')).toEqual([]);
+  });
+
+  it('accepts real preferred-name shapes and rejects other issuers', () => {
+    expect(isPreferredNameOf('삼성전자', '삼성전자우')).toBe(true);
+    expect(isPreferredNameOf('현대차', '현대차우')).toBe(true);
+    expect(isPreferredNameOf('현대차', '현대차2우B')).toBe(true);
+    expect(isPreferredNameOf('현대차', '현대차3우B')).toBe(true);
+    expect(isPreferredNameOf('CJ', 'CJ4우(전환)')).toBe(true);
+    // A code-convention hit that is actually a different issuer must be rejected.
+    expect(isPreferredNameOf('현대차', '현대차증권')).toBe(false);
+    expect(isPreferredNameOf('삼성전자', '삼성전기')).toBe(false);
+    expect(isPreferredNameOf('삼성전자', '삼성전자')).toBe(false); // the common itself
+    expect(isPreferredNameOf('', '아무거나우')).toBe(false);
   });
 });
 

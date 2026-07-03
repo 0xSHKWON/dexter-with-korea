@@ -1,6 +1,19 @@
 import { describe, it, expect } from 'bun:test';
-import { isNumericCell, selectSegmentTables } from './get-segments-kr.js';
+import { isNumericCell, selectSegmentTables, extractUnit } from './get-segments-kr.js';
 import { parseDsdTables } from './dart-document.js';
+
+describe('extractUnit', () => {
+  it('extracts the declared KRW magnitude from in-table unit markers', () => {
+    expect(extractUnit('(단위 : 백만원) 부문 매출액')).toBe('백만원');
+    expect(extractUnit('단위: 천원, % 부문 매출액')).toBe('천원');
+    expect(extractUnit('(단위:억원)')).toBe('억원');
+    expect(extractUnit('단위 : 백만 원')).toBe('백만원');
+  });
+  it('returns null when no unit marker exists — never guesses', () => {
+    expect(extractUnit('부문 구분 매출액 영업이익 526,547')).toBeNull();
+    expect(extractUnit('')).toBeNull();
+  });
+});
 
 describe('isNumericCell', () => {
   it('treats formatted Korean financial figures as numeric', () => {
@@ -45,6 +58,18 @@ describe('selectSegmentTables', () => {
     expect(out[0].rows[1]).toContain('매출액');
     // unrelated table (no 부문) is excluded
     expect(out.every((t) => t.rows.flat().join(' ').includes('부문'))).toBe(true);
+  });
+
+  it('carries the in-table unit into the SegmentTable, null when absent', () => {
+    const withUnit = [
+      ['부문', '구분', '(단위 : 천원)', '제58기'],
+      ['DX 부문', '매출액', '526,547', '1,879,673'],
+      ['', '영업이익', '29,677', '128,527'],
+    ];
+    const out = selectSegmentTables([withUnit, pnl], 2);
+    const units = out.map((t) => t.unit);
+    expect(units).toContain('천원'); // declared unit extracted, not assumed 백만원
+    expect(units).toContain(null); // pnl table has no marker → null, never a guess
   });
 
   it('respects the limit', () => {

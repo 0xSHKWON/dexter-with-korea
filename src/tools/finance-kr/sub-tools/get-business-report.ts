@@ -48,10 +48,25 @@ const InputSchema = z.object({
     .describe("Financial statement scope: 'CFS' (연결, consolidated) or 'OFS' (개별, separate)."),
 });
 
-function defaultYear(): number {
-  // DART typically publishes annual reports in March of the following year.
-  // Default to last year so requests don't 404 in January–March.
-  return new Date().getUTCFullYear() - 1;
+/**
+ * Report-type-aware default business year. Annual reports for year N publish in
+ * March of N+1, so annual defaults to last year — but quarterly/semiannual
+ * reports publish WITHIN the year (statutory deadline = period end + 45 days:
+ * Q1 ~May 15, 반기 ~Aug 14, Q3 ~Nov 14): a flat currentYear−1 default would
+ * answer "최근 분기" with a year-old quarter. Switch to the current year a few
+ * days after each deadline; a premature current-year request degrades gracefully
+ * anyway (DART status 013 surfaces as a per-year error, other years unaffected).
+ */
+export function defaultYear(reportType: ReportType, now: Date = new Date()): number {
+  const year = now.getUTCFullYear();
+  const monthDay = (now.getUTCMonth() + 1) * 100 + now.getUTCDate();
+  const availableFrom: Record<ReportType, number> = {
+    annual: 1332, // never within the year — always last year
+    quarterly_1: 520, // deadline May 15 + buffer
+    semiannual: 820, // deadline Aug 14 + buffer
+    quarterly_3: 1120, // deadline Nov 14 + buffer
+  };
+  return monthDay >= availableFrom[reportType] ? year : year - 1;
 }
 
 export const RAW_FILE_KEEP = 30;
@@ -106,7 +121,7 @@ export const getBusinessReport = new DynamicStructuredTool({
     const ticker = sec.stockCode;
     const resolved = { corp_code: sec.corpCode, corp_name: sec.name ?? '' };
 
-    const endYear = input.year ?? defaultYear();
+    const endYear = input.year ?? defaultYear(input.report_type as ReportType);
     const years = Array.from({ length: input.period_count }, (_, i) => endYear - i);
     const reprt_code = REPORT_TYPE_CODES[input.report_type as ReportType];
 

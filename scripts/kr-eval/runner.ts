@@ -185,6 +185,15 @@ async function main(): Promise<void> {
 
   // Non-zero exit when an active question failed — a CI/regression signal. record
   // mode is a capture action, so it always exits 0 regardless of rubric scores.
+  //
+  // KR_EVAL_REQUIRE_RUN: an all-skip run (missing keys/fixtures) normally exits 0 so a
+  // misconfigured local setup never blocks; in CI that same behavior means a completely
+  // broken eval still shows green. Set the env in CI to make "nothing actually ran" a
+  // failure instead of a silent pass.
+  if (process.env.KR_EVAL_REQUIRE_RUN && ctx.mode !== 'record' && report.ran === 0) {
+    console.error('KR_EVAL_REQUIRE_RUN is set but 0 questions ran (all skipped) — failing instead of a silent green.');
+    process.exit(1);
+  }
   const failed = report.ran > 0 && report.passed < report.ran;
   process.exit(ctx.mode !== 'record' && failed ? 1 : 0);
 }

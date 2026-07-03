@@ -130,7 +130,7 @@ export function readCache(
   endpoint: string,
   params: Record<string, string | number | string[] | undefined>,
   ttlMs?: number,
-): { data: Record<string, unknown>; url: string } | null {
+): { data: Record<string, unknown>; url: string; cachedAt: string } | null {
   const cacheKey = buildCacheKey(endpoint, params);
   const filepath = join(CACHE_DIR, cacheKey);
   const label = describeRequest(endpoint, params);
@@ -157,7 +157,7 @@ export function readCache(
       }
     }
 
-    return { data: parsed.data, url: parsed.url };
+    return { data: parsed.data, url: parsed.url, cachedAt: parsed.cachedAt };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     logger.warn(`Cache read error: ${label} — ${message}`, { filepath });
