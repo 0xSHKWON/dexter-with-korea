@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
     types: [opened, synchronize, reopened, labeled]
+  schedule:
+    # Weekly KR-eval regression sweep (Mon 06:00 KST) — catches drift between merges.
+    - cron: '0 21 * * 0'
 
 jobs:
   checks:
@@ -31,12 +34,17 @@ jobs:
       - name: Run ${{ matrix.task }}
         run: ${{ matrix.command }}
 
-  # On-demand KR-eval regression run (replay mode — recorded tool fixtures, no DART/KRX/Naver
-  # network). Still needs LLM keys for the agent + judge, so it's gated behind the `run-eval`
-  # label and pulls keys from repo secrets. Without keys the runner skips every question and
-  # exits 0, so a misconfigured repo never produces a false failure.
+  # KR-eval regression run (replay mode — recorded tool fixtures, no DART/KRX/Naver network;
+  # LLM keys for agent + judge come from repo secrets). This is the ONLY gate that measures
+  # answer quality, so it runs on the default path — every main push + a weekly cron — not
+  # just on demand; PRs can still opt in with the `run-eval` label (fork PRs can't read
+  # secrets, so a PR-default run would always no-op there). KR_EVAL_REQUIRE_RUN makes an
+  # all-skip run (missing keys/fixtures) FAIL instead of showing a silent green.
   kr-eval-replay:
-    if: github.event.action == 'labeled' && github.event.label.name == 'run-eval'
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'run-eval')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -51,6 +59,7 @@ jobs:
       - name: KR eval (replay)
         run: bun run kr-eval:replay
         env:
+          KR_EVAL_REQUIRE_RUN: '1'
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
