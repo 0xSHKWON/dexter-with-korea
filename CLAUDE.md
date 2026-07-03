@@ -28,7 +28,7 @@ CI runs `typecheck` + `test` on push/PR.
 These bite without warning. Fix once you learn them.
 
 - **TUI is `@mariozechner/pi-tui`, not Ink.** `src/index.tsx` has the `.tsx` extension for historical reasons; there is no JSX in the active CLI (`src/cli.ts`). `src/components/` are plain-`.ts` pi-tui components (no React/JSX, no `src/hooks/`). Trust the code.
-- **Registration is by env var — but the US finance tools are NOT gated.** (`src/tools/registry.ts`) `get_financials`/`get_market_data`/`read_filings`/`stock_screener` and the keyless Naver KR tools (`get_market_data_kr`/`get_foreign_ownership_kr`) register **unconditionally**; without `FINANCIAL_DATASETS_API_KEY` the US ones stay bound to the LLM and 401 at call-time — they are NOT absent. Actually gated: `DART_API_KEY` → the 5 KR DART tools; ≥1 of `EXASEARCH_API_KEY`/`PERPLEXITY_API_KEY`/`TAVILY_API_KEY`/`LANGSEARCH_API_KEY` → `web_search` (missing one just drops that provider, not the tool); `KRX_*` / `DATA_GO_KR_SERVICE_KEY` / `X_BEARER_TOKEN` → their respective tools.
+- **Registration is by env var — but the US finance tools are NOT gated.** (`src/tools/registry.ts`) `get_financials`/`get_market_data`/`read_filings`/`stock_screener` and the keyless Naver KR tools (`get_market_data_kr`/`get_foreign_ownership_kr`) register **unconditionally**; without `FINANCIAL_DATASETS_API_KEY` the US ones stay bound to the LLM and 401 at call-time — they are NOT absent. Actually gated: `DART_API_KEY` → the 7 KR DART tools; ≥1 of `EXASEARCH_API_KEY`/`PERPLEXITY_API_KEY`/`TAVILY_API_KEY`/`LANGSEARCH_API_KEY` → `web_search` (missing one just drops that provider, not the tool); `KRX_*` / `DATA_GO_KR_SERVICE_KEY` / `X_BEARER_TOKEN` → their respective tools.
 - **`your-` is treated as a placeholder.** `checkApiKeyExists` (`src/utils/env.ts`) ignores values starting with `your-`. Copying `env.example` without replacing values = "key missing" behavior.
 - **Tool output shape feeds the UI.** `summarizeToolResult` in `src/cli.ts` switches on `tool` name and inspects `parsed.data` shape. New finance tools must return `{ data: ... }` and need a matching case here, or the UI shows stale status lines.
 - **`concurrencySafe` flag.** Each tool declares it; the executor parallelizes safe tools and serializes unsafe ones (browser, stateful APIs). Wrong value = subtle race conditions.
@@ -56,6 +56,7 @@ These bite without warning. Fix once you learn them.
 - [ ] `get_filings_kr` — DART 공시 검색
 - [ ] `get_large_holders_kr` — 5%룰 (13F equivalent)
 - [ ] `get_insider_trades_kr` — 임원·주요주주
+- [x] `get_equity_investments_kr` — 타법인 출자현황 (DART `otrCprInvstmntSttus`). 회사가 **보유한** 타법인 지분의 기말 스냅샷(상장+비상장, 지분율·정확한 주식수·장부가·피출자사 총자산/순이익). 지주사 SOTP 지분율의 1차 소스 — 5%룰(`get_large_holders_kr`)은 변동 시에만 보고라 수년째 안 움직인 지분은 안 뜬다(LG유플러스·생활건강이 그랬다). `ratioPct`는 공시 원문이 정수 %로 반올림하는 경우가 많음 — 정밀값은 `shares`÷총주식수 재계산.
 
 ### Phase 3 — Korea-specific
 - [x] `get_foreign_ownership_kr` — 외국인 지분율. Source: **Naver mobile JSON** (`m.stock.naver.com/api/stock/{code}/trend`), keyless. Registered unconditionally.
