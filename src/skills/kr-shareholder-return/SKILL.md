@@ -30,14 +30,14 @@ KR 주주환원/밸류업 분석 진행:
 `get_filings_kr`로 환원 관련 공시를 찾는다(기본 범위 ~1년, 필요시 `start_date` 확대):
 - `filing_type: "exchange"`(거래소공시) → **기업가치제고계획** 자율공시.
 - `filing_type: "material"`(주요사항보고) → **자기주식 취득/소각**, 자기주식취득 신탁계약.
-`report_nm`에서 `기업가치제고`, `자기주식`, `자사주`, `소각`, `배당` 키워드 스캔. 배당정책 본문은 `read_filings_kr`(sections `["overview"]` 또는 `["governance"]`)로 보완. 공시가 부족하면 `web_search`로 최근 IR/밸류업 발표 확인.
+`report_nm`에서 `기업가치제고`, `자기주식`, `자사주`, `소각`, `배당` 키워드 스캔. 배당정책 본문은 `read_filings_kr`(sections `["overview"]` 또는 `["governance"]`)로 보완. 공시가 부족하면 `web_search`로 최근 IR/밸류업 발표를 확인하되, **검색 결과는 보도/IR 자료이지 공시가 아니다** — "검토 중" 보도와 확정 공시(이사회 결의·거래소 공시)를 구분해 표기하고, 검색 유래 항목에는 (매체, 날짜)를 붙인다. 보도만 있고 공시가 없으면 "공시 미확인"을 명시한다.
 
 ## Step 3: 환원 여력
 
 `get_financials_kr`로 환원을 감당할 체력을 본다:
-- **순현금**(`balanceSheet.cashAndEquivalents + shortTermInvestments − totalDebt`)이 두둑하면 자사주 소각·특별배당 여력.
+- **순현금**(`balanceSheet.cashAndEquivalents + shortTermInvestments − totalDebt`)이 두둑하면 자사주 소각·특별배당 여력. 단 `totalDebt`가 `null`이면(은행·금융지주 등 비표준 라벨) 이 식은 이자부채를 0으로 치는 셈이라 순현금이 과대된다 — 금융주에는 이 점검을 적용하지 말고 그 사실을 명시하라(금융주 환원 여력은 자본비율 관점).
 - **FCF**(`ratios.freeCashFlow`)가 흑자 지속이면 지속가능 환원.
-- **배당성향** = 배당총액 ÷ `incomeStatement.netIncome`(또는 DPS×주식수 ÷ NI). 배당재원은 **별도(OFS)** 이익이므로 별도 이익도 확인.
+- **배당성향** = 배당총액 ÷ `incomeStatement.controllingNetIncome`(지배주주 귀속 — 비지배 몫이 큰 연결 NI로 나누면 성향이 실제보다 낮아 보인다; controllingNetIncome이 null일 때만 netIncome 폴백을 명시하고 사용). 배당재원은 **별도(OFS)** 이익이므로 별도 이익도 확인.
 낮은 배당성향 + 두둑한 순현금 = 환원 여력은 큰데 안 하는 상태 → 밸류업 압박의 표적이자 잠재 upside.
 
 ## Step 4: re-rating 판단 + 출력

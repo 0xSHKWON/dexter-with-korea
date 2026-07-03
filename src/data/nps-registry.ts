@@ -91,6 +91,29 @@ export async function getNpsHoldings(options?: { ttlMs?: number }): Promise<NpsH
   return cache.entries;
 }
 
+export interface NpsSnapshot {
+  entries: NpsHoldingEntry[];
+  /** When this snapshot was downloaded from data.go.kr (ISO). */
+  fetchedAt: string;
+  /** True when a refresh failed and this is the stale-fallback copy past its TTL. */
+  stale: boolean;
+}
+
+/**
+ * Snapshot WITH freshness metadata — tools should use this (not getNpsHoldings)
+ * so the "when was this data obtained / is it a stale fallback" facts reach the
+ * model instead of dying in a logger.warn.
+ */
+export async function getNpsSnapshot(options?: { ttlMs?: number }): Promise<NpsSnapshot> {
+  const ttlMs = options?.ttlMs ?? DEFAULT_TTL_MS;
+  const cache = await loadRegistry(ttlMs);
+  return {
+    entries: cache.entries,
+    fetchedAt: new Date(cache.fetchedAt).toISOString(),
+    stale: Date.now() - cache.fetchedAt >= ttlMs,
+  };
+}
+
 export function _resetNpsRegistryForTests(): void {
   memoryCache = null;
   inflight = null;

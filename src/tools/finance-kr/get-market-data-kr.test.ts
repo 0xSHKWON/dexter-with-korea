@@ -23,13 +23,13 @@ const SAMSUNG_RAW = {
     { code: 'foreignRate', key: '외인소진율', value: '48.30%' },
     { code: 'highPriceOf52Weeks', key: '52주 최고', value: '377,000' },
     { code: 'lowPriceOf52Weeks', key: '52주 최저', value: '56,800' },
-    { code: 'per', key: 'PER', value: '28.69배' },
-    { code: 'eps', key: 'EPS', value: '12,372원' },
+    { code: 'per', key: 'PER', value: '28.69배', valueDesc: '2026.03.' },
+    { code: 'eps', key: 'EPS', value: '12,372원', valueDesc: '2026.03.' },
     { code: 'cnsPer', key: '추정PER', value: '8.24배' },
     { code: 'cnsEps', key: '추정EPS', value: '43,098원' },
     { code: 'pbr', key: 'PBR', value: '4.94배' },
     { code: 'bps', key: 'BPS', value: '71,907원' },
-    { code: 'dividendYieldRatio', key: '배당수익률', value: '0.47%' },
+    { code: 'dividendYieldRatio', key: '배당수익률', value: '0.47%', valueDesc: '2025.12.' },
     { code: 'dividend', key: '주당배당금', value: '1,668원' },
   ],
   dealTrendInfos: [
@@ -175,6 +175,14 @@ describe('mapMarketData', () => {
     expect(m.valuation.forwardEps).toBe(43098);
     expect(m.valuation.dividendYieldPct).toBe(0.47);
     expect(m.valuation.dividendPerShare).toBe(1668);
+  });
+
+  it('carries each multiple\'s 기준시점 (valueDesc) so metrics are never undated', () => {
+    expect(m.valuation.basis).toEqual({
+      per: '2026.03.',
+      eps: '2026.03.',
+      dividendYieldPct: '2025.12.',
+    });
   });
 
   it('maps consensus with implied upside to target', () => {

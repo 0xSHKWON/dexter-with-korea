@@ -65,6 +65,10 @@ export const getBetaKr = new DynamicStructuredTool({
       market = hit?.market ?? null;
     }
     const indexCode: NaverIndexCode = input.index === 'auto' ? marketToIndex(market) : input.index;
+    // Auto mode with an unresolved market silently defaults to KOSPI — that is a
+    // FALLBACK, not a detection, and must be visible (a KOSDAQ name regressed on
+    // KOSPI is a different beta with no outward sign otherwise).
+    const indexFallback = input.index === 'auto' && !market;
 
     // Window: years back from today, padded so the first weekly bucket is complete.
     const end = new Date();
@@ -94,16 +98,38 @@ export const getBetaKr = new DynamicStructuredTool({
       // No baked reliability verdict: report the regression FACTS (R², observations,
       // requested-vs-covered window) and let the caller judge. A low R² or a covered
       // window shorter than requested is visible here, interpreted in the DCF skill.
+      // Data-quality flags (small sample, benchmark fallback) are stated as facts —
+      // a 10-observation regression can print R²≈1 and look MORE reliable, so the
+      // sample-size caveat cannot be left to the reader.
+      const MIN_OBS: Record<typeof input.frequency, number> = { daily: 60, weekly: 24, monthly: 12 };
+      const warnings: string[] = [];
+      if (beta.observations < MIN_OBS[input.frequency]) {
+        warnings.push(
+          `관측치 n=${beta.observations} (${input.frequency} 기준 권장 최소 ${MIN_OBS[input.frequency]} 미만) — 소표본 회귀는 R²가 과대(≈1)될 수 있어 이 β를 단독으로 신뢰하지 말고 섹터 대용치와 교차하십시오.`,
+        );
+      }
+      if (indexFallback) {
+        warnings.push(
+          '상장시장(KOSPI/KOSDAQ) 자동 판별 실패로 KOSPI에 회귀했습니다(폴백). KOSDAQ 종목이면 index: "KOSDAQ"로 재호출하십시오.',
+        );
+      }
+      if (beta.excludedZeroVolumeBars > 0) {
+        warnings.push(
+          `거래정지(거래량 0) ${beta.excludedZeroVolumeBars}일을 회귀에서 제외했습니다 — 정지 이력이 긴 종목은 측정창 대표성이 떨어질 수 있습니다.`,
+        );
+      }
       return formatToolResult(
         {
           ticker,
           name: resolved.name,
           index: indexCode,
+          indexFallback,
           market: market ?? null,
           rawBeta: beta.rawBeta,
           adjustedBeta: beta.adjustedBeta,
           rSquared: beta.rSquared,
           observations: beta.observations,
+          excludedZeroVolumeBars: beta.excludedZeroVolumeBars,
           frequency: beta.frequency,
           window: {
             years: input.years,
@@ -113,6 +139,7 @@ export const getBetaKr = new DynamicStructuredTool({
           },
           method: `${input.years}y ${input.frequency} returns regressed on ${indexCode}, Blume-adjusted (0.67·raw + 0.33; Bloomberg-standard default)`,
           source: 'Naver Finance 차트(일별 시세) — keyless',
+          ...(warnings.length > 0 ? { _dataQualityWarning: warnings.join(' ') } : {}),
         },
         [stock.url, idx.url],
       );

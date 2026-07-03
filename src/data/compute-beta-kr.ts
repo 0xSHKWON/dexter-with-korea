@@ -32,6 +32,12 @@ export interface BetaResult {
   /** First and last date of the aligned return series (ISO). */
   startDate: string;
   asOf: string;
+  /**
+   * Zero-volume stock bars (trading halts / suspensions) excluded before
+   * resampling — flat carried-over closes would otherwise enter the regression
+   * as 0% returns and bias beta toward 0.
+   */
+  excludedZeroVolumeBars: number;
 }
 
 /** Monday (UTC) of the week containing `iso`, as a YYYY-MM-DD key. */
@@ -136,7 +142,13 @@ export function computeBetaKr(
   indexBars: PriceBar[],
   frequency: BetaFrequency = 'weekly',
 ): BetaResult | null {
-  const s = toReturns(resample(stockBars, frequency));
+  // Drop trading-halt days (volume === 0): Naver carries the last close through a
+  // suspension, and those flat 0%-return rows dilute cov(s,m) → beta biased low.
+  // volume === null (field absent) is NOT treated as a halt. Index bars stay as-is.
+  const traded = stockBars.filter((b) => b.volume !== 0);
+  const excludedZeroVolumeBars = stockBars.length - traded.length;
+
+  const s = toReturns(resample(traded, frequency));
   const m = toReturns(resample(indexBars, frequency));
   const aligned = alignReturns(s, m);
   const fit = ols(aligned.m, aligned.s); // regress stock (y) on index (x)
@@ -150,5 +162,6 @@ export function computeBetaKr(
     frequency,
     startDate: aligned.dates[0],
     asOf: aligned.dates[aligned.dates.length - 1],
+    excludedZeroVolumeBars,
   };
 }

@@ -11,7 +11,7 @@ export const GET_SHORT_BALANCE_KR_DESCRIPTION = `Retrieves 공매도 순보유�
 
 Each daily row includes the short balance quantity (balanceQty), the listed shares (listedShares), the short balance amount in KRW (balanceAmount), market cap (marketCap), and the balance ratio as a % of listed shares (balanceRatio). Use this to gauge short pressure or crowding on a name. Accepts a 6-digit ticker (e.g. 005930 for Samsung Electronics) and an optional date range (defaults to the last ~30 days). Returns the most recent day first.
 
-Note: investors below the 0.01% reporting threshold are not aggregated here, so this reflects reported balances. Requires KRX_ID/KRX_PW credentials.`;
+Notes: (1) investors below the 0.01% reporting threshold are not aggregated here, so this reflects reported balances. (2) Publication LAGS the market by T+2~3 business days — the most recent row is the balance as of 2-3 sessions ago, NOT today's positioning; always cite the row's own date, and never describe it as the "current" balance on volatile days. (3) Korea banned short selling 2023-11 → phased 2025 restart: a ≈0% balance dated inside the ban window is a regulatory zero, not "no bearish positioning". Requires KRX_ID/KRX_PW credentials.`;
 
 const InputSchema = z.object({
   ticker: z

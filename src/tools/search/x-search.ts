@@ -326,6 +326,7 @@ Uses the official X API v2 (read-only, last 7 days).
 - Structured financial data (use get_financials instead)
 - Historical data beyond 7 days (X recent search is limited to last 7 days)
 - General web research (use web_search instead)
+- As a FACT source: tweets are unverified claims — treat numbers/assertions found here as sentiment data, and verify against filings or market-data tools before quoting them as fact
 
 ## Commands
 

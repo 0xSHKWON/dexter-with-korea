@@ -8,7 +8,7 @@ import { TTL_1H } from '../finance/utils.js';
 
 export const GET_MARKET_DATA_KR_DESCRIPTION = `Retrieves a market-data + valuation snapshot for a Korean (KOSPI/KOSDAQ) listed company — the Korean equivalent of get_market_data, which does NOT resolve 6-digit tickers. Returns: LIVE price with daily change plus quote timestamp (quote.asOf), market open/closed state (quote.marketStatus) and trading-halt state (quote.tradingStatus); 52-week range and session OHLC; market cap (시가총액) and derived shares outstanding; valuation multiples PER/PBR/EPS/BPS plus forward 추정PER/추정EPS; dividend yield and dividend per share; analyst consensus (목표주가 priceTargetMean + mean recommendation, higher = more bullish) with implied upside; listed preferred-share classes of the same issuer (preferredListings — 우선주 ticker/name/price/marketCap; empty when none); and a short same-industry peer list (ticker, price, market cap) for quick comparables.
 
-Use this for current price, market cap, shares outstanding, PER/PBR/EV multiples, or 컨센서스/목표주가 on a Korean stock — including as the price + share-count source for a DCF on a 6-digit ticker. Accepts a 6-digit ticker (e.g. 005930 for Samsung Electronics). All amounts in KRW. Source: Naver Finance (keyless). Notes: (1) shares outstanding is DERIVED as market cap ÷ price for THIS listing only (common shares when called on the common ticker — preferred classes are separate listings, see preferredListings), and is approximate (~1-2%); when per-share precision matters (e.g. DCF), prefer get_short_balance_kr's listedShares for the exact 상장주식수. (2) Always report price with its quote.asOf timestamp; if quote.tradingStatus is not TRADING the "price" is a last trade before a halt, not a live market price.`;
+Use this for current price, market cap, shares outstanding, PER/PBR/EV multiples, or 컨센서스/목표주가 on a Korean stock — including as the price + share-count source for a DCF on a 6-digit ticker. Accepts a 6-digit ticker (e.g. 005930 for Samsung Electronics). All amounts in KRW. Source: Naver Finance (keyless). Notes: (1) shares outstanding is DERIVED as market cap ÷ price for THIS listing only (common shares when called on the common ticker — preferred classes are separate listings, see preferredListings), and is approximate (~1-2%); when per-share precision matters (e.g. DCF), prefer get_short_balance_kr's listedShares for the exact 상장주식수. (2) Always report price with its quote.asOf timestamp; if quote.tradingStatus is not TRADING the "price" is a last trade before a halt, not a live market price. (3) valuation.basis carries each multiple's 기준시점 (e.g. PER/EPS '2026.03.' = TTM through that quarter, dividend '2025.12.' = that fiscal year's DPS) — cite it when quoting the metric; these are NOT same-day figures.`;
 
 const InputSchema = z.object({
   ticker: z
@@ -56,6 +56,13 @@ export interface MarketDataKr {
     forwardEps: number | null;
     dividendYieldPct: number | null;
     dividendPerShare: number | null;
+    /**
+     * 기준시점 of each multiple, straight from Naver's valueDesc (e.g. PER/EPS
+     * '2026.03.' = TTM through that quarter; dividend '2025.12.' = that fiscal
+     * year's DPS). Without this the metrics read as "current" indefinitely.
+     * Keys present only when Naver supplied a valueDesc.
+     */
+    basis: Record<string, string>;
   };
   consensus: {
     date: string | null;
@@ -163,13 +170,31 @@ export function marketDataQualityWarning(
   return `핵심 시장데이터 필드 누락/이상: ${missing.join(', ')}. Naver 응답 구조 변경(필드 rename) 가능성이 있어, 이 종목 수치를 신뢰하기 전 확인이 필요합니다.`;
 }
 
-/** `totalInfos` is an array of `{ code, key, value }`; look up a value by code. */
+/** `totalInfos` is an array of `{ code, key, value, valueDesc? }`; look up a value by code. */
 function totalInfo(totalInfos: unknown, code: string): unknown {
   if (!Array.isArray(totalInfos)) return undefined;
   const hit = totalInfos.find(
     (it) => it && typeof it === 'object' && (it as Record<string, unknown>).code === code,
   );
   return hit ? (hit as Record<string, unknown>).value : undefined;
+}
+
+/**
+ * Collect each metric's 기준시점 (valueDesc, e.g. '2026.03.') so a TTM multiple
+ * or last-FY dividend is never presented as an undated "current" figure.
+ */
+function collectBasis(totalInfos: unknown, codes: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!Array.isArray(totalInfos)) return out;
+  for (const it of totalInfos) {
+    if (!it || typeof it !== 'object') continue;
+    const rec = it as Record<string, unknown>;
+    const name = codes[String(rec.code)];
+    if (name && typeof rec.valueDesc === 'string' && rec.valueDesc.trim()) {
+      out[name] = rec.valueDesc.trim();
+    }
+  }
+  return out;
 }
 
 /**
@@ -281,6 +306,16 @@ export function mapMarketData(
       forwardEps: parseNaverMetric(totalInfo(ti, 'cnsEps')),
       dividendYieldPct: parseNaverMetric(totalInfo(ti, 'dividendYieldRatio')),
       dividendPerShare: parseNaverMetric(totalInfo(ti, 'dividend')),
+      basis: collectBasis(ti, {
+        per: 'per',
+        eps: 'eps',
+        pbr: 'pbr',
+        bps: 'bps',
+        cnsPer: 'forwardPer',
+        cnsEps: 'forwardEps',
+        dividendYieldRatio: 'dividendYieldPct',
+        dividend: 'dividendPerShare',
+      }),
     },
     consensus: {
       date: cons?.createDate ? toIsoDate(cons.createDate) : null,

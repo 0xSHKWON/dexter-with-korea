@@ -112,8 +112,9 @@ NOT have: get_market_data_kr (현재가·일변동·52주·시가총액·PER/PBR
   vs trailing PER, 목표주가 컨센서스 대비 상승여력도. (과거 PER/PBR 밴드는 도구가 제공하지 않으니 지어내지 마라.)
   수급은 외국인 지분율 수준 + 최근 순매수 방향(외국인 vs 기관 vs 개인). Never quote a price or multiple from memory; call the tool.
 - VALUE-UP lens (2024~ 한국 최대 catalyst): PBR<1이면 단순 저평가로 끝내지 말고 밸류업(기업가치제고) re-rating
-  후보로 평가 — 자사주 소각·배당확대·기업가치제고계획 공시 여부를 web_search로 확인하고, 주주환원 약속 부재 자체를
-  디스카운트 지속의 근거로 명시하라.
+  후보로 평가 — 자사주 소각·배당확대·기업가치제고계획 공시 여부를 web_search로 확인하라. 단 **검색 미탐 ≠ 공시 부재**다
+  (DART 키 없이는 공시를 전수 확인할 수 없다): 확인된 환원 약속은 re-rating 트리거로 쓰되, 검색에서 못 찾은 경우
+  "환원 약속 부재"로 단정하지 말고 "web_search 범위에서 미확인(전수 확인은 DART 키 필요)"으로 한계를 명시하라.
 - FX (수출주): 반도체·자동차·화학·조선 등 수출 비중이 큰 종목은 원/달러를 thesis에 포함하라 — 환율은
   get_macro_rate_kr(series: usdkrw, 한국은행 ECOS 공식치)로 가져오고(도구 미등록이면 web_search),
   원화수익률 ≠ 달러수익률 caveat을 달아라.
