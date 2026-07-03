@@ -40,7 +40,8 @@
 | `get_financials_kr` | `get_financials` (10-K/10-Q) | 사업·반기·분기보고서, K-IFRS 정규화 요약(연결/별도) |
 | `get_filings_kr` | SEC EDGAR | DART 공시 검색 |
 | `read_filings_kr` | `read_filings` (10-K 본문) | 보고서 본문 — 사업의 내용·주요제품·위험관리·MD&A **+ 지배구조·최대주주·특수관계자·계열회사·대주주 거래** |
-| `get_large_holders_kr` | 13F (5%+ 보유) | 대량보유상황보고서 |
+| `get_large_holders_kr` | 13F (5%+ 보유) | 대량보유상황보고서 — 변동 시에만 보고되는 "누가 X를 들고 있나" |
+| `get_equity_investments_kr` | 13D 반대 방향 | 타법인출자현황 — "X가 무엇을 들고 있나"의 기말 스냅샷(상장+비상장 지분율·정확한 주식수·장부가). 지주사 SOTP 지분율의 1차 소스 |
 | `get_insider_trades_kr` | Form 4 (내부자) | 임원·주요주주 보고 |
 | `get_segments_kr` | 세그먼트 공시 | 사업부문별 매출·영업이익 기여도 (DART 본문) |
 
@@ -48,8 +49,10 @@
 
 | 도구 | 내용 (소스) | 활성화 |
 |---|---|---|
-| `get_market_data_kr` | 현재가·시총·PER/PBR/EPS/BPS·추정PER·배당·목표주가 컨센서스·peer (Naver) | **키 불필요** |
+| `get_market_data_kr` | 현재가·시총·PER/PBR/EPS/BPS·추정PER·배당·목표주가 컨센서스·우선주 클래스·peer (Naver) | **키 불필요** |
 | `get_foreign_ownership_kr` | 외국인 지분율 + 외국인/기관/개인 순매수 (Naver) | **키 불필요** |
+| `get_beta_kr` | 실측 β — 주가·지수 수익률 회귀(원시+Blume 조정, R²·표본 수·품질 플래그 포함) (Naver 시세) | **키 불필요** |
+| `get_macro_rate_kr` | 국고채 수익률(DCF 무위험금리)·원/달러 환율·기준금리 (한국은행 ECOS) | `ECOS_API_KEY` |
 | `get_short_balance_kr` | 공매도 순보유잔고 (KRX) | `KRX_ID`+`KRX_PW` 또는 `KRX_COOKIE` |
 | `get_nps_holdings` | 국민연금 국내주식 보유 (data.go.kr) | `DATA_GO_KR_SERVICE_KEY` |
 
