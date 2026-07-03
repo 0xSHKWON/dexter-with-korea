@@ -1,6 +1,6 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { fetchNaverIntegration, fetchNaverBasic } from './naver-api.js';
+import { fetchNaverIntegration, fetchNaverBasic, isNaverNoDataError } from './naver-api.js';
 import { resolveKrSecurity } from './resolve-kr.js';
 import { parseNaverMetric, toIsoDate, nullFields } from './utils.js';
 import { formatToolResult } from '../types.js';
@@ -8,7 +8,7 @@ import { TTL_1H } from '../finance/utils.js';
 
 export const GET_MARKET_DATA_KR_DESCRIPTION = `Retrieves a market-data + valuation snapshot for a Korean (KOSPI/KOSDAQ) listed company — the Korean equivalent of get_market_data, which does NOT resolve 6-digit tickers. Returns: LIVE price with daily change plus quote timestamp (quote.asOf), market open/closed state (quote.marketStatus) and trading-halt state (quote.tradingStatus); 52-week range and session OHLC; market cap (시가총액) and derived shares outstanding; valuation multiples PER/PBR/EPS/BPS plus forward 추정PER/추정EPS; dividend yield and dividend per share; analyst consensus (목표주가 priceTargetMean + mean recommendation, higher = more bullish) with implied upside; listed preferred-share classes of the same issuer (preferredListings — 우선주 ticker/name/price/marketCap; empty when none); and a short same-industry peer list (ticker, price, market cap) for quick comparables.
 
-Use this for current price, market cap, shares outstanding, PER/PBR/EV multiples, or 컨센서스/목표주가 on a Korean stock — including as the price + share-count source for a DCF on a 6-digit ticker. Accepts a 6-digit ticker (e.g. 005930 for Samsung Electronics). All amounts in KRW. Source: Naver Finance (keyless). Notes: (1) shares outstanding is DERIVED as market cap ÷ price for THIS listing only (common shares when called on the common ticker — preferred classes are separate listings, see preferredListings), and is approximate (~1-2%); when per-share precision matters (e.g. DCF), prefer get_short_balance_kr's listedShares for the exact 상장주식수. (2) Always report price with its quote.asOf timestamp; if quote.tradingStatus is not TRADING the "price" is a last trade before a halt, not a live market price. (3) valuation.basis carries each multiple's 기준시점 (e.g. PER/EPS '2026.03.' = TTM through that quarter, dividend '2025.12.' = that fiscal year's DPS) — cite it when quoting the metric; these are NOT same-day figures.`;
+Use this for current price, market cap, shares outstanding, PER/PBR/EV multiples, or 컨센서스/목표주가 on a Korean stock — including as the price + share-count source for a DCF on a 6-digit ticker. Accepts a 6-digit ticker (e.g. 005930 for Samsung Electronics). All amounts in KRW. Source: Naver Finance (keyless). Notes: (1) shares outstanding is DERIVED as market cap ÷ close from the SAME valuation snapshot, for THIS listing only (common shares when called on the common ticker — preferred classes are separate listings, see preferredListings), and is approximate (~1-2%); when per-share precision matters (e.g. DCF), prefer get_short_balance_kr's listedShares for the exact 상장주식수. (2) quote.priceSource tells you what "price" is: 'live' (real-time, timestamp in quote.asOf) or 'snapshotClose' (live fetch unavailable — a possibly-lagging close; do NOT present as the current price without that caveat); if quote.tradingStatus is not TRADING the price is a last trade before a halt. (3) valuation figures (marketCap, multiples, OHLC, peers) are as of valuation.snapshotAsOf (up to 1h cached), not quote.asOf. (4) valuation.basis carries each multiple's 기준시점 (e.g. PER/EPS '2026.03.' = TTM through that quarter, dividend '2025.12.' = that fiscal year's DPS) — cite it when quoting the metric; these are NOT same-day figures. (5) preferredListings covers NUMERIC-code preferred classes only (끝자리 5/7/9 규칙): alphanumeric 신형우선주 codes (e.g. 00104K CJ4우(전환)) are NOT detectable here, so an empty array means "no numeric-code preferred found", not a guarantee the issuer has no preferred stock — heed any probe-failure warning before treating it as absent.`;
 
 const InputSchema = z.object({
   ticker: z
@@ -23,15 +23,22 @@ export interface MarketDataKr {
   quote: {
     /**
      * Latest COMPLETED session date from the daily series — lags intraday (the
-     * live session's date is in asOf). OHLC/volume follow the live session when
-     * a live quote is present, this completed session otherwise.
+     * live quote's timestamp is asOf). OHLC/volume come from the /integration
+     * snapshot's session when a live quote is present (see valuation.snapshotAsOf
+     * for that snapshot's time), and from this completed session otherwise.
      */
     date: string | null;
     price: number | null;
     change: number | null;
     changePct: number | null;
     direction: string | null;
-    /** Quote timestamp of `price` (ISO, from the live /basic endpoint) — null when the live fetch failed and price fell back to the last /integration close. */
+    /**
+     * Where `price` came from: 'live' = the /basic real-time quote; 'snapshotClose' =
+     * the /integration payload's close (live fetch failed or unparseable — may lag a
+     * session); null = no price at all. Staleness handling MUST key off this field.
+     */
+    priceSource: 'live' | 'snapshotClose' | null;
+    /** Quote timestamp of `price` (ISO) — set only when priceSource is 'live' and /basic supplied localTradedAt. */
     asOf: string | null;
     /** OPEN / CLOSE — whether the market session is live for this quote. */
     marketStatus: string | null;
@@ -45,6 +52,12 @@ export interface MarketDataKr {
     volume: number | null;
   };
   valuation: {
+    /**
+     * When the /integration snapshot behind marketCap/OHLC/multiples/peers was
+     * obtained (ISO; cache write time when served from the 1h cache). These fields
+     * are as of THIS moment, not quote.asOf — cite it when the distinction matters.
+     */
+    snapshotAsOf: string | null;
     marketCap: number | null;
     marketCapDisplay: string | null;
     sharesOutstanding: number | null;
@@ -215,9 +228,10 @@ function signedByDirection(value: number | null, dir: unknown): number | null {
  * intraday — its latest closePrice is yesterday's close until the session ends.
  * `basic` (/basic) is the LIVE quote (closePrice, localTradedAt, marketStatus,
  * tradeStopType); when present it supplies price/change/asOf so an intraday call
- * never reports yesterday's close as the current price. Derived shares use
- * marketCap ÷ the same live price (Naver's 시총 tracks the live price), falling
- * back to the /integration close pair.
+ * never reports yesterday's close as the current price. Derived shares pair
+ * marketCap with the SAME /integration snapshot's close (never the live price —
+ * the snapshot may be up to 1h cached and the intraday move would corrupt the
+ * share count).
  */
 export function mapMarketData(
   ticker: string,
@@ -238,6 +252,11 @@ export function mapMarketData(
     parseNaverMetric(latest.closePrice) ?? parseNaverMetric(totalInfo(ti, 'lastClosePrice'));
   const livePrice = parseNaverMetric(basic?.closePrice);
   const price = livePrice ?? integPrice;
+  // Staleness signals key off THIS, never off asOf: /basic can return a timestamp
+  // with an unparseable closePrice (halt placeholder, field rename) — keying off the
+  // timestamp would then ship a stale price labeled as live with warnings suppressed.
+  const priceSource: 'live' | 'snapshotClose' | null =
+    livePrice !== null ? 'live' : integPrice !== null ? 'snapshotClose' : null;
 
   const liveDir = basic?.compareToPreviousPrice;
   const integDir = latest.compareToPreviousPrice;
@@ -261,7 +280,11 @@ export function mapMarketData(
 
   const marketCapRaw = totalInfo(ti, 'marketValue');
   const marketCap = parseKoreanMarketCapToKRW(marketCapRaw);
-  const sharesOutstanding = marketCap !== null && price ? Math.round(marketCap / price) : null;
+  // Derive shares from the SAME /integration snapshot pair (marketCap ÷ its own
+  // close): mixing the possibly-cached marketCap with the live /basic price would
+  // put the intraday move into the share count (~% error on a volatile day).
+  const sharesOutstanding =
+    marketCap !== null && (integPrice ?? livePrice) ? Math.round(marketCap / (integPrice ?? livePrice)!) : null;
 
   const targetPrice = parseNaverMetric(cons?.priceTargetMean);
   const recommendationMean = parseNaverMetric(cons?.recommMean);
@@ -277,7 +300,12 @@ export function mapMarketData(
       change,
       changePct,
       direction,
-      asOf: typeof basic?.localTradedAt === 'string' ? basic.localTradedAt : null,
+      priceSource,
+      // asOf describes `price` — only meaningful when the price actually came from
+      // the live quote (a /basic timestamp alongside a fallback price would label
+      // yesterday's close with today's time).
+      asOf:
+        priceSource === 'live' && typeof basic?.localTradedAt === 'string' ? basic.localTradedAt : null,
       marketStatus: typeof basic?.marketStatus === 'string' ? basic.marketStatus : null,
       tradingStatus,
       open: parseNaverMetric(totalInfo(ti, 'openPrice')),
@@ -285,8 +313,11 @@ export function mapMarketData(
       low: parseNaverMetric(totalInfo(ti, 'lowPrice')),
       high52w: parseNaverMetric(totalInfo(ti, 'highPriceOf52Weeks')),
       low52w: parseNaverMetric(totalInfo(ti, 'lowPriceOf52Weeks')),
-      // With a live quote, totalInfos carries the LIVE session's volume — pairing
-      // the lagging daily row's volume with today's OHLC would mix sessions.
+      // With a live quote, keep volume on the same /integration snapshot as the
+      // OHLC above (totalInfos) so open/high/low/volume describe ONE session —
+      // that session is the snapshot's (see valuation.snapshotAsOf), which lags
+      // when served from cache. Without a live quote, the daily row (quote.date's
+      // completed session) is the consistent pair.
       volume:
         livePrice !== null
           ? parseNaverMetric(totalInfo(ti, 'accumulatedTradingVolume')) ??
@@ -295,6 +326,7 @@ export function mapMarketData(
             parseNaverMetric(totalInfo(ti, 'accumulatedTradingVolume')),
     },
     valuation: {
+      snapshotAsOf: null, // stamped by the caller from the /integration fetch metadata
       marketCap,
       marketCapDisplay: marketCapRaw === undefined || marketCapRaw === null ? null : String(marketCapRaw),
       sharesOutstanding,
@@ -367,36 +399,53 @@ export function isPreferredNameOf(commonName: string, candidateName: string): bo
 
 /**
  * Probe the issuer's preferred-share listings via the code convention above.
- * Non-existent codes 409 (fast) and are remembered for the process lifetime so
- * the common case (no preferred) costs the probes only once per session.
+ *
+ * Negative caching is DEFINITIVE-ONLY: a code is remembered as a miss for the
+ * process lifetime only when Naver said the code does not exist (409/404) or the
+ * code resolved to a different issuer's listing. Transient failures (network,
+ * 5xx, empty payload) are NOT latched — they are returned in `failedProbes` so
+ * the caller can warn that the list may be incomplete, instead of a one-off
+ * hiccup silently reading as "이 회사는 우선주 없음" for the rest of the session.
  */
 const preferredProbeMisses = new Set<string>();
 
 async function probePreferredListings(
   ticker: string,
   commonName: string | null,
-): Promise<MarketDataKr['preferredListings']> {
-  if (!commonName) return [];
+): Promise<{ listings: MarketDataKr['preferredListings']; failedProbes: string[] }> {
+  if (!commonName) return { listings: [], failedProbes: [] };
   const candidates = preferredCandidateCodes(ticker).filter((c) => !preferredProbeMisses.has(c));
-  if (candidates.length === 0) return [];
+  if (candidates.length === 0) return { listings: [], failedProbes: [] };
   const found: MarketDataKr['preferredListings'] = [];
+  const failedProbes: string[] = [];
   await Promise.all(
     candidates.map(async (code) => {
       try {
         const { data } = await fetchNaverIntegration(code, { cacheable: true, ttlMs: TTL_1H });
         const name = (data?.stockName as string) ?? null;
-        if (!name || !isPreferredNameOf(commonName, name)) {
+        if (!name) {
+          // Empty 200 payload — ambiguous, could be transient. Don't latch.
+          failedProbes.push(code);
+          return;
+        }
+        if (!isPreferredNameOf(commonName, name)) {
+          // Definitive: the code exists but belongs to another issuer / isn't preferred.
           preferredProbeMisses.add(code);
           return;
         }
         const sub = mapMarketData(code, data);
         found.push({ ticker: code, name, price: sub.quote.price, marketCap: sub.valuation.marketCap });
-      } catch {
-        preferredProbeMisses.add(code);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (isNaverNoDataError(message)) {
+          preferredProbeMisses.add(code); // definitive 409/404: no such code
+        } else {
+          failedProbes.push(code); // transient: retry next call, warn this call
+        }
       }
     }),
   );
-  return found.sort((a, b) => a.ticker.localeCompare(b.ticker));
+  return { listings: found.sort((a, b) => a.ticker.localeCompare(b.ticker)), failedProbes };
 }
 
 export const getMarketDataKr = new DynamicStructuredTool({
@@ -429,19 +478,28 @@ export const getMarketDataKr = new DynamicStructuredTool({
           [url],
         );
       }
-      mapped.preferredListings = await probePreferredListings(ticker, mapped.name);
+      mapped.valuation.snapshotAsOf = integ.fetchedAt;
+      const probe = await probePreferredListings(ticker, mapped.name);
+      mapped.preferredListings = probe.listings;
 
       const warnings: string[] = [];
-      const drift = marketDataQualityWarning(mapped, data, { hasLiveQuote: mapped.quote.asOf !== null });
+      const drift = marketDataQualityWarning(mapped, data, {
+        hasLiveQuote: mapped.quote.priceSource === 'live',
+      });
       if (drift) warnings.push(drift);
       if (mapped.quote.tradingStatus !== null && mapped.quote.tradingStatus !== 'TRADING') {
         warnings.push(
           `거래상태 ${mapped.quote.tradingStatus} — 매매정지/규제 상태입니다. price는 정지 전 마지막 체결가이지 살아있는 시세가 아니며, 밸류에이션·현재가 분석에 그대로 쓰면 안 됩니다.`,
         );
       }
-      if (mapped.quote.asOf === null && mapped.quote.price !== null) {
+      if (mapped.quote.priceSource === 'snapshotClose') {
         warnings.push(
-          '실시간 시세(/basic) 조회 실패 — price는 직전 종가(integration) 기준이라 장중 변동이 반영되지 않았을 수 있습니다. 시각 표기 없이 "현재가"로 서술하지 마세요.',
+          '실시간 시세(/basic) 사용 불가 — price는 밸류에이션 스냅샷의 종가(valuation.snapshotAsOf 시점) 기준이라 장중 변동이 반영되지 않았을 수 있습니다. 시각 표기 없이 "현재가"로 서술하지 마세요.',
+        );
+      }
+      if (probe.failedProbes.length > 0) {
+        warnings.push(
+          `우선주 프로브 일시 실패(${probe.failedProbes.join(', ')}) — preferredListings가 불완전할 수 있으므로 이번 응답의 빈/부분 목록을 "우선주 없음"으로 단정하지 마세요.`,
         );
       }
       return formatToolResult(

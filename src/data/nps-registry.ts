@@ -86,11 +86,6 @@ async function loadRegistry(ttlMs: number): Promise<RegistryCache> {
   return inflight;
 }
 
-export async function getNpsHoldings(options?: { ttlMs?: number }): Promise<NpsHoldingEntry[]> {
-  const cache = await loadRegistry(options?.ttlMs ?? DEFAULT_TTL_MS);
-  return cache.entries;
-}
-
 export interface NpsSnapshot {
   entries: NpsHoldingEntry[];
   /** When this snapshot was downloaded from data.go.kr (ISO). */
@@ -100,9 +95,10 @@ export interface NpsSnapshot {
 }
 
 /**
- * Snapshot WITH freshness metadata — tools should use this (not getNpsHoldings)
- * so the "when was this data obtained / is it a stale fallback" facts reach the
- * model instead of dying in a logger.warn.
+ * The NPS holdings snapshot WITH freshness metadata, so the "when was this data
+ * obtained / is it a stale fallback" facts reach the model instead of dying in a
+ * logger.warn. This is the only accessor — an entries-only variant existed
+ * briefly and was removed so freshness can't be silently dropped.
  */
 export async function getNpsSnapshot(options?: { ttlMs?: number }): Promise<NpsSnapshot> {
   const ttlMs = options?.ttlMs ?? DEFAULT_TTL_MS;

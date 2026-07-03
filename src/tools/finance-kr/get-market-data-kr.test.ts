@@ -92,6 +92,7 @@ describe('mapMarketData', () => {
       change: 32000,
       changePct: 10.09, // 32000 / (349000 - 32000)
       direction: '상승',
+      priceSource: 'snapshotClose', // no live quote → the snapshot's close
       asOf: null, // no /basic payload → no quote timestamp
       marketStatus: null,
       tradingStatus: null,
@@ -120,15 +121,52 @@ describe('mapMarketData', () => {
     };
     const live = mapMarketData('005930', SAMSUNG_RAW as Record<string, unknown>, basic);
     expect(live.quote.price).toBe(294500);
+    expect(live.quote.priceSource).toBe('live');
     expect(live.quote.change).toBe(8500);
     expect(live.quote.changePct).toBe(2.97); // Naver's own signed ratio, not recomputed
     expect(live.quote.asOf).toBe('2026-07-03T09:09:00+09:00');
     expect(live.quote.marketStatus).toBe('OPEN');
     expect(live.quote.tradingStatus).toBe('TRADING');
-    // Derived shares pair 시총 with the SAME live price (Naver's 시총 tracks it).
-    expect(live.valuation.sharesOutstanding).toBe(Math.round(2_075_428_900_000_000 / 294500));
-    // Consensus upside is against the live price too.
+    // Derived shares pair 시총 with the SAME snapshot's close (349,000), never the
+    // live price — the snapshot may be up to 1h cached, and dividing a stale 시총
+    // by a moved live price would put the intraday move into the share count.
+    expect(live.valuation.sharesOutstanding).toBe(Math.round(2_075_428_900_000_000 / 349000));
+    // Consensus upside IS against the live price (both are "now" quantities).
     expect(live.consensus.upsidePct).toBe(36.25); // (401250 - 294500) / 294500
+  });
+
+  it('never labels a fallback price with the live timestamp (closePrice unparseable)', () => {
+    // /basic can return a timestamp with an unparseable closePrice (halt placeholder,
+    // field rename). The price falls back to the snapshot close — asOf must NOT carry
+    // the live timestamp, and priceSource must say so.
+    const basic = {
+      closePrice: '-',
+      compareToPreviousClosePrice: '-',
+      compareToPreviousPrice: { code: '3', text: '보합', name: 'EVEN' },
+      fluctuationsRatio: '-',
+      marketStatus: 'OPEN',
+      localTradedAt: '2026-07-03T09:09:00+09:00',
+      tradeStopType: { code: '1', text: '운영.Trading', name: 'TRADING' },
+    };
+    const q = mapMarketData('005930', SAMSUNG_RAW as Record<string, unknown>, basic).quote;
+    expect(q.price).toBe(349000); // snapshot close fallback
+    expect(q.priceSource).toBe('snapshotClose');
+    expect(q.asOf).toBeNull(); // live timestamp must not label a fallback price
+  });
+
+  it('keeps priceSource live when only the timestamp is missing', () => {
+    const basic = {
+      closePrice: '294,500',
+      compareToPreviousClosePrice: '8,500',
+      compareToPreviousPrice: { code: '2', text: '상승', name: 'RISING' },
+      fluctuationsRatio: '2.97',
+      marketStatus: 'OPEN',
+      tradeStopType: { code: '1', text: '운영.Trading', name: 'TRADING' },
+    };
+    const q = mapMarketData('005930', SAMSUNG_RAW as Record<string, unknown>, basic).quote;
+    expect(q.price).toBe(294500);
+    expect(q.priceSource).toBe('live'); // no false "stale price" signal
+    expect(q.asOf).toBeNull();
   });
 
   it('forces the change sign negative on a falling day (direction code 5)', () => {

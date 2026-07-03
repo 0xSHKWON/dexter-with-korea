@@ -51,20 +51,22 @@ const InputSchema = z.object({
 /**
  * Report-type-aware default business year. Annual reports for year N publish in
  * March of N+1, so annual defaults to last year — but quarterly/semiannual
- * reports publish WITHIN the year (Q1 ~May, 반기 ~Aug, Q3 ~Nov): a flat
- * currentYear−1 default would answer "최근 분기" with a year-old quarter. Use the
- * current year once the filing deadline (+buffer) has passed.
+ * reports publish WITHIN the year (statutory deadline = period end + 45 days:
+ * Q1 ~May 15, 반기 ~Aug 14, Q3 ~Nov 14): a flat currentYear−1 default would
+ * answer "최근 분기" with a year-old quarter. Switch to the current year a few
+ * days after each deadline; a premature current-year request degrades gracefully
+ * anyway (DART status 013 surfaces as a per-year error, other years unaffected).
  */
 export function defaultYear(reportType: ReportType, now: Date = new Date()): number {
   const year = now.getUTCFullYear();
-  const month = now.getUTCMonth() + 1;
+  const monthDay = (now.getUTCMonth() + 1) * 100 + now.getUTCDate();
   const availableFrom: Record<ReportType, number> = {
-    annual: 13, // never within the year — always last year
-    quarterly_1: 6, // filed ~mid-May
-    semiannual: 9, // filed ~mid-Aug
-    quarterly_3: 12, // filed ~mid-Nov
+    annual: 1332, // never within the year — always last year
+    quarterly_1: 520, // deadline May 15 + buffer
+    semiannual: 820, // deadline Aug 14 + buffer
+    quarterly_3: 1120, // deadline Nov 14 + buffer
   };
-  return month >= availableFrom[reportType] ? year : year - 1;
+  return monthDay >= availableFrom[reportType] ? year : year - 1;
 }
 
 export const RAW_FILE_KEEP = 30;

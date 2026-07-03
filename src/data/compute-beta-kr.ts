@@ -38,6 +38,13 @@ export interface BetaResult {
    * as 0% returns and bias beta toward 0.
    */
   excludedZeroVolumeBars: number;
+  /**
+   * First post-resume returns dropped from the regression. After halt bars are
+   * removed, the first return following a halt spans the WHOLE gap (a multi-week
+   * catch-up move) while the index return at that date covers one period — that
+   * mismatched pair would dominate cov(s,m), so it is excluded and counted here.
+   */
+  excludedGapReturns: number;
 }
 
 /** Monday (UTC) of the week containing `iso`, as a YYYY-MM-DD key. */
@@ -148,7 +155,26 @@ export function computeBetaKr(
   const traded = stockBars.filter((b) => b.volume !== 0);
   const excludedZeroVolumeBars = stockBars.length - traded.length;
 
-  const s = toReturns(resample(traded, frequency));
+  // Removing halt bars makes the first post-resume return span the whole gap
+  // (e.g. a ±25% multi-week catch-up move) while the index return at that date is
+  // single-period — one such mismatched pair can dominate the regression. Drop the
+  // return that lands in each resume period instead.
+  const resumePeriods = new Set<string>();
+  let inHalt = false;
+  for (const b of stockBars) {
+    if (b.volume === 0) {
+      inHalt = true;
+      continue;
+    }
+    if (inHalt) {
+      resumePeriods.add(periodKey(b.date, frequency));
+      inHalt = false;
+    }
+  }
+
+  const sAll = toReturns(resample(traded, frequency));
+  const s = resumePeriods.size > 0 ? sAll.filter((r) => !resumePeriods.has(periodKey(r.date, frequency))) : sAll;
+  const excludedGapReturns = sAll.length - s.length;
   const m = toReturns(resample(indexBars, frequency));
   const aligned = alignReturns(s, m);
   const fit = ols(aligned.m, aligned.s); // regress stock (y) on index (x)
@@ -163,5 +189,6 @@ export function computeBetaKr(
     startDate: aligned.dates[0],
     asOf: aligned.dates[aligned.dates.length - 1],
     excludedZeroVolumeBars,
+    excludedGapReturns,
   };
 }

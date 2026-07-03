@@ -36,7 +36,7 @@ These bite without warning. Fix once you learn them.
 
 ## Key contracts
 
-- **Agent loop**: `src/agent/agent.ts`, default `maxIterations: 10`. Scratchpad (`scratchpad.ts`) is single source of truth for tool results within a query. The final answer is the text from the turn where the model stops emitting tool calls (`handleDirectResponse`) — tools stay bound on every call; there is **no separate no-tools finalization pass**. Answer quality is therefore governed entirely by the system prompt.
+- **Agent loop**: `src/agent/agent.ts`, default `maxIterations: 10`. Scratchpad (`scratchpad.ts`) is single source of truth for tool results within a query. The final answer is the text from the turn where the model stops emitting tool calls (`handleDirectResponse`) — tools stay bound on every call. **Exception**: at the iteration limit, one no-tools salvage call (`salvagePartialAnswer` in `compact.ts`, size-capped input) synthesizes a partial answer from the scratchpad instead of a canned apology. Answer quality is otherwise governed entirely by the system prompt.
 - **Slash commands**: append to `SLASH_COMMANDS` in `src/commands/index.ts` + add a case in `handleSlashCommand` in `src/cli.ts`. Help text lives next to that switch.
 - **Skills**: drop a directory with `SKILL.md` under `src/skills/`. Auto-discovered; no code change needed. Each skill runs at most once per query.
 - **Anthropic provider**: uses explicit `cache_control` on system prompt for prompt caching. Don't break that path.

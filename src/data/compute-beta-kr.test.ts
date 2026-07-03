@@ -157,13 +157,18 @@ describe('computeBetaKr', () => {
     }
     const res = computeBetaKr(stock, index, 'weekly')!;
     expect(res.excludedZeroVolumeBars).toBe(3);
-    // Halted weeks drop out instead of entering as 0% returns; the regression on
-    // the remaining traded weeks stays ~2× (mildly noisy across the resume gap).
-    expect(res.rawBeta).toBeGreaterThan(1.5);
+    // The first post-resume return spans the whole halt gap (multi-week stock move
+    // vs a single-week index return) — it is dropped, not regressed.
+    expect(res.excludedGapReturns).toBe(1);
+    // With halt weeks AND the gap return excluded, the regression runs on clean
+    // traded weeks only and recovers the true ~2× relationship.
+    expect(res.rawBeta).toBeGreaterThan(1.9);
+    expect(res.rawBeta).toBeLessThan(2.1);
     // Control: the unfiltered equivalent (volume null = "unknown", not halt) keeps
     // the flat rows and visibly deflates beta.
     const unfiltered = computeBetaKr(stock.map((b) => ({ ...b, volume: null })), index, 'weekly')!;
     expect(unfiltered.excludedZeroVolumeBars).toBe(0);
+    expect(unfiltered.excludedGapReturns).toBe(0);
     expect(unfiltered.rawBeta).toBeLessThan(res.rawBeta);
   });
 });

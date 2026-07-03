@@ -66,6 +66,17 @@ export async function fetchNaverTrend(
 export interface NaverIntegrationResult {
   data: Record<string, unknown> | null;
   url: string;
+  /** When this payload was obtained from Naver (ISO) — the cache write time when served from cache. Lets callers label snapshot-derived figures honestly. */
+  fetchedAt: string | null;
+}
+
+/**
+ * True when a Naver fetch error means "this 6-digit code does not exist"
+ * (409/404 from /integration) as opposed to a transient network/server failure.
+ * Callers use this to decide whether a negative result may be cached permanently.
+ */
+export function isNaverNoDataError(message: string): boolean {
+  return message.includes('no data for ticker');
 }
 
 /**
@@ -89,6 +100,7 @@ export async function fetchNaverIntegration(
       return {
         data: payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : null,
         url: cached.url,
+        fetchedAt: cached.cachedAt,
       };
     }
   }
@@ -121,7 +133,7 @@ export async function fetchNaverIntegration(
   if (options?.cacheable) {
     writeCache(endpoint, params, { payload: data }, url);
   }
-  return { data, url };
+  return { data, url, fetchedAt: new Date().toISOString() };
 }
 
 export interface NaverBasicResult {

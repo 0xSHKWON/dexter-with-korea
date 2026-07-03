@@ -24,6 +24,14 @@ describe('defaultYear — report-type-aware', () => {
     const march = new Date(Date.UTC(2026, 2, 1));
     expect(defaultYear('quarterly_3', march)).toBe(2025);
   });
+  it('switches within days of the statutory deadline (period end + 45d + small buffer)', () => {
+    // Q1 deadline is ~May 15 → the new quarter must be the default by late May,
+    // not held back until June.
+    expect(defaultYear('quarterly_1', new Date(Date.UTC(2026, 4, 25)))).toBe(2026); // May 25
+    expect(defaultYear('quarterly_1', new Date(Date.UTC(2026, 4, 10)))).toBe(2025); // May 10 (pre-deadline)
+    expect(defaultYear('semiannual', new Date(Date.UTC(2026, 7, 25)))).toBe(2026); // Aug 25
+    expect(defaultYear('quarterly_3', new Date(Date.UTC(2026, 10, 25)))).toBe(2026); // Nov 25
+  });
 });
 
 describe('pruneRawFinancialFiles', () => {

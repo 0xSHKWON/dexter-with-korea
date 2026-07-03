@@ -115,7 +115,7 @@ export const getBetaKr = new DynamicStructuredTool({
       }
       if (beta.excludedZeroVolumeBars > 0) {
         warnings.push(
-          `거래정지(거래량 0) ${beta.excludedZeroVolumeBars}일을 회귀에서 제외했습니다 — 정지 이력이 긴 종목은 측정창 대표성이 떨어질 수 있습니다.`,
+          `거래정지(거래량 0) ${beta.excludedZeroVolumeBars}일과 재개 직후 gap 수익률 ${beta.excludedGapReturns}개를 회귀에서 제외했습니다 — 정지 이력이 긴 종목은 측정창 대표성이 떨어질 수 있습니다.`,
         );
       }
       return formatToolResult(
@@ -130,6 +130,7 @@ export const getBetaKr = new DynamicStructuredTool({
           rSquared: beta.rSquared,
           observations: beta.observations,
           excludedZeroVolumeBars: beta.excludedZeroVolumeBars,
+          excludedGapReturns: beta.excludedGapReturns,
           frequency: beta.frequency,
           window: {
             years: input.years,
