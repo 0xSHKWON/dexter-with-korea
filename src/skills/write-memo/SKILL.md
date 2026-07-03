@@ -37,7 +37,7 @@ Confirm or ask for the following before drafting:
 ## Step 2: Gather Data (Parallel)
 
 > **🇰🇷 KR override (6자리 티커 / 한국 상장사):** US 도구(`get_financials`, `get_market_data`, `read_filings`)는 6자리 티커를 해석하지 못한다. 아래 2.1–2.3을 KR 도구로 대체한다(병렬 호출):
-> - **재무**: `get_financials_kr` — 자연어 쿼리 하나로 멀티이어 손익·현금흐름·재무상태표(K-IFRS, KRW). 정량 세그먼트·컨센서스 추정치 도구는 없다(있는 것만 쓴다).
+> - **재무**: `get_financials_kr` — 자연어 쿼리 하나로 멀티이어 손익·현금흐름·재무상태표(K-IFRS, KRW). 부문별 매출·영업이익은 `get_segments_kr`로 정량 확보(재벌·복합 기업의 segment mix가 thesis다). FY+1/FY+2 컨센서스 추정치 도구는 없다 — `get_market_data_kr`의 추정PER/추정EPS·목표주가 컨센서스까지만 도구 데이터고, 그 밖의 컨센서스 수치는 지어내지 말고 없다고 쓴다.
 > - **시장·밸류에이션**: `get_market_data_kr` — 현재가·52주 레인지·시가총액·발행주식수·PER/PBR/EPS/BPS·배당수익률·**목표주가 컨센서스**·동종 peer.
 > - **수급·지배구조**: `get_foreign_ownership_kr`(외국인 흐름), `get_large_holders_kr`(5%룰), `get_insider_trades_kr`(임원·주요주주), 가능하면 `get_short_balance_kr`(공매도)·`get_nps_holdings`(국민연금).
 > - **내러티브(사업·리스크·MD&A)**: `read_filings_kr` (DART 사업/반기/분기보고서) — 10-K/10-Q 대신. `{{business_snapshot}}`·리스크 문구를 여기서 verbatim으로 뽑는다.
@@ -98,6 +98,8 @@ Then compute:
 
 For base case, optionally invoke the `dcf-valuation` skill via the `skill` tool to produce an intrinsic value anchor. Use it as a cross-check against your base-case price target, not as a replacement.
 
+**Carry the assumptions, not just the number**: when the DCF anchor is used, copy its Step 8 핵심 입력값 표 (항목 · 값 · 출처 · as-of/방법 — Rf, ERP, β, Kd, 세율, 성장률, 터미널 g, WACC) into the memo's `{{valuation_assumptions}}` slot as an HTML table. The memo is the deliverable — a target price whose WACC components and their sources vanished is not auditable.
+
 ## Step 5: Draft Memo Content
 
 Read the template and style guide:
@@ -106,6 +108,12 @@ Read the template and style guide:
 - [examples.md](examples.md) — pattern-match tone and density
 
 Fill every slot. Slots are listed in the template — do not skip any. Slot-specific guidance:
+
+### `{{currency}}`
+The listing currency symbol for every price in the memo: `$` for US listings, `₩` for Korean (6-digit) listings. Applies to the header Last/Target slots and any price you write into tables/narratives — a KRW price rendered with `$` is a ~1,400x misstatement.
+
+### `{{valuation_assumptions}}`
+HTML table of the key inputs behind the price target, with columns 항목/Input · 값/Value · 출처/Source · as-of/Method. If the DCF anchor ran (Step 4), copy its assumption table here verbatim. If the target came from multiples, list the multiple, the peer set, and each number's source + date. Never leave a target price without its assumptions — if truly nothing applies, state why in one line instead of leaving the section empty.
 
 ### `{{variant_view}}`
 Three sentences max. Lead with the divergence from consensus: *what we see, why we think it, why the market hasn't priced it*. If the user did not provide one, this is where your derived candidate goes.
@@ -176,11 +184,13 @@ The path uses forward slashes. The `write_file` tool will create the `.dexter/me
 Final chat response should be exactly this format and nothing more:
 
 ```
-[TICKER] · [LONG/SHORT] · Target $X (+Y% / -Y%) · Asymmetry [N.Nx] · [Conviction]
+[TICKER] · [LONG/SHORT] · Target [CURRENCY]X (+Y% / -Y%) · Asymmetry [N.Nx] · [Conviction]
 
 Memo saved to .dexter/memos/[FILENAME].html
 Open with: open .dexter/memos/[FILENAME].html
 ```
+
+`[CURRENCY]` is the listing currency (`$` US, `₩` KR) — e.g. `005930 · LONG · Target ₩95,000 (+18%)`.
 
 Do not paste the full memo content into the chat. The file is the deliverable. The chat output is a scannable header.
 

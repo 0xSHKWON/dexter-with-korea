@@ -89,6 +89,14 @@ export interface FinancialSummary {
      */
     totalDebt: MetricVal;
     totalEquity: MetricVal;
+    /**
+     * 비지배지분 (non-controlling interests, book value) — the consolidated equity
+     * that belongs to subsidiary minority holders, NOT to this company's own
+     * shareholders. An EV→Equity bridge must subtract it (Equity Value = EV −
+     * Net Debt − NCI) or a consolidated DCF attributes 100% of subsidiary value
+     * to the parent's shareholders.
+     */
+    nonControllingInterests: MetricVal;
     cashAndEquivalents: MetricVal;
     /** 단기금융상품 — short-term financial instruments, cash-equivalent for the net-debt bridge. */
     shortTermInvestments: MetricVal;
@@ -98,6 +106,15 @@ export interface FinancialSummary {
     investing: MetricVal;
     financing: MetricVal;
     capex: MetricVal;
+    /** 이자의 지급 — needed to normalize FCF to FCFF when a filer classifies it as operating. */
+    interestPaid: MetricVal;
+    /**
+     * Where 이자의 지급 sits in the cash-flow statement (K-IFRS allows either).
+     * 'operating' → the reported CFO is already net of interest, so FCFF needs
+     * back-adding after-tax interest; 'financing' → CFO is pre-interest (no
+     * adjustment); null → not found or classification unknown (sentinel id).
+     */
+    interestPaidClassification: 'operating' | 'financing' | null;
   };
   ratios: {
     operatingMarginPct: number | null;
@@ -198,6 +215,16 @@ export const ACCOUNT_SPECS: Record<string, AccountSpec> = {
     sjDivs: ['BS'],
     accountIds: ['ifrs-full_Equity', 'ifrs-full_EquityAttributableToOwnersOfParent'],
     accountNms: ['자본총계', '지배기업의 소유주에게 귀속되는 자본'],
+    kind: 'amount',
+    statement: 'BS',
+  },
+  // 비지배지분 — BS only (IS/CIS also carry rows literally named '비지배지분' for the
+  // P&L attribution, so the sj_div filter is what keeps this on the equity balance).
+  // id/nm verified live: 삼성전자 FY2024 10.5조, LG화학 FY2024 14.7조.
+  nonControllingInterests: {
+    sjDivs: ['BS'],
+    accountIds: ['ifrs-full_NoncontrollingInterests'],
+    accountNms: ['비지배지분', '비지배주주지분'],
     kind: 'amount',
     statement: 'BS',
   },
@@ -449,6 +476,33 @@ export function sumMetrics(list: DartRow[], spec: SumSpec): MetricVal {
   };
 }
 
+/**
+ * 이자의 지급 with its cash-flow classification. K-IFRS (IAS 7) allows interest paid
+ * under operating OR financing; the standard account_id encodes which. When only the
+ * bare label matches (sentinel account_id), the classification is unknowable from the
+ * flat row list → null, and the caller must not assume either way.
+ * Verified live: 삼성전자·LG화학 both use InterestPaidClassifiedAsOperatingActivities.
+ */
+const INTEREST_PAID_IDS: ReadonlyArray<readonly [string, 'operating' | 'financing']> = [
+  ['ifrs-full_InterestPaidClassifiedAsOperatingActivities', 'operating'],
+  ['ifrs-full_InterestPaidClassifiedAsFinancingActivities', 'financing'],
+];
+
+export function findInterestPaid(list: DartRow[]): {
+  metric: MetricVal;
+  classification: 'operating' | 'financing' | null;
+} {
+  const cfRows = list.filter((r) => r.sj_div === 'CF');
+  for (const [id, classification] of INTEREST_PAID_IDS) {
+    const row = cfRows.find((r) => r.account_id === id);
+    if (row) return { metric: toMetric(row, 'amount'), classification };
+  }
+  const names = new Set(['이자의지급', '이자지급', '이자의지급액'].map(squash));
+  const row = cfRows.find((r) => r.account_nm && names.has(squash(r.account_nm)));
+  if (row) return { metric: toMetric(row, 'amount'), classification: null };
+  return { metric: { ...EMPTY_METRIC }, classification: null };
+}
+
 function yoyPct(m: MetricVal): number | null {
   if (m.current === null || m.prior === null || m.prior === 0) return null;
   return round1(((m.current - m.prior) / Math.abs(m.prior)) * 100);
@@ -486,12 +540,14 @@ export function summarizePeriod(list: DartRow[], opts: SummarizeOpts): Financial
   const totalLiabilities = m('totalLiabilities');
   const totalDebt = sumMetrics(list, DEBT_SUM_SPEC);
   const totalEquity = m('totalEquity');
+  const nonControllingInterests = m('nonControllingInterests');
   const cashAndEquivalents = m('cashAndEquivalents');
   const shortTermInvestments = m('shortTermInvestments');
   const cfo = m('cfo');
   const cfi = m('cfi');
   const cff = m('cff');
   const capex = sumMetrics(list, CAPEX_SUM_SPEC);
+  const interestPaid = findInterestPaid(list);
 
   // FCF = operating cash flow − capex. capex (유·무형자산의 취득 합산) is reported as a
   // cash outflow; treat it as a use regardless of reported sign.
@@ -513,8 +569,15 @@ export function summarizePeriod(list: DartRow[], opts: SummarizeOpts): Financial
     unit: 'KRW',
     basis: BASIS_NOTES[opts.report_type],
     incomeStatement: { revenue, operatingProfit, netIncome, controllingNetIncome, eps },
-    balanceSheet: { totalAssets, totalLiabilities, totalDebt, totalEquity, cashAndEquivalents, shortTermInvestments },
-    cashFlow: { operating: cfo, investing: cfi, financing: cff, capex },
+    balanceSheet: { totalAssets, totalLiabilities, totalDebt, totalEquity, nonControllingInterests, cashAndEquivalents, shortTermInvestments },
+    cashFlow: {
+      operating: cfo,
+      investing: cfi,
+      financing: cff,
+      capex,
+      interestPaid: interestPaid.metric,
+      interestPaidClassification: interestPaid.classification,
+    },
     ratios: {
       operatingMarginPct: ratioPct(operatingProfit.current, revenue.current),
       netMarginPct: ratioPct(netIncome.current, revenue.current),

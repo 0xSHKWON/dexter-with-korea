@@ -39,7 +39,24 @@ export interface SegmentTable {
   cols: number;
   hasOperatingProfit: boolean;
   truncated: boolean;
+  /**
+   * Amount unit declared in the table itself ('단위: 백만원' 류 표기에서 추출).
+   * null = the table carries no unit marker — the caller must NOT assume a unit
+   * (천원 filers exist; a wrong 백만원 assumption is a 1000x error).
+   */
+  unit: string | null;
   rows: string[][];
+}
+
+/**
+ * Extract the amount unit from a table's own cells — filers write it as
+ * "(단위 : 백만원)", "단위: 천원, %" etc., usually in the first row. Only the
+ * standard KRW magnitude tokens qualify; anything else stays null so a wrong
+ * builder guess never substitutes for the filer's declaration.
+ */
+export function extractUnit(flatText: string): string | null {
+  const m = /단위\s*[:：]?\s*(십억\s*원|백만\s*원|천만\s*원|백만원|억\s*원|천\s*원|만\s*원|원)/.exec(flatText);
+  return m ? m[1].replace(/\s+/g, '') : null;
 }
 
 /** A cell is "numeric" if, stripped of formatting (commas, %, parens, signs), it is a number. */
@@ -77,7 +94,7 @@ export function selectSegmentTables(tables: string[][][], limit: number): Segmen
     const score = (hasOp ? 1_000_000 : 0) + (rows.length <= 40 ? 1_000 : 0) + numCount;
     scored.push({
       score,
-      table: { rowCount: rows.length, cols, hasOperatingProfit: hasOp, truncated, rows: trimmedRows },
+      table: { rowCount: rows.length, cols, hasOperatingProfit: hasOp, truncated, unit: extractUnit(flat), rows: trimmedRows },
     });
   }
   scored.sort((a, b) => b.score - a.score);
@@ -179,7 +196,7 @@ export const getSegmentsKr = new DynamicStructuredTool({
         ...identity,
         report_nm: reportNm,
         rcept_no: rceptNo,
-        note: '부문별 요약 재무현황 표(원문 추출). 금액 단위는 보통 백만원이며 표 머리글/원보고서로 확인하세요. 1순위 표가 부문별 매출액·영업이익 요약일 가능성이 높습니다.',
+        note: '부문별 요약 재무현황 표(원문 추출). 금액 단위는 각 표의 unit 필드(표 안의 "단위:" 표기에서 추출)를 따르세요 — unit이 null이면 이 표에서 단위가 검출되지 않은 것이므로, rcept 원문에서 단위를 확인하기 전에는 금액의 절대 크기를 서술하지 마세요(천원 단위 공시 기업이 있어 임의 가정은 1000배 오차). 1순위 표가 부문별 매출액·영업이익 요약일 가능성이 높습니다.',
         segments,
       },
       sourceUrls,

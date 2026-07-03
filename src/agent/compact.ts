@@ -119,6 +119,26 @@ Data retrieved from tool calls:
 ${toolResults}${NO_TOOLS_TRAILER}`;
 }
 
+/**
+ * Prompt for the iteration-limit salvage pass: one final NO-TOOLS call that turns
+ * the scratchpad's accumulated tool results into a partial ANSWER instead of
+ * discarding ten iterations of retrieved data behind a canned apology.
+ */
+export function buildSalvagePrompt(query: string, toolResults: string): string {
+  return `${NO_TOOLS_PREAMBLE}You are finalizing a research session that reached its tool-call iteration limit. No more tools can run. Write the best FINAL ANSWER possible from the tool data below.
+
+Rules:
+- Answer the user's query directly, in the user's language.
+- Ground every number in the tool data below — never invent values or fill gaps from memory.
+- Start with one short line noting this is a partial answer because the tool-call limit was reached.
+- End with a short "미확보 데이터" (data not retrieved) list naming exactly what could not be fetched, so the user knows what is missing.
+
+Original query: ${query}
+
+Data retrieved from tool calls:
+${toolResults}${NO_TOOLS_TRAILER}`;
+}
+
 // ---------------------------------------------------------------------------
 // Summary formatting
 // ---------------------------------------------------------------------------
@@ -185,6 +205,27 @@ export interface CompactResult {
   rawSummary: string;
   /** Token usage of the compaction LLM call. */
   usage?: TokenUsage;
+}
+
+/**
+ * One final no-tools call that turns the scratchpad's tool results into a partial
+ * ANSWER when the agent hits its iteration limit. Uses the MAIN model (this is the
+ * user-facing final answer, not an internal summary). Throws on failure — the
+ * caller falls back to the canned limit notice.
+ */
+export async function salvagePartialAnswer(params: {
+  model: string;
+  query: string;
+  toolResults: string;
+  signal?: AbortSignal;
+}): Promise<string> {
+  const { model, query, toolResults, signal } = params;
+  const result = await callLlm(buildSalvagePrompt(query, toolResults), { model, signal });
+  const text = typeof result.response === 'string' ? result.response : String(result.response);
+  if (!text.trim()) {
+    throw new Error('Salvage returned empty response');
+  }
+  return text.trim();
 }
 
 /**

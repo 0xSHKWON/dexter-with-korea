@@ -43,9 +43,10 @@ DCF 분석 진행:
 >
 > **출력은 `periods[].summary` 에 정규화돼 있다(KRW).** 라벨을 직접 파싱하지 말고 이 필드를 읽어라:
 > - 현금흐름: `cashFlow.operating`(=영업현금흐름), `cashFlow.capex`(유형+무형자산 취득 합산 — 주파수이용권·자본화 개발비 같은 무형 투자도 포함된 값이다), `ratios.freeCashFlow`(=영업CF−|capex|). `free_cash_flow`가 없으면 이 값을 쓴다.
+> - **이자 분류 → FCFF 통일:** K-IFRS는 이자지급을 영업/재무 어느 쪽에도 분류할 수 있어 회사마다 FCF 정의가 달라진다. `cashFlow.interestPaidClassification`을 확인하라 — `'operating'`이면(삼성전자·LG화학 등 다수) 보고된 영업CF가 이미 이자 차감 후이므로 **FCFF = FCF + `cashFlow.interestPaid` × (1−t)** 로 세후이자를 가산해 WACC 할인과 정합시키고, 이 조정을 가정표에 한 줄로 표기한다(안 하면 이자가 FCF에서 한 번, Net Debt 차감에서 또 한 번 — 이중 벌점). `'financing'`이면 조정 불필요. `null`이면 `rawLineItemsFile`에서 분류를 확인하고, 그래도 불명이면 미조정 사실과 방향(고레버리지일수록 과소평가 위험)을 명시한다.
 > - 손익: `incomeStatement.revenue / operatingProfit / netIncome`, `ratios.revenueYoYPct`.
 > - 재무상태표 — **순부채(Net Debt)는 부채총계가 아니다. 이자부채만 쓴다:**
->   - `balanceSheet.totalDebt`(이자부채 합계 = 단기차입금+유동성장기부채+사채+장기차입금+전환사채), `balanceSheet.cashAndEquivalents`(현금및현금성자산), `balanceSheet.shortTermInvestments`(단기금융상품), `balanceSheet.totalEquity`.
+>   - `balanceSheet.totalDebt`(이자부채 합계 = 단기차입금+유동성장기부채+사채+장기차입금+전환사채), `balanceSheet.cashAndEquivalents`(현금및현금성자산), `balanceSheet.shortTermInvestments`(단기금융상품), `balanceSheet.totalEquity`, `balanceSheet.nonControllingInterests`(비지배지분 장부가 — Step 5 브리지에서 차감).
 >   - **Net Debt = `totalDebt` − (`cashAndEquivalents` + `shortTermInvestments`)** (`shortTermInvestments`·`cashAndEquivalents`가 null이면 0으로 본다). 음수면 **순현금(net cash)** 기업 — 이때 주식가치는 EV보다 **커진다**(순현금을 더한다). 삼성전자처럼 차입금이 작고 현금+단기금융상품이 큰 종목이 대표적(부채총계를 순부채로 쓰면 부호가 뒤집혀 저평가).
 >   - `totalDebt`가 `null`이면(은행·지주사 등 이자부채 라벨 비표준) `rawLineItemsFile`을 `read_file`로 열어 차입금·사채 라인을 **`account_nm`(라벨) 우선, `account_id` 보조**로 직접 합산하라(삼성처럼 차입금 `account_id`가 `-표준계정코드 미사용-`인 경우가 많아 라벨이 더 안정적이다). 그래도 불명확하면 보고된 `enterprise_value`·시총 기반 브리지로 폴백.
 >   - `balanceSheet.totalLiabilities`(부채총계)·`ratios.debtToEquityPct`는 레버리지 점검용일 뿐 **순부채가 아니다.** 리스부채는 totalDebt에 포함하지 않는다(영업성; FCF에 이미 반영).
@@ -137,14 +138,16 @@ DCF 분석 진행:
 
 모든 FCF를 현재가치로 할인하고 합산해 **기업가치(Enterprise Value, EV)**를 구한다. 그다음 EV를 **주식가치(Equity Value)**로 전환한다:
 
-> **Equity Value = EV − Net Debt**, 여기서 **Net Debt = Total Debt − Cash − Short-term Investments**
+> **Equity Value = EV − Net Debt − 비지배지분(NCI)**, 여기서 **Net Debt = Total Debt − Cash − Short-term Investments**
+>
+> NCI를 빼는 이유: 연결 FCF에는 자회사 현금흐름이 100% 들어가므로 EV도 자회사 전체 가치를 담는다 — 그중 자회사 소수주주 몫(NCI)은 이 회사 주주의 것이 아니다. NCI가 큰 연결기업(LG전자↔LG이노텍, CJ제일제당↔CJ대한통운 등)에서 이걸 빼지 않으면 주당가치가 수십 %까지 과대된다.
 
 **부호 규칙(중요):** Net Debt가 음수이면 회사는 **순현금(net cash)** 상태다 — 현금성자산이 차입금보다 많다. 이때는 순현금을 **더하므로 Equity Value가 EV보다 커진다.** 순부채를 무조건 "차감"으로만 생각해 부호를 뒤집지 마라. **총부채(부채총계)를 순부채로 혼동하면 순현금 기업을 저평가한다** (이자부채만 Net Debt에 들어간다).
 
 마지막으로 `outstanding_shares`로 나눠 주당 적정가치를 구한다.
 
-- **US 경로:** Total Debt=`total_debt`, Cash=`cash_and_equivalents`, Short-term Investments=`current_investments`(없으면 0) — §1.3에서 추출.
-- **🇰🇷 KR 경로:** Total Debt=`balanceSheet.totalDebt`, Cash=`balanceSheet.cashAndEquivalents`, Short-term Investments=`balanceSheet.shortTermInvestments`(없으면 0), 주식수=`valuation.sharesOutstanding`. `totalDebt`가 `null`이면 §1 KR override의 폴백(rawLineItemsFile 직접 합산 또는 보고된 EV 브리지)을 따른다.
+- **US 경로:** Total Debt=`total_debt`, Cash=`cash_and_equivalents`, Short-term Investments=`current_investments`(없으면 0) — §1.3에서 추출. NCI(minority interest)는 데이터가 있으면 차감하고, 없으면 0으로 보되 연결 자회사가 큰 기업에서는 그 한계를 명시한다.
+- **🇰🇷 KR 경로:** Total Debt=`balanceSheet.totalDebt`, Cash=`balanceSheet.cashAndEquivalents`, Short-term Investments=`balanceSheet.shortTermInvestments`(없으면 0), NCI=`balanceSheet.nonControllingInterests`(장부가; `null`이면 0으로 보되 그 사실을 명시), 주식수=`valuation.sharesOutstanding`. `totalDebt`가 `null`이면 §1 KR override의 폴백(rawLineItemsFile 직접 합산 또는 보고된 EV 브리지)을 따른다. **NCI 장부가는 근사다** — NCI 비중이 크고 그 원천 자회사가 상장이면(예: 지분 80%대 상장 자회사) `자회사 시총 × 소수주주 지분율`(시가)로 교차확인하고 차이가 크면 시가 쪽을 쓰며 출처를 표기한다.
 
 > **🇰🇷 우선주 차감(중요):** FCFF로 구한 Equity Value는 **보통주+우선주 전체 주주의 몫**인데, `valuation.sharesOutstanding`은 **보통주 상장코드의 주식수만**이다(우선주는 005935처럼 별도 상장). 그대로 나누면 삼성전자·현대차·LG화학 같은 우선주 발행사에서 주당가치가 ~10% 이상 과대된다. `get_market_data_kr`의 `preferredListings`를 확인하라:
 > - 비어 있지 않으면 → **보통주 귀속 Equity Value = Equity Value − Σ preferredListings[].marketCap** 을 먼저 구하고, 그 값을 보통주 수로 나눈다. 차감액(우선주 시총 합)과 클래스 목록을 가정표에 한 줄로 표기한다.

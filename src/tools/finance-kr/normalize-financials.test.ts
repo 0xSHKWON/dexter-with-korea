@@ -191,6 +191,60 @@ describe('summarizePeriod', () => {
   });
 });
 
+describe('nonControllingInterests — BS row, not the IS/CIS attribution rows', () => {
+  it('resolves the BS 비지배지분 and ignores same-named P&L rows', () => {
+    // 삼성전자 FY2024 actuals: BS/IS/CIS all carry a row named '비지배지분'.
+    const rows: DartRow[] = [
+      { sj_div: 'BS', account_id: 'ifrs-full_NoncontrollingInterests', account_nm: '비지배지분', thstrm_amount: '10,504,467,000,000' },
+      { sj_div: 'IS', account_id: 'ifrs-full_ProfitLossAttributableToNoncontrollingInterests', account_nm: '비지배지분', thstrm_amount: '829,988,000,000' },
+      { sj_div: 'CIS', account_id: 'ifrs-full_ComprehensiveIncomeAttributableToNoncontrollingInterests', account_nm: '비지배지분', thstrm_amount: '1,248,139,000,000' },
+    ];
+    const s = summarizePeriod(rows, { bsns_year: 2024, report_type: 'annual', fs_div: 'CFS' });
+    expect(s.balanceSheet.nonControllingInterests.current).toBe(10_504_467_000_000);
+  });
+
+  it('is null when the filer reports no NCI line (별도재무제표 등)', () => {
+    const s = summarizePeriod([], { bsns_year: 2024, report_type: 'annual', fs_div: 'OFS' });
+    expect(s.balanceSheet.nonControllingInterests.current).toBeNull();
+  });
+});
+
+describe('interestPaid — amount + IAS 7 classification', () => {
+  it('classifies operating from the standard account_id (삼성전자·LG화학 shape)', () => {
+    const rows: DartRow[] = [
+      { sj_div: 'CF', account_id: 'ifrs-full_InterestPaidClassifiedAsOperatingActivities', account_nm: '이자의 지급', thstrm_amount: '675,049,000,000' },
+    ];
+    const s = summarizePeriod(rows, { bsns_year: 2024, report_type: 'annual', fs_div: 'CFS' });
+    expect(s.cashFlow.interestPaid.current).toBe(675_049_000_000);
+    expect(s.cashFlow.interestPaidClassification).toBe('operating');
+  });
+
+  it('classifies financing from the financing-activities id', () => {
+    const rows: DartRow[] = [
+      { sj_div: 'CF', account_id: 'ifrs-full_InterestPaidClassifiedAsFinancingActivities', account_nm: '이자지급', thstrm_amount: '-100,000,000' },
+    ];
+    const s = summarizePeriod(rows, { bsns_year: 2024, report_type: 'annual', fs_div: 'CFS' });
+    expect(s.cashFlow.interestPaidClassification).toBe('financing');
+  });
+
+  it('returns the amount with null classification when only the bare label matches', () => {
+    const rows: DartRow[] = [
+      { sj_div: 'CF', account_id: '-표준계정코드 미사용-', account_nm: '이자의 지급', thstrm_amount: '50,000,000' },
+    ];
+    const s = summarizePeriod(rows, { bsns_year: 2024, report_type: 'annual', fs_div: 'CFS' });
+    expect(s.cashFlow.interestPaid.current).toBe(50_000_000);
+    expect(s.cashFlow.interestPaidClassification).toBeNull();
+  });
+
+  it('does not confuse 이자의 수취 (interest received) with interest paid', () => {
+    const rows: DartRow[] = [
+      { sj_div: 'CF', account_id: 'ifrs-full_InterestReceivedClassifiedAsOperatingActivities', account_nm: '이자의 수취', thstrm_amount: '4,008,359,000,000' },
+    ];
+    const s = summarizePeriod(rows, { bsns_year: 2024, report_type: 'annual', fs_div: 'CFS' });
+    expect(s.cashFlow.interestPaid.current).toBeNull();
+  });
+});
+
 // Capex = 유형자산 취득 + 무형자산 취득 (PP&E-only capex overstates FCF for telcos/
 // biotech/platforms whose intangible purchases are large real cash outflows).
 describe('cashFlow.capex — tangible + intangible purchase sum', () => {
