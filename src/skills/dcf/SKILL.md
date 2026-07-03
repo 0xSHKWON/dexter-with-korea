@@ -42,15 +42,15 @@ DCF 분석 진행:
 > **🇰🇷 KR override:** 대신 `get_financials_kr`를 호출한다(DART 사업/반기/분기보고서로 라우팅). 자연어 쿼리 하나면 충분하다. 예: `"005930 최근 5년 연결 재무제표 현금흐름·손익·재무상태표"`. 그다음 현재가·시가총액·발행주식수·PER/PBR·목표주가 컨센서스는 `get_market_data_kr`로 가져온다(`get_market_data`는 6자리 티커를 지원하지 않으니 `web_search` 추론에 기대지 마라).
 >
 > **출력은 `periods[].summary` 에 정규화돼 있다(KRW).** 라벨을 직접 파싱하지 말고 이 필드를 읽어라:
-> - 현금흐름: `cashFlow.operating`(=영업현금흐름), `cashFlow.capex`, `ratios.freeCashFlow`(=영업CF−|capex|). `free_cash_flow`가 없으면 이 값을 쓴다.
+> - 현금흐름: `cashFlow.operating`(=영업현금흐름), `cashFlow.capex`(유형+무형자산 취득 합산 — 주파수이용권·자본화 개발비 같은 무형 투자도 포함된 값이다), `ratios.freeCashFlow`(=영업CF−|capex|). `free_cash_flow`가 없으면 이 값을 쓴다.
 > - 손익: `incomeStatement.revenue / operatingProfit / netIncome`, `ratios.revenueYoYPct`.
 > - 재무상태표 — **순부채(Net Debt)는 부채총계가 아니다. 이자부채만 쓴다:**
 >   - `balanceSheet.totalDebt`(이자부채 합계 = 단기차입금+유동성장기부채+사채+장기차입금+전환사채), `balanceSheet.cashAndEquivalents`(현금및현금성자산), `balanceSheet.shortTermInvestments`(단기금융상품), `balanceSheet.totalEquity`.
 >   - **Net Debt = `totalDebt` − (`cashAndEquivalents` + `shortTermInvestments`)** (`shortTermInvestments`·`cashAndEquivalents`가 null이면 0으로 본다). 음수면 **순현금(net cash)** 기업 — 이때 주식가치는 EV보다 **커진다**(순현금을 더한다). 삼성전자처럼 차입금이 작고 현금+단기금융상품이 큰 종목이 대표적(부채총계를 순부채로 쓰면 부호가 뒤집혀 저평가).
 >   - `totalDebt`가 `null`이면(은행·지주사 등 이자부채 라벨 비표준) `rawLineItemsFile`을 `read_file`로 열어 차입금·사채 라인을 **`account_nm`(라벨) 우선, `account_id` 보조**로 직접 합산하라(삼성처럼 차입금 `account_id`가 `-표준계정코드 미사용-`인 경우가 많아 라벨이 더 안정적이다). 그래도 불명확하면 보고된 `enterprise_value`·시총 기반 브리지로 폴백.
 >   - `balanceSheet.totalLiabilities`(부채총계)·`ratios.debtToEquityPct`는 레버리지 점검용일 뿐 **순부채가 아니다.** 리스부채는 totalDebt에 포함하지 않는다(영업성; FCF에 이미 반영).
-> - 각 metric은 `{ current, prior, label, display }` 구조이며 `current`(당기)를 쓴다. 분기·반기 손익/현금흐름은 누적(YTD)임을 `summary.basis`가 알려준다.
-> - 발행주식수(`outstanding_shares`)는 summary에 없다 — `get_market_data_kr`의 `valuation.sharesOutstanding`(시총÷현재가 도출)을 쓰고, 정확한 상장주식수가 필요하면 `get_short_balance_kr`의 `listedShares`로 보완한다.
+> - 각 metric은 `{ current, prior, label, display }` 구조이며 `current`(당기)를 쓴다. **분기·반기 기간의 의미는 계정 유형마다 다르다 — `summary.basis`를 반드시 읽어라:** 손익(IS)은 `current`가 **3개월 단독**이고 누적(YTD)은 `ytdCurrent`/`ytdPrior`에 따로 온다; 현금흐름(CF)은 `current`가 이미 누적이다. 연환산·연간 비교에는 손익은 `ytdCurrent`, 현금흐름은 `current`를 쓰고, 두 값의 기간이 다름을 섞지 마라.
+> - 발행주식수(`outstanding_shares`)는 summary에 없다 — `get_market_data_kr`의 `valuation.sharesOutstanding`(시총÷현재가 도출, **해당 상장코드의 보통주 수만**)을 쓰고, 정확한 상장주식수가 필요하면 `get_short_balance_kr`의 `listedShares`로 보완한다. 같은 응답의 `preferredListings`(우선주 상장 클래스 목록)를 Step 5에서 쓰니 함께 확보해 둔다.
 >
 > summary가 비어 있으면(은행·지주사 등 비표준 라벨) `rawLineItemsFile` 을 `read_file`로 열어 직접 찾는다. `account_nm`은 회사·연도마다 달라 **정확 일치 금지** — 부분 문자열/`account_id`로 매칭한다.
 
@@ -145,6 +145,11 @@ DCF 분석 진행:
 - **US 경로:** Total Debt=`total_debt`, Cash=`cash_and_equivalents`, Short-term Investments=`current_investments`(없으면 0) — §1.3에서 추출.
 - **🇰🇷 KR 경로:** Total Debt=`balanceSheet.totalDebt`, Cash=`balanceSheet.cashAndEquivalents`, Short-term Investments=`balanceSheet.shortTermInvestments`(없으면 0), 주식수=`valuation.sharesOutstanding`. `totalDebt`가 `null`이면 §1 KR override의 폴백(rawLineItemsFile 직접 합산 또는 보고된 EV 브리지)을 따른다.
 
+> **🇰🇷 우선주 차감(중요):** FCFF로 구한 Equity Value는 **보통주+우선주 전체 주주의 몫**인데, `valuation.sharesOutstanding`은 **보통주 상장코드의 주식수만**이다(우선주는 005935처럼 별도 상장). 그대로 나누면 삼성전자·현대차·LG화학 같은 우선주 발행사에서 주당가치가 ~10% 이상 과대된다. `get_market_data_kr`의 `preferredListings`를 확인하라:
+> - 비어 있지 않으면 → **보통주 귀속 Equity Value = Equity Value − Σ preferredListings[].marketCap** 을 먼저 구하고, 그 값을 보통주 수로 나눈다. 차감액(우선주 시총 합)과 클래스 목록을 가정표에 한 줄로 표기한다.
+> - 비어 있으면 → 우선주 없음, 그대로 진행.
+> - (우선주 시총을 시가로 차감하는 것은 시장가 근사다 — 우선주가 큰 종목에서 이 근사 자체가 결과를 좌우하면 그 사실을 주의사항에 명시하라.)
+
 ## Step 6: 민감도 분석
 
 3×3 행렬 생성: WACC(기준 ±1%) vs 터미널 성장률(2.0%, 2.5%, 3.0%).
@@ -186,6 +191,8 @@ DCF 분석 진행:
 >
 >   | 항목 | 값 | 출처 | as-of / 방법 |
 >   |------|-----|------|------------|
+>   | 현재가 | ₩294,500 | get_market_data_kr | quote.asOf 2026-07-03 09:09 KST |
+>   | 발행주식수(보통주) | 59.7억주 | 시총÷현재가 도출 | 우선주(005935) 시총 155.9조 Equity에서 차감 |
 >   | Rf (무위험금리) | 2.9% | 한국은행 ECOS 10Y 국고채 | get_macro_rate_kr, 2026-06-30 |
 >   | ERP | 4.87% | Damodaran 한국 (2026.1) | 핀값: 성숙 4.23% + CRP 0.64%, 연 1회 갱신 |
 >   | β (adjusted) | 1.14 | get_beta_kr 실측 회귀 | 2y 주간/KOSPI/Blume, R²=0.66, n=106 |

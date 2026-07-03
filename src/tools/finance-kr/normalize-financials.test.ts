@@ -7,6 +7,7 @@ import {
   summarizePeriod,
   ACCOUNT_SPECS,
   DEBT_SUM_SPEC,
+  CAPEX_SUM_SPEC,
   type DartRow,
 } from './normalize-financials.js';
 
@@ -140,11 +141,84 @@ describe('summarizePeriod', () => {
     expect(s2.incomeStatement.revenue.prior).toBeNull();
     expect(s2.ratios.revenueYoYPct).toBeNull();
   });
+  it('exposes quarterly IS as 3-month standalone + YTD cumulative (never mislabeled)', () => {
+    // Real DART shape, 삼성전자 2025 3분기보고서 actuals: IS thstrm_amount is the
+    // 3-MONTH figure, thstrm_add_amount the 9-month cumulative; CF has no add field
+    // and its thstrm_amount is already cumulative.
+    const q3: DartRow[] = [
+      {
+        sj_div: 'IS',
+        account_id: 'ifrs-full_Revenue',
+        account_nm: '매출액',
+        thstrm_amount: '86,061,747,000,000',
+        thstrm_add_amount: '239,768,567,000,000',
+        frmtrm_amount: '',
+        frmtrm_q_amount: '79,098,731,000,000',
+        frmtrm_add_amount: '225,082,634,000,000',
+      },
+      {
+        sj_div: 'CF',
+        account_id: 'ifrs-full_CashFlowsFromUsedInOperatingActivities',
+        account_nm: '영업활동현금흐름',
+        thstrm_amount: '56,515,496,000,000',
+      },
+    ];
+    const s3 = summarizePeriod(q3, { bsns_year: 2025, report_type: 'quarterly_3', fs_div: 'CFS' });
+    // current = 3-month standalone, ytdCurrent = 9-month cumulative — both exposed.
+    expect(s3.incomeStatement.revenue.current).toBe(86_061_747_000_000);
+    expect(s3.incomeStatement.revenue.ytdCurrent).toBe(239_768_567_000_000);
+    expect(s3.incomeStatement.revenue.prior).toBe(79_098_731_000_000); // prior-year 3M
+    expect(s3.incomeStatement.revenue.ytdPrior).toBe(225_082_634_000_000); // prior-year 9M
+    expect(s3.incomeStatement.revenue.ytdDisplay).toBe('239.8조');
+    // YoY pairs 3M vs 3M (consistent basis).
+    expect(s3.ratios.revenueYoYPct).toBe(8.8);
+    // CF stays cumulative in `current` and gets no ytd fields.
+    expect(s3.cashFlow.operating.current).toBe(56_515_496_000_000);
+    expect(s3.cashFlow.operating.ytdCurrent).toBeUndefined();
+    // basis note states the split explicitly.
+    expect(s3.basis).toContain('3개월 단독');
+    expect(s3.basis).toContain('9개월 누적');
+  });
+  it('annual IS metrics carry no ytd fields (thstrm is already the full year)', () => {
+    expect(s.incomeStatement.revenue.ytdCurrent).toBeUndefined();
+    expect(s.basis).toContain('연간');
+  });
   it('returns null metrics (not throw) when accounts are missing', () => {
     const empty = summarizePeriod([], { bsns_year: 2025, report_type: 'annual', fs_div: 'CFS' });
     expect(empty.incomeStatement.revenue.current).toBeNull();
     expect(empty.ratios.operatingMarginPct).toBeNull();
     expect(empty.ratios.freeCashFlow).toBeNull();
+  });
+});
+
+// Capex = 유형자산 취득 + 무형자산 취득 (PP&E-only capex overstates FCF for telcos/
+// biotech/platforms whose intangible purchases are large real cash outflows).
+describe('cashFlow.capex — tangible + intangible purchase sum', () => {
+  // 삼성전자 FY2024 CFS actuals (both rows carry the standard ifrs-full ids).
+  const cfRows: DartRow[] = [
+    { sj_div: 'CF', account_id: 'ifrs-full_CashFlowsFromUsedInOperatingActivities', account_nm: '영업활동현금흐름', thstrm_amount: '70,000,000,000,000' },
+    { sj_div: 'CF', account_id: 'ifrs-full_PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities', account_nm: '유형자산의 취득', thstrm_amount: '51,406,355,000,000' },
+    { sj_div: 'CF', account_id: 'ifrs-full_PurchaseOfIntangibleAssetsClassifiedAsInvestingActivities', account_nm: '무형자산의 취득', thstrm_amount: '2,335,284,000,000' },
+    // proceeds lines must NOT offset the purchase sum:
+    { sj_div: 'CF', account_id: 'ifrs-full_ProceedsFromSalesOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities', account_nm: '유형자산의 처분', thstrm_amount: '156,191,000,000' },
+    { sj_div: 'CF', account_id: 'ifrs-full_ProceedsFromSalesOfIntangibleAssetsClassifiedAsInvestingActivities', account_nm: '무형자산의 처분', thstrm_amount: '15,869,000,000' },
+  ];
+
+  it('sums 유형 + 무형 취득 and excludes 처분 lines', () => {
+    const capex = sumMetrics(cfRows, CAPEX_SUM_SPEC);
+    expect(capex.current).toBe(53_741_639_000_000);
+    expect(capex.label).toBe('유형자산의 취득 + 무형자산의 취득');
+  });
+
+  it('feeds the combined capex into FCF', () => {
+    const s = summarizePeriod(cfRows, { bsns_year: 2024, report_type: 'annual', fs_div: 'CFS' });
+    expect(s.cashFlow.capex.current).toBe(53_741_639_000_000);
+    expect(s.ratios.freeCashFlow).toBe(70_000_000_000_000 - 53_741_639_000_000);
+  });
+
+  it('still works for a PP&E-only filer (no intangible purchase line)', () => {
+    const ppeOnly = cfRows.filter((r) => !r.account_nm?.includes('무형'));
+    expect(sumMetrics(ppeOnly, CAPEX_SUM_SPEC).current).toBe(51_406_355_000_000);
   });
 });
 
