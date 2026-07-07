@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dexter — 한국 주식을, 원문에서</title>
+<meta name="description" content="DART·KRX·Naver·한국은행 ECOS·국민연금을 직접 호출해 흩어진 데이터를 하나의 투자 판단으로 엮는 한국 주식 전용 AI 리서치 에이전트." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@1,6..72,400;1,6..72,500&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0a0a09;
+    --line: rgba(255,255,255,0.08);
+    --line-soft: rgba(255,255,255,0.045);
+    --ink: #f2efe8;
+    --ink-dim: #9f9a8f;
+    --ink-faint: #6b665d;
+    --accent: #c6a06a;
+    --accent-line: rgba(198,160,106,0.32);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Pretendard', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.55;
+    letter-spacing: -0.012em;
+    overflow-x: hidden;
+  }
+  .serif { font-family: 'Newsreader', Georgia, serif; font-style: italic; letter-spacing: -0.01em; }
+  .mono { font-family: 'Geist Mono', ui-monospace, monospace; letter-spacing: 0; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 32px; position: relative; }
+
+  /* ---- nav ---- */
+  nav { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(18px) saturate(150%); background: rgba(10,10,9,0.64); border-bottom: 1px solid var(--line-soft); }
+  .nav-in { display: flex; align-items: center; justify-content: space-between; height: 66px; }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; letter-spacing: -0.03em; font-size: 17px; }
+  .brand svg { width: 16px; height: 16px; }
+  .nav-links { display: flex; align-items: center; gap: 34px; }
+  .nav-links a { color: var(--ink-dim); text-decoration: none; font-size: 13.5px; transition: color .2s; }
+  .nav-links a:hover { color: var(--ink); }
+  .nav-cta { color: #100d08 !important; background: var(--ink); font-weight: 600; padding: 8px 16px; border-radius: 999px; font-size: 13px; transition: transform .12s, filter .2s; }
+  .nav-cta:hover { filter: brightness(0.92); }
+  .nav-cta:active { transform: translateY(1px); }
+  @media (max-width: 760px) { .nav-links a:not(.nav-cta) { display: none; } }
+
+  /* ---- hero ---- */
+  .hero { padding: 128px 0 40px; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-dim); border: 1px solid var(--line); border-radius: 999px; padding: 6px 13px; }
+  .pill .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+  h1 { font-size: clamp(52px, 9.5vw, 118px); font-weight: 800; letter-spacing: -0.05em; line-height: 0.9; margin: 30px 0 0; }
+  h1 .l2 { display: block; font-weight: 400; color: var(--ink-dim); font-size: clamp(44px, 8vw, 100px); margin-top: 4px; }
+  .lede { color: var(--ink-dim); font-size: 17px; max-width: 44ch; line-height: 1.65; margin-top: 36px; }
+  .lede strong { color: var(--ink); font-weight: 500; }
+  .hero-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 36px; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; padding: 12px 22px; border-radius: 999px; text-decoration: none; cursor: pointer; transition: transform .12s cubic-bezier(.16,1,.3,1), filter .2s, border-color .2s; }
+  .btn-primary { background: var(--ink); color: #100d08; font-weight: 600; }
+  .btn-primary:hover { filter: brightness(0.92); }
+  .btn-primary:active { transform: translateY(1px) scale(.985); }
+  .btn-ghost { color: var(--ink); border: 1px solid var(--line); }
+  .btn-ghost:hover { border-color: var(--ink-faint); }
+
+  /* hero baseline meta rail */
+  .hero-rail { display: flex; flex-wrap: wrap; gap: 40px; margin-top: 88px; padding-top: 26px; border-top: 1px solid var(--line); }
+  .hero-rail .m { display: flex; flex-direction: column; gap: 4px; }
+  .hero-rail .m .n { font-family: 'Geist Mono', monospace; font-size: 22px; font-weight: 500; letter-spacing: -0.03em; }
+  .hero-rail .m .n .u { color: var(--accent); font-size: 14px; }
+  .hero-rail .m .k { font-size: 12px; color: var(--ink-faint); }
+  .hero-rail .q { margin-left: auto; align-self: flex-end; font-family: 'Geist Mono', monospace; font-size: 12.5px; color: var(--ink-faint); }
+  .hero-rail .q .c { color: var(--accent); }
+  @media (max-width: 700px) { .hero-rail .q { display: none; } }
+
+  /* ---- section shell ---- */
+  section { padding: 104px 0; }
+  .sec-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 56px; }
+  .sec-top h2 { font-size: clamp(30px, 4.6vw, 48px); font-weight: 700; letter-spacing: -0.045em; line-height: 1.0; }
+  .sec-top h2 .serif { font-weight: 400; color: var(--ink-dim); }
+  .sec-top p { color: var(--ink-dim); font-size: 14.5px; max-width: 36ch; margin-top: 14px; }
+  .sec-link { color: var(--ink-dim); text-decoration: none; font-size: 11.5px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; transition: color .2s, gap .2s; }
+  .sec-link:hover { color: var(--ink); gap: 11px; }
+
+  /* ---- open: architecture moat ---- */
+  .open-lead { font-size: 18px; line-height: 1.72; color: var(--ink-dim); max-width: 60ch; margin-bottom: 50px; }
+  .open-lead strong { color: var(--ink); font-weight: 500; }
+  .open-lead .mono { color: var(--accent); font-size: 0.9em; }
+  .vs { border-top: 1px solid var(--line); }
+  .vs .row { display: grid; grid-template-columns: 122px 1fr 1fr; gap: 30px; padding: 21px 4px; border-bottom: 1px solid var(--line); align-items: baseline; }
+  .vs .row .ax { font-family: 'Geist Mono', monospace; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); }
+  .vs .row .them { color: var(--ink-dim); font-size: 14px; line-height: 1.55; }
+  .vs .row .us { color: var(--ink); font-size: 14px; line-height: 1.55; border-left: 1px solid var(--accent-line); padding-left: 24px; }
+  .vs .row .us b { color: var(--accent); font-weight: 500; }
+  @media (max-width: 720px) {
+    .vs .row { grid-template-columns: 1fr; gap: 7px; padding: 20px 2px; }
+    .vs .row .them::before { content: '타 툴 — '; color: var(--ink-faint); }
+    .vs .row .us { border-left: 0; padding-left: 0; }
+    .vs .row .us::before { content: 'Dexter — '; color: var(--accent); }
+  }
+
+  /* ---- gap: chatbot vs dexter ---- */
+  .gap { border-top: 1px solid var(--line); }
+  .gap .g { padding: 32px 4px; border-bottom: 1px solid var(--line); transition: padding-left .28s cubic-bezier(.16,1,.3,1); }
+  .gap .g:hover { padding-left: 12px; }
+  .gap .g .q { font-size: 21px; font-weight: 600; letter-spacing: -0.025em; }
+  .gap .g .q .c { color: var(--accent); font-family: 'Geist Mono', monospace; margin-right: 8px; }
+  .gap .g .cmp { display: grid; grid-template-columns: 1fr; gap: 18px; margin-top: 20px; }
+  @media (min-width: 760px) { .gap .g .cmp { grid-template-columns: 1fr 1fr; gap: 44px; } }
+  .gap .side .lab { font-family: 'Geist Mono', monospace; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; }
+  .gap .side .tx { font-size: 14px; line-height: 1.6; margin-top: 8px; }
+  .gap .them .lab { color: var(--ink-faint); }
+  .gap .them .tx { color: var(--ink-dim); }
+  .gap .us { border-left: 1px solid var(--accent-line); padding-left: 22px; }
+  @media (max-width: 759px) { .gap .us { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 18px; } }
+  .gap .us .lab { color: var(--accent); }
+  .gap .us .tx { color: var(--ink); }
+  .caps-foot { margin-top: 34px; font-family: 'Geist Mono', monospace; font-size: 12.5px; color: var(--ink-faint); }
+  .caps-foot b { color: var(--ink-dim); font-weight: 400; }
+
+  /* ---- depth: the traps we know ---- */
+  .depth { display: grid; grid-template-columns: 1fr; }
+  @media (min-width: 780px) { .depth { grid-template-columns: 1fr 1fr; column-gap: 60px; } }
+  .depth .d { border-top: 1px solid var(--line); padding: 30px 0 32px; }
+  .depth .d .lab { font-family: 'Geist Mono', monospace; font-size: 11.5px; color: var(--accent); }
+  .depth .d h3 { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; margin: 14px 0 10px; }
+  .depth .d p { color: var(--ink-dim); font-size: 14px; line-height: 1.65; max-width: 44ch; }
+  .depth .d p em { font-style: normal; color: var(--ink); }
+
+  /* ---- process: numbered vertical steps ---- */
+  .proc { display: grid; grid-template-columns: 1fr; gap: 48px; }
+  @media (min-width: 900px) { .proc { grid-template-columns: 0.85fr 1.15fr; gap: 80px; } }
+  .proc-lead h2 { font-size: clamp(30px, 4.6vw, 48px); font-weight: 700; letter-spacing: -0.045em; line-height: 1.02; }
+  .proc-lead h2 .serif { font-weight: 400; color: var(--ink-dim); }
+  .proc-lead p { color: var(--ink-dim); font-size: 15px; line-height: 1.7; margin-top: 22px; max-width: 40ch; }
+  .steps { position: relative; }
+  .steps::before { content: ''; position: absolute; left: 15px; top: 30px; bottom: 30px; width: 1px; background: var(--line); }
+  .stp { position: relative; display: grid; grid-template-columns: 32px 1fr; gap: 22px; padding: 22px 0; }
+  .stp .node { width: 31px; height: 31px; border-radius: 50%; border: 1px solid var(--line); background: var(--bg); display: grid; place-items: center; font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--ink-dim); z-index: 1; }
+  .stp.active .node { border-color: var(--accent-line); color: var(--accent); }
+  .stp h3 { font-size: 18px; font-weight: 600; letter-spacing: -0.015em; }
+  .stp p { color: var(--ink-dim); font-size: 14px; line-height: 1.6; margin-top: 8px; max-width: 46ch; }
+
+  /* ---- sources: numbered index ---- */
+  .idx { border-top: 1px solid var(--line); }
+  .idx .r { display: grid; grid-template-columns: 44px 1fr auto; align-items: baseline; gap: 22px; padding: 24px 4px; border-bottom: 1px solid var(--line); transition: padding-left .28s cubic-bezier(.16,1,.3,1); }
+  .idx .r:hover { padding-left: 14px; }
+  .idx .r .no { font-family: 'Geist Mono', monospace; font-size: 12px; color: var(--ink-faint); }
+  .idx .r .nm { font-size: 21px; font-weight: 600; letter-spacing: -0.025em; }
+  .idx .r .nm .d { display: block; font-size: 13.5px; font-weight: 400; color: var(--ink-dim); letter-spacing: -0.01em; margin-top: 5px; }
+  .idx .r .badge { font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--ink-faint); border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; white-space: nowrap; }
+  .idx .r .badge.free { color: var(--accent); border-color: var(--accent-line); }
+  @media (max-width: 640px) { .idx .r { grid-template-columns: 30px 1fr; } .idx .r .badge { grid-column: 2; justify-self: start; } }
+
+  /* ---- stats ---- */
+  .stats { display: grid; grid-template-columns: repeat(2, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); margin-top: 72px; }
+  @media (min-width: 720px) { .stats { grid-template-columns: repeat(4, 1fr); } }
+  .stat { padding: 30px 26px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .stat .v { font-family: 'Geist Mono', monospace; font-size: 36px; font-weight: 500; letter-spacing: -0.04em; }
+  .stat .v .u { color: var(--accent); font-size: 18px; }
+  .stat .k { font-size: 12.5px; color: var(--ink-faint); margin-top: 6px; }
+
+  /* ---- trust ledger ---- */
+  .principle { display: grid; grid-template-columns: 1fr; gap: 48px; }
+  @media (min-width: 880px){ .principle { grid-template-columns: 1fr 0.9fr; align-items: start; gap: 72px; } }
+  .prin-copy h2 { font-size: clamp(28px, 4.2vw, 44px); font-weight: 700; letter-spacing: -0.045em; line-height: 1.04; }
+  .prin-copy h2 .serif { font-weight: 400; color: var(--ink-dim); }
+  .prin-copy p { color: var(--ink-dim); font-size: 15px; line-height: 1.7; margin-top: 24px; }
+  .prin-copy p strong { color: var(--ink); font-weight: 500; }
+  .prin-copy p .hl { color: var(--accent); }
+  .ledger { border-top: 1px solid var(--line); }
+  .ledger .pl { display: flex; align-items: baseline; justify-content: space-between; gap: 18px; padding: 18px 2px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .ledger .pl .kk { color: var(--ink-dim); }
+  .ledger .pl .vv { font-family: 'Geist Mono', monospace; color: var(--ink); text-align: right; }
+  .ledger .pl .src { display: block; color: var(--accent); font-size: 11px; font-family: 'Pretendard', sans-serif; margin-top: 5px; letter-spacing: 0; }
+
+  /* ---- cta ---- */
+  .cta { text-align: center; }
+  .cta h2 { font-size: clamp(38px, 7vw, 78px); font-weight: 800; letter-spacing: -0.05em; line-height: 0.94; }
+  .cta h2 .serif { display: block; font-weight: 400; color: var(--ink-dim); }
+  .cta p { color: var(--ink-dim); font-size: 15px; line-height: 1.65; margin: 28px auto 0; max-width: 46ch; }
+  .cta .hero-cta { justify-content: center; margin-top: 34px; }
+
+  /* ---- reveal ---- */
+  .rv { opacity: 0; transform: translateY(16px); transition: opacity .8s cubic-bezier(.16,1,.3,1), transform .8s cubic-bezier(.16,1,.3,1); }
+  .rv.on { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) { .rv { opacity: 1; transform: none; } }
+
+  footer { border-top: 1px solid var(--line); padding: 48px 0 64px; }
+  .foot-in { display: flex; flex-wrap: wrap; gap: 22px; align-items: flex-start; justify-content: space-between; }
+  .foot-in .disc { color: var(--ink-faint); font-size: 12px; max-width: 54ch; line-height: 1.65; margin-top: 14px; }
+  .foot-in .bl { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 15px; letter-spacing: -0.02em; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap nav-in">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#c6a06a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 3 8-9"/></svg>
+      Dexter
+    </div>
+    <div class="nav-links">
+      <a href="#open">오픈 루프</a>
+      <a href="#caps">깊이의 차이</a>
+      <a href="#sources">데이터 출처</a>
+      <a class="nav-cta" href="#download">앱 받기</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ============ HERO ============ -->
+<header class="hero"><div class="wrap">
+  <span class="pill rv on"><span class="dot"></span> 내 데스크탑에서 도는 오픈 에이전트 루프</span>
+  <h1 class="rv on">한국 주식을,<span class="l2 serif">from the source.</span></h1>
+  <p class="lede rv on">뉴스 요약이 아닙니다. 웹검색이 닿지 않는 <strong>공매도·연기금·지주사 지분</strong>까지 — <strong>DART·KRX·Naver·한국은행 ECOS·국민연금</strong>을 직접 호출해 하나의 투자 판단으로 엮고 <strong>인용과 함께</strong> 답합니다.</p>
+  <div class="hero-cta rv on">
+    <a class="btn btn-primary" href="#download">데스크탑 앱 받기</a>
+    <a class="btn btn-ghost" href="#work">작동 방식 보기</a>
+  </div>
+  <div class="hero-rail rv on">
+    <div class="m"><span class="n">5<span class="u">개</span></span><span class="k">1차 데이터 출처</span></div>
+    <div class="m"><span class="n">11<span class="u">+</span></span><span class="k">한국 전용 도구</span></div>
+    <div class="m"><span class="n">0<span class="u">°</span></span><span class="k">주관 주입</span></div>
+    <div class="q"><span class="c">›</span> 삼성전자 지금 투자 관점에서 어때?</div>
+  </div>
+</div></header>
+
+<!-- ============ OPEN LOOP (the real moat) ============ -->
+<section id="open"><div class="wrap">
+  <div class="sec-top rv">
+    <div>
+      <h2>구독이 아니라, <span class="serif">당신의 에이전트.</span></h2>
+      <p>다른 국내 툴은 그들의 서버에서 도는 구독 서비스. Dexter는 구조가 다릅니다.</p>
+    </div>
+  </div>
+  <p class="open-lead rv">DART·KRX 연동은 이제 웬만한 유료 툴이면 합니다. 진짜 차이는 <strong>구조</strong>예요. Dexter는 오픈소스 에이전트 루프(<span class="mono">virattt/dexter</span> 포크) 위에서 돕니다 — 당신의 데스크탑에서, 당신의 키로 프런티어 LLM을 얹어서. 도구도 스킬도 프롬프트도 전부 들여다보고 고칠 수 있는 코드입니다.</p>
+  <div class="vs rv">
+    <div class="row"><span class="ax">실행</span><span class="them">그들의 서버 · 블랙박스</span><span class="us">내 데스크탑 · CLI에서 직접</span></div>
+    <div class="row"><span class="ax">지능</span><span class="them">그들이 고정한 모델</span><span class="us">내 키로 <b>프런티어 LLM</b> — OpenAI · Anthropic · Google · xAI · Ollama</span></div>
+    <div class="row"><span class="ax">하네스</span><span class="them">접근 불가</span><span class="us">오픈 포크 — <b>도구 · 스킬 · 프롬프트가 코드</b></span></div>
+    <div class="row"><span class="ax">확장</span><span class="them">정해진 기능만</span><span class="us">스킬은 마크다운 드롭인, 도구는 직접 추가</span></div>
+    <div class="row"><span class="ax">비용</span><span class="them">매달 구독</span><span class="us">구독 없음 — 이미 내는 <b>LLM 키만</b></span></div>
+  </div>
+</div></section>
+
+<!-- ============ THE GAP ============ -->
+<section id="caps"><div class="wrap">
+  <div class="sec-top rv">
+    <div>
+      <h2>데이터 목록이 아니라, <span class="serif">깊이에서.</span></h2>
+      <p>연동만으론 부족합니다. 웹검색도, 얕은 연동도 멈추는 지점에서 갈립니다.</p>
+    </div>
+    <a class="sec-link" href="#sources">데이터 출처 →</a>
+  </div>
+  <div class="gap rv">
+    <div class="g">
+      <div class="q"><span class="c">Q</span>에코프로비엠 공매도 순보유잔고 추이는?</div>
+      <div class="cmp">
+        <div class="side them"><div class="lab">일반 챗봇</div><div class="tx">실시간 공매도 잔고엔 접근하지 못합니다. 추정하거나 질문을 회피합니다.</div></div>
+        <div class="side us"><div class="lab">Dexter</div><div class="tx">KRX Data Marketplace에 로그인 세션을 열고, 티커를 ISIN으로 변환해 순보유잔고 원본을 가져옵니다.</div></div>
+      </div>
+    </div>
+    <div class="g">
+      <div class="q"><span class="c">Q</span>LG 지주사, NAV 대비 얼마나 할인돼 거래돼?</div>
+      <div class="cmp">
+        <div class="side them"><div class="lab">일반 챗봇</div><div class="tx">"지주사 할인은 보통 30~50%" 같은 일반론으로 답합니다.</div></div>
+        <div class="side us"><div class="lab">Dexter</div><div class="tx">DART 타법인출자현황의 지분율로 SOTP를 실제 분해해, 이 종목의 할인율을 숫자로 계산합니다.</div></div>
+      </div>
+    </div>
+    <div class="g">
+      <div class="q"><span class="c">Q</span>국민연금이 보유한 삼성전자 지분은?</div>
+      <div class="cmp">
+        <div class="side them"><div class="lab">일반 챗봇</div><div class="tx">언제 것인지 모를 오래된 기사 수치를 재활용합니다.</div></div>
+        <div class="side us"><div class="lab">Dexter</div><div class="tx">data.go.kr 연기금 스냅샷을 종목명으로 매칭해 출처와 함께 가져옵니다.</div></div>
+      </div>
+    </div>
+    <div class="g">
+      <div class="q"><span class="c">Q</span>삼성전자우랑 보통주 괴리율 어때?</div>
+      <div class="cmp">
+        <div class="side them"><div class="lab">일반 챗봇</div><div class="tx">우선주를 보통주와 자주 혼동하거나 뭉뚱그립니다.</div></div>
+        <div class="side us"><div class="lab">Dexter</div><div class="tx">우선주가 별도 상장 종목임을 인식하고, DCF에서 우선주 시총까지 차감해 주당가치를 맞춥니다.</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="caps-foot rv">얹히는 분석 스킬 &nbsp;—&nbsp; <b>DCF · 지주사 SOTP · 주주환원 · 물적/인적분할 · 한·미 통합 비교 · 투자 메모</b></div>
+</div></section>
+
+<!-- ============ PROCESS ============ -->
+<section id="work"><div class="wrap proc">
+  <div class="proc-lead rv">
+    <h2>모델이 아니라, <span class="serif">하네스가 다르다.</span></h2>
+    <p>같은 프런티어 LLM을 쓰더라도, 차이는 <strong style="color:var(--ink)">1차 출처를 스스로 끌어오는 반복 툴콜 루프</strong>에서 옵니다. 필요한 데이터를 에이전트가 판단해 호출하고, 최대 10회 반복하며 교차 검증한 뒤 하나의 답으로 엮습니다.</p>
+  </div>
+  <div class="steps rv">
+    <div class="stp active"><div class="node">01</div><div><h3>질문 라우팅</h3><p>시장 지정 불필요. 6자리 티커·한국어를 감지해 자동으로 한국 경로로 분기하고, 미국 종목은 같은 자리에서 비교합니다.</p></div></div>
+    <div class="stp"><div class="node">02</div><div><h3>다중 출처 수집</h3><p>재무·수급·공매도·대량보유·컨센서스를 각 1차 API에서 끌어옵니다. 안전한 도구는 병렬, 상태형 도구는 직렬로.</p></div></div>
+    <div class="stp"><div class="node">03</div><div><h3>교차 종합 · 인용</h3><p>수집한 결과를 하나의 thesis로 엮고, 각 숫자가 어느 출처에서 왔는지 함께 밝힙니다.</p></div></div>
+  </div>
+</div></section>
+
+<!-- ============ DEPTH ============ -->
+<section id="depth"><div class="wrap">
+  <div class="sec-top rv">
+    <div>
+      <h2>함정을 아는, <span class="serif">도구.</span></h2>
+      <p>한국 시장 데이터엔 인사이더만 아는 사각지대가 있습니다. 그걸 이미 처리해뒀습니다.</p>
+    </div>
+    <a class="sec-link" href="#trust">신뢰 원칙 →</a>
+  </div>
+  <div class="depth rv">
+    <div class="d">
+      <div class="lab">KRX · 공매도</div>
+      <h3>막힌 문을 열고 들어간다</h3>
+      <p>KRX는 <em>2024–25년부터 익명 접근을 차단</em>했습니다(로그아웃 처리). Dexter는 로그인 세션을 열고 티커를 ISIN으로 변환해 순보유잔고를 조회합니다.</p>
+    </div>
+    <div class="d">
+      <div class="lab">DART · 지배구조</div>
+      <h3>5%룰의 사각지대를 메운다</h3>
+      <p>대량보유는 지분이 <em>움직일 때만</em> 공시됩니다. 수년째 안 움직인 지주사 지분은 안 뜨죠. 그래서 타법인출자현황(기말 스냅샷)을 1차 소스로 씁니다.</p>
+    </div>
+    <div class="d">
+      <div class="lab">밸류에이션 · 우선주</div>
+      <h3>우선주를 따로 센다</h3>
+      <p>삼성전자우는 <em>별도 상장 종목</em>입니다. DCF Equity Value에서 우선주 시총을 차감하지 않으면 주당가치가 틀립니다. Dexter는 차감합니다.</p>
+    </div>
+    <div class="d">
+      <div class="lab">시세 · 정확성</div>
+      <h3>전일가를 현재가로 착각하지 않는다</h3>
+      <p>밸류에이션 캐시엔 <em>전일 종가가 섞이기 쉽습니다.</em> 실시간 quote를 무캐시로 따로 불러, 장중에 전일가가 '현재가'로 새는 걸 막습니다.</p>
+    </div>
+  </div>
+</div></section>
+
+<!-- ============ SOURCES ============ -->
+<section id="sources"><div class="wrap">
+  <div class="sec-top rv">
+    <div>
+      <h2>웹검색이 아니라, <span class="serif">원장을.</span></h2>
+      <p>모두 공식 1차 소스. 키가 없어도 현재가·외국인 지분율은 바로 동작합니다.</p>
+    </div>
+    <a class="sec-link" href="#download">전부 켜보기 →</a>
+  </div>
+  <div class="idx rv">
+    <div class="r"><span class="no">01</span><span class="nm">DART 전자공시<span class="d">재무 · 공시 · 지배구조 · 타법인출자현황</span></span><span class="badge">DART_API_KEY</span></div>
+    <div class="r"><span class="no">02</span><span class="nm">KRX Data Marketplace<span class="d">공매도 순보유잔고</span></span><span class="badge">KRX_ID</span></div>
+    <div class="r"><span class="no">03</span><span class="nm">Naver 증권<span class="d">실시간 시세 · 외국인 · 목표주가 컨센서스</span></span><span class="badge free">키 없이</span></div>
+    <div class="r"><span class="no">04</span><span class="nm">한국은행 ECOS<span class="d">무위험금리 · 환율</span></span><span class="badge">ECOS_KEY</span></div>
+    <div class="r"><span class="no">05</span><span class="nm">국민연금<span class="d">data.go.kr · 연기금 보유 지분 스냅샷</span></span><span class="badge">DATA_GO_KR</span></div>
+  </div>
+
+  <div class="stats rv">
+    <div class="stat"><div class="v">5<span class="u">개</span></div><div class="k">공식 1차 출처</div></div>
+    <div class="stat"><div class="v">11<span class="u">+</span></div><div class="k">한국 전용 도구</div></div>
+    <div class="stat"><div class="v">6<span class="u">개</span></div><div class="k">지원 LLM</div></div>
+    <div class="stat"><div class="v">10<span class="u">×</span></div><div class="k">최대 반복 루프</div></div>
+  </div>
+</div></section>
+
+<!-- ============ TRUST ============ -->
+<section id="trust"><div class="wrap principle">
+  <div class="prin-copy rv">
+    <h2>판단을, <span class="serif">주입하지 않는다.</span></h2>
+    <p>밸류에이션에 들어가는 모든 입력이 <strong>출처 있는 값</strong>입니다. "보수적으로 깎기" 같은 보이지 않는 조정 대신, 보수성은 <span class="hl">민감도 표와 low/base 병기</span>로 드러냅니다.</p>
+    <p>DCF는 시장을 자동으로 감지해 한국 경로로 분기합니다. 거래세·배당세는 밸류에이션 본문이 아니라 투자자 관점 <strong>"세후 실현수익률" 주석</strong>으로 분리합니다.</p>
+  </div>
+  <div class="rv">
+    <div class="ledger">
+      <div class="pl"><span class="kk">무위험금리 (Rf)</span><span class="vv">3.02%<span class="src">한국은행 ECOS 국고채</span></span></div>
+      <div class="pl"><span class="kk">베타 (β)</span><span class="vv">1.14<span class="src">실측 회귀 · get_beta_kr</span></span></div>
+      <div class="pl"><span class="kk">지주사 지분율</span><span class="vv">SOTP<span class="src">DART 타법인출자현황</span></span></div>
+      <div class="pl"><span class="kk">법인세율</span><span class="vv">~22%<span class="src">K-IFRS 유효세율</span></span></div>
+      <div class="pl"><span class="kk">불확실성 처리</span><span class="vv">민감도표 · low/base<span class="src">사용자 override 가능</span></span></div>
+    </div>
+  </div>
+</div></section>
+
+<!-- ============ CTA ============ -->
+<section id="download"><div class="wrap">
+  <div class="cta rv">
+    <h2>키가 없어도,<span class="serif">바로 물어본다.</span></h2>
+    <p>현재가·외국인 지분율은 키 없이 즉시 동작합니다. 재무·공시·공매도·연기금은 해당 키를 넣으면 자동으로 켜집니다. 우위는 "더 똑똑함"이 아니라 <strong style="color:var(--ink)">1차 출처 · 구조화 · 감사 가능 · 한국 튜닝</strong>에 있습니다.</p>
+    <div class="hero-cta">
+      <a class="btn btn-primary" href="#">데스크탑 앱 다운로드</a>
+      <a class="btn btn-ghost" href="https://github.com/virattt/dexter">GitHub</a>
+    </div>
+  </div>
+</div></section>
+
+<footer><div class="wrap foot-in">
+  <div>
+    <div class="bl"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c6a06a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 3 8-9"/></svg> Dexter</div>
+    <p class="disc">투자 조언이 아닙니다. 본 도구의 모든 출력은 리서치 참고용이며, 최종 투자 판단과 책임은 사용자에게 있습니다.</p>
+  </div>
+  <div class="disc mono" style="text-align:right;">한국 주식 리서치 에이전트<br />CLI · Desktop · Bun · MIT</div>
+</div></footer>
+
+<script>
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('on'); io.unobserve(e.target); } });
+  }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+  document.querySelectorAll('.rv:not(.on)').forEach(function (el) { io.observe(el); });
+</script>
+</body>
+</html>
