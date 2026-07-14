@@ -103,6 +103,8 @@ DCF 분석 진행:
 - **판단 입력(haircut)**: 투영 성장률 = CAGR × (1 − **15% haircut 기본값**). 경쟁·평균회귀를 반영하는 휴리스틱이며 출처 있는 실측치가 아니므로, 가정표에 "haircut 15% (휴리스틱 기본값)"으로 그대로 노출한다. 10~20% 사이에서 임의로 고르지 마라 — 재량 선택은 같은 질문에 다른 적정가를 만든다. haircut의 영향 자체는 Step 6의 성장률 민감도 행이 보여준다. 사용자가 쿼리나 `.dexter`로 다른 haircut/성장률을 지정하면 그 값을 쓰고 출처를 "user override"로 표기.
 - **15% 상한** (지속적 고성장은 드물다) — 적용됐으면 가정표에 "상한 적용"을 명시.
 
+> **🇰🇷 KR override:** 과거 CAGR 외삽만으로 끝내지 말고 `get_consensus_kr`(annual)를 확인하라. 증권사 컨센서스 forward 추정(`isConsensusEstimate: true` 기간의 매출·영업이익)이 있으면 그 implied 성장률이 **출처 있는 미래 anchor**다: 투영 성장률을 컨센서스 경로에 정렬하고 가정표에 "증권사 컨센서스 (Naver 집계, fetchedAt)"로 표기하라 — 단 컨센서스는 매출/영업이익 기준이라 FCF 성장의 proxy임을 함께 명시한다. 이 경우 15% haircut은 중복 적용하지 않는다(컨센서스가 이미 평균화된 미래 추정치다). 커버리지가 없으면(`hasConsensusEstimates: false`) 기존대로 과거 CAGR × haircut. 둘 다 있는데 컨센서스와 과거 CAGR가 크게 벌어지면 괴리 자체를 가정표에 명시하라.
+
 ## Step 3: 할인율(WACC) 추정
 
 **회사 정보의 `sector`를 사용**해 [sector-wacc.md](sector-wacc.md)에서 적절한 기준 WACC 레인지를 선택한다.

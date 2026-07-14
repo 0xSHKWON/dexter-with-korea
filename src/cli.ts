@@ -110,6 +110,17 @@ function summarizeToolResult(tool: string, args: Record<string, unknown>, result
             ? `β=${b} (adj, ${parsed.data.index ?? '—'})`
             : 'No beta';
         }
+        if (tool === 'get_consensus_kr') {
+          const block = parsed.data.annual ?? parsed.data.quarter;
+          const periods = Array.isArray(block?.periods) ? block.periods : [];
+          const est = periods.filter((p: { isConsensusEstimate?: boolean }) => p?.isConsensusEstimate).length;
+          return periods.length > 0 ? `Found ${periods.length} periods (${est} est)` : 'No periods';
+        }
+        if (tool === 'get_price_history_kr') {
+          const n = Array.isArray(parsed.data.bars) ? parsed.data.bars.length : 0;
+          const r = parsed.data.summary?.totalReturnPct;
+          return typeof r === 'number' ? `${n} bars, ${r >= 0 ? '+' : ''}${r}%` : `${n} bars`;
+        }
         if (tool === 'get_segments_kr') {
           const n = Array.isArray(parsed.data.segments) ? parsed.data.segments.length : 0;
           return `Found ${n} segment table${n !== 1 ? 's' : ''}`;

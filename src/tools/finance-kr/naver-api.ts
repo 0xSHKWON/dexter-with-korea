@@ -136,6 +136,70 @@ export async function fetchNaverIntegration(
   return { data, url, fetchedAt: new Date().toISOString() };
 }
 
+export interface NaverFinanceResult {
+  data: Record<string, unknown> | null;
+  url: string;
+  /** When this payload was obtained from Naver (ISO) — the cache write time when served from cache. */
+  fetchedAt: string | null;
+}
+
+/**
+ * Fetch the `/finance/{annual|quarter}` payload for a 6-digit ticker — the
+ * financials tab of Naver's mobile stock page. Returns `financeInfo.trTitleList`
+ * (period columns, where `isConsensus: "Y"` marks a FORWARD analyst-consensus
+ * estimate rather than a reported actual) and `financeInfo.rowList` (metric rows:
+ * 매출액·영업이익·순이익·EPS·PER·주당배당금 …). This is the only keyless source of
+ * sell-side forward estimates, which anchor growth assumptions to a sourced value.
+ */
+export async function fetchNaverFinance(
+  ticker: string,
+  period: 'annual' | 'quarter',
+  options?: { cacheable?: boolean; ttlMs?: number },
+): Promise<NaverFinanceResult> {
+  const endpoint = '/naver/finance';
+  const params = { ticker, period };
+
+  if (options?.cacheable) {
+    const cached = readCache(endpoint, params, options.ttlMs);
+    if (cached) {
+      const payload = cached.data.payload;
+      return {
+        data: payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : null,
+        url: cached.url,
+        fetchedAt: cached.cachedAt,
+      };
+    }
+  }
+
+  const url = `${BASE_URL}/${ticker}/finance/${period}`;
+  let response: Response;
+  try {
+    response = await fetch(url, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' } });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error(`[Naver API] network error: ${ticker} — ${message}`);
+    throw new Error(`[Naver API] request failed for ${ticker}: ${message}`);
+  }
+
+  if (!response.ok) {
+    if (response.status === 409 || response.status === 404) {
+      throw new Error(`[Naver API] no data for ticker ${ticker} — check the 6-digit ticker (status ${response.status})`);
+    }
+    throw new Error(`[Naver API] request failed: ${response.status} ${response.statusText}`);
+  }
+
+  const json = (await response.json().catch(() => {
+    throw new Error(`[Naver API] request failed: invalid JSON for ${ticker}`);
+  })) as unknown;
+  const data =
+    json && typeof json === 'object' && !Array.isArray(json) ? (json as Record<string, unknown>) : null;
+
+  if (options?.cacheable) {
+    writeCache(endpoint, params, { payload: data }, url);
+  }
+  return { data, url, fetchedAt: new Date().toISOString() };
+}
+
 export interface NaverBasicResult {
   data: Record<string, unknown> | null;
   url: string;

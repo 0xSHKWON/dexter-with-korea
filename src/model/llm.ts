@@ -291,6 +291,33 @@ interface CallLlmWithMessagesOptions {
   signal?: AbortSignal;
 }
 
+interface InvokeOptions {
+  signal?: AbortSignal;
+  cache_control?: { type: 'ephemeral' };
+}
+
+/**
+ * Per-provider invoke options for the multi-turn paths.
+ *
+ * For Anthropic, `cache_control` is a ChatAnthropic *call option*: the library
+ * copies the final formatted payload and places an ephemeral cache breakpoint
+ * on the last content block of the last message (string content is converted
+ * to a block array; after a tool turn the breakpoint lands on the tool_result
+ * block itself). Since the agent loop re-sends the whole conversation every
+ * iteration, this makes each call read the prior history from cache instead of
+ * re-billing it. We deliberately do NOT annotate the BaseMessages ourselves:
+ * a cache_control put on a ToolMessage's content blocks ends up nested inside
+ * tool_result.content in the wire payload, which the Anthropic API rejects.
+ * Together with the system-prompt breakpoint this uses 2 of Anthropic's 4
+ * allowed breakpoints per request. Other providers only get `signal`.
+ */
+function buildInvokeOptions(providerId: string, signal?: AbortSignal): InvokeOptions | undefined {
+  const opts: InvokeOptions = {};
+  if (signal) opts.signal = signal;
+  if (providerId === 'anthropic') opts.cache_control = { type: 'ephemeral' };
+  return Object.keys(opts).length > 0 ? opts : undefined;
+}
+
 /**
  * Call an LLM with a full message array (multi-turn tool-calling).
  *
@@ -317,8 +344,8 @@ export async function callLlmWithMessages(
     runnable = llm.bindTools(tools);
   }
 
-  const invokeOpts = signal ? { signal } : undefined;
   const provider = resolveProvider(model);
+  const invokeOpts = buildInvokeOptions(provider.id, signal);
 
   // For Anthropic: annotate SystemMessage with cache_control for prompt caching
   const finalMessages = provider.id === 'anthropic'
@@ -360,8 +387,8 @@ export async function* streamLlmWithMessages(
     runnable = llm.bindTools(tools);
   }
 
-  const invokeOpts = signal ? { signal } : undefined;
   const provider = resolveProvider(model);
+  const invokeOpts = buildInvokeOptions(provider.id, signal);
 
   const finalMessages = provider.id === 'anthropic'
     ? annotateSystemMessageForCaching(messages)
