@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'bun:test';
-import { parseNaverFinance, METRIC_UNITS } from './get-consensus-kr.js';
+import { parseNaverFinance, assessConsensus, METRIC_UNITS } from './get-consensus-kr.js';
+import type { ConsensusPeriod } from './get-consensus-kr.js';
 
 /** Trimmed live shape from m.stock.naver.com/api/stock/005930/finance/annual (2026-07). */
 const PAYLOAD = {
@@ -84,5 +85,46 @@ describe('parseNaverFinance', () => {
     expect(parseNaverFinance(null)).toEqual([]);
     expect(parseNaverFinance({} as never)).toEqual([]);
     expect(parseNaverFinance({ financeInfo: { trTitleList: 'oops', rowList: null } } as never)).toEqual([]);
+  });
+});
+
+describe('assessConsensus', () => {
+  const period = (over?: Partial<ConsensusPeriod>): ConsensusPeriod => ({
+    period: '2025.12',
+    key: '202512',
+    isConsensusEstimate: false,
+    metrics: { revenue: 100 },
+    ...over,
+  });
+
+  it('healthy blocks with an estimate → no warning, no note', () => {
+    const a = assessConsensus([[period(), period({ key: '202612', isConsensusEstimate: true })]]);
+    expect(a).toEqual({ hasConsensusEstimates: true, warning: null, note: null });
+  });
+
+  it('periods parsed but none is an estimate → genuine no-coverage note, no warning', () => {
+    const a = assessConsensus([[period(), period({ key: '202412' })]]);
+    expect(a.hasConsensusEstimates).toBe(false);
+    expect(a.warning).toBeNull();
+    expect(a.note).toContain('커버리지 부재');
+  });
+
+  it('an EMPTY block (null/drifted payload) → upstream-drift warning, NOT a no-coverage note', () => {
+    const a = assessConsensus([[]]);
+    expect(a.warning).toContain('단정하지 마세요');
+    expect(a.note).toBeNull();
+  });
+
+  it("period='both' with one empty block still warns (partial drift)", () => {
+    const a = assessConsensus([[period({ isConsensusEstimate: true })], []]);
+    expect(a.hasConsensusEstimates).toBe(true);
+    expect(a.warning).toContain('파싱하지 못했습니다');
+    expect(a.note).toBeNull();
+  });
+
+  it('periods present but no known metric mapped → rename-drift warning', () => {
+    const a = assessConsensus([[period({ metrics: { 신규지표: 1 } })]]);
+    expect(a.warning).toContain('매핑되지 않았습니다');
+    expect(a.note).toBeNull();
   });
 });

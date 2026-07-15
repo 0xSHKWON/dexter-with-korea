@@ -194,7 +194,9 @@ export async function fetchNaverFinance(
   const data =
     json && typeof json === 'object' && !Array.isArray(json) ? (json as Record<string, unknown>) : null;
 
-  if (options?.cacheable) {
+  // Never cache a null payload: a 200 with a non-object body is upstream
+  // drift/transience, and caching it would pin a wrong "no data" answer for the TTL.
+  if (options?.cacheable && data !== null) {
     writeCache(endpoint, params, { payload: data }, url);
   }
   return { data, url, fetchedAt: new Date().toISOString() };

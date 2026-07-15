@@ -79,6 +79,25 @@ export function computeSummary(bars: PriceBar[]): PriceSummary | null {
   };
 }
 
+/**
+ * Parse ISO `YYYY-MM-DD` as LOCAL midnight. The chart fetcher formats dates with
+ * local getters (`ymd` in naver-price-history.ts), so a UTC-midnight Date would
+ * shift the whole requested window one calendar day earlier on UTC-negative hosts.
+ * Local-midnight parsing makes the formatted window reproduce the requested
+ * calendar days on any host timezone.
+ */
+export function parseIsoDateLocal(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+/** Local `YYYYMMDD` — same calendar-day semantics the chart fetcher sends to Naver. */
+export function localYmd(d: Date): string {
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  return `${d.getFullYear()}${m < 10 ? '0' : ''}${m}${day < 10 ? '0' : ''}${day}`;
+}
+
 /** Monday of the ISO date's week, as the weekly grouping key. */
 export function weekKey(isoDate: string): string {
   const d = new Date(`${isoDate}T00:00:00Z`);
@@ -137,10 +156,10 @@ export const getPriceHistoryKr = new DynamicStructuredTool({
   description: GET_PRICE_HISTORY_KR_DESCRIPTION,
   schema: InputSchema,
   func: async (input) => {
-    const end = input.endDate ? new Date(`${input.endDate}T00:00:00Z`) : new Date();
+    const end = input.endDate ? parseIsoDateLocal(input.endDate) : new Date();
     const start = input.startDate
-      ? new Date(`${input.startDate}T00:00:00Z`)
-      : new Date(new Date(end).setUTCFullYear(end.getUTCFullYear() - 1));
+      ? parseIsoDateLocal(input.startDate)
+      : new Date(new Date(end).setFullYear(end.getFullYear() - 1));
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
       return formatToolResult(
         { ticker: input.ticker, _error: `Invalid date window ${input.startDate ?? '(default)'} → ${input.endDate ?? '(today)'}` },
@@ -168,13 +187,26 @@ export const getPriceHistoryKr = new DynamicStructuredTool({
 
     const base = { ticker: code, name, kind: indexCode ? 'index' : 'stock' };
     try {
-      const { bars: daily, url } = await fetchNaverPriceHistory(indexCode ? 'index' : 'item', code, start, end, {
-        cacheable: true,
-        ttlMs: TTL_6H,
-      });
+      // Cache only when the window is fully closed (bars are final) — same rule as
+      // the US get_stock_prices tool. A today-inclusive window may carry an
+      // in-progress session bar; caching it would serve an intraday provisional
+      // close as the day's final close for the whole TTL.
+      const windowClosed = localYmd(end) < localYmd(new Date());
+      const { bars: daily, url } = await fetchNaverPriceHistory(
+        indexCode ? 'index' : 'item',
+        code,
+        start,
+        end,
+        windowClosed ? { cacheable: true, ttlMs: TTL_6H } : undefined,
+      );
       const summary = computeSummary(daily);
       const granularity = resolveGranularity(input.granularity, daily.length);
       const bars = granularity === 'daily' ? daily : aggregateBars(daily, granularity);
+      const note = !summary
+        ? '해당 기간에 거래 데이터가 없습니다 — 상장 전 구간이거나 잘못된 기간일 수 있습니다.'
+        : !windowClosed
+          ? '기간에 오늘이 포함됩니다 — 장중에는 마지막 bar가 진행 중(잠정) 값일 수 있습니다. 확정 실시간 현재가는 get_market_data_kr 기준으로 인용하세요.'
+          : null;
       return formatToolResult(
         {
           ...base,
@@ -182,9 +214,7 @@ export const getPriceHistoryKr = new DynamicStructuredTool({
           dailyBarCount: daily.length,
           summary,
           bars,
-          ...(summary
-            ? {}
-            : { _note: '해당 기간에 거래 데이터가 없습니다 — 상장 전 구간이거나 잘못된 기간일 수 있습니다.' }),
+          ...(note ? { _note: note } : {}),
         },
         [url],
       );

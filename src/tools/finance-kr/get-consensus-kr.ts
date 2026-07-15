@@ -124,6 +124,40 @@ interface PeriodBlock {
   fetchedAt: string | null;
 }
 
+export interface ConsensusAssessment {
+  hasConsensusEstimates: boolean;
+  /** Upstream-drift warning — set when the payload could not be parsed into periods/known metrics. */
+  warning: string | null;
+  /** "No analyst coverage" note — only when periods parsed fine but none is an estimate. */
+  note: string | null;
+}
+
+/**
+ * Classify the parsed blocks. Zero periods means the payload shape drifted or the
+ * fetch degraded — NOT that the company lacks coverage; conflating the two made
+ * the tool assert "애널리스트 커버리지 부재" for fully covered names on a Naver
+ * hiccup. Pure (testable).
+ */
+export function assessConsensus(blocks: ConsensusPeriod[][]): ConsensusAssessment {
+  const allPeriods = blocks.flat();
+  const hasConsensusEstimates = allPeriods.some((p) => p.isConsensusEstimate);
+  const anyBlockEmpty = blocks.some((b) => b.length === 0);
+  const anyKnownMetric = allPeriods.some((p) => Object.keys(p.metrics).some((k) => k in METRIC_UNITS));
+
+  const warning = anyBlockEmpty
+    ? 'Naver finance 응답에서 기간 테이블을 파싱하지 못했습니다 — 응답 구조 변경 또는 일시적 오류 가능성이 있습니다. 실적/컨센서스 부재로 단정하지 마세요.'
+    : !anyKnownMetric
+      ? '알려진 재무 지표 행(매출액·영업이익 등)이 하나도 매핑되지 않았습니다. Naver finance 응답 구조 변경 가능성이 있어, 값을 신뢰하기 전 확인이 필요합니다.'
+      : null;
+
+  const note =
+    !warning && !hasConsensusEstimates
+      ? '컨센서스 추정 기간이 없습니다 — 애널리스트 커버리지 부재로 해석하세요 (성장률 0을 의미하지 않음).'
+      : null;
+
+  return { hasConsensusEstimates, warning, note };
+}
+
 async function fetchBlock(ticker: string, period: 'annual' | 'quarter'): Promise<{ block: PeriodBlock; url: string }> {
   const { data, url, fetchedAt } = await fetchNaverFinance(ticker, period, { cacheable: true, ttlMs: TTL_6H });
   return { block: { periods: parseNaverFinance(data), source: 'Naver mobile finance (증권사 컨센서스 집계)', fetchedAt }, url };
@@ -148,33 +182,21 @@ export const getConsensusKr = new DynamicStructuredTool({
         input.period === 'both' ? ['annual', 'quarter'] : [input.period];
       const results = await Promise.all(wants.map((p) => fetchBlock(ticker, p)));
       const urls: string[] = [];
-      const allPeriods: ConsensusPeriod[] = [];
       results.forEach(({ block, url }, i) => {
         base[wants[i]] = block;
         urls.push(url);
-        allPeriods.push(...block.periods);
       });
 
-      const hasConsensusEstimates = allPeriods.some((p) => p.isConsensusEstimate);
-      // Drift canary: a non-empty payload where no known metric title mapped means
-      // Naver renamed the row titles/shape — flag it instead of returning silently
-      // hollow periods the model would read as "no data for this company".
-      const anyKnownMetric = allPeriods.some((p) =>
-        Object.keys(p.metrics).some((k) => k in METRIC_UNITS),
+      const { hasConsensusEstimates, warning, note } = assessConsensus(
+        results.map(({ block }) => block.periods),
       );
-      const warning =
-        allPeriods.length > 0 && !anyKnownMetric
-          ? '알려진 재무 지표 행(매출액·영업이익 등)이 하나도 매핑되지 않았습니다. Naver finance 응답 구조 변경 가능성이 있어, 값을 신뢰하기 전 확인이 필요합니다.'
-          : null;
 
       return formatToolResult(
         {
           ...base,
           units: METRIC_UNITS,
           hasConsensusEstimates,
-          ...(hasConsensusEstimates
-            ? {}
-            : { _note: '컨센서스 추정 기간이 없습니다 — 애널리스트 커버리지 부재로 해석하세요 (성장률 0을 의미하지 않음).' }),
+          ...(note ? { _note: note } : {}),
           ...(warning ? { _dataQualityWarning: warning } : {}),
         },
         urls,

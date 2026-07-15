@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { computeSummary, aggregateBars, resolveGranularity, weekKey } from './get-price-history-kr.js';
+import { computeSummary, aggregateBars, resolveGranularity, weekKey, parseIsoDateLocal, localYmd } from './get-price-history-kr.js';
 import type { PriceBar } from '../../data/fetchers/naver-price-history.js';
 
 const bar = (date: string, close: number, extra?: Partial<PriceBar>): PriceBar => ({
@@ -74,6 +74,25 @@ describe('weekKey', () => {
     expect(weekKey('2026-01-09')).toBe('2026-01-05'); // Friday
     expect(weekKey('2026-01-11')).toBe('2026-01-05'); // Sunday
     expect(weekKey('2026-01-12')).toBe('2026-01-12'); // next Monday
+  });
+});
+
+describe('parseIsoDateLocal / localYmd', () => {
+  it('round-trips the requested calendar day on ANY host timezone (local-getter consistency with the fetcher ymd)', () => {
+    // UTC-midnight parsing (`new Date('...T00:00:00Z')`) breaks this on UTC-negative
+    // hosts: the fetcher's local getters emit the PRIOR day. Local-midnight parsing
+    // makes the round-trip timezone-independent — this assertion holds under any TZ.
+    expect(localYmd(parseIsoDateLocal('2026-07-15'))).toBe('20260715');
+    expect(localYmd(parseIsoDateLocal('2026-01-01'))).toBe('20260101');
+    expect(localYmd(parseIsoDateLocal('2025-12-31'))).toBe('20251231');
+  });
+
+  it('parses to local midnight so a today startDate is never "in the future" vs new Date()', () => {
+    const d = parseIsoDateLocal('2026-07-15');
+    expect(d.getFullYear()).toBe(2026);
+    expect(d.getMonth()).toBe(6);
+    expect(d.getDate()).toBe(15);
+    expect(d.getHours()).toBe(0);
   });
 });
 
