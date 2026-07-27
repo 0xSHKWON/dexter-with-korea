@@ -2,7 +2,7 @@ import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { fetchNaverIntegration, fetchNaverBasic, isNaverNoDataError } from './naver-api.js';
 import { resolveKrSecurity } from './resolve-kr.js';
-import { parseNaverMetric, toIsoDate, nullFields } from './utils.js';
+import { parseNaverMetric, toIsoDate, nullFields, round2 } from './utils.js';
 import { formatToolResult } from '../types.js';
 import { TTL_1H } from '../finance/utils.js';
 
@@ -112,10 +112,6 @@ export function parseKoreanMarketCapToKRW(value: unknown): number | null {
   if (eok) krw += parseFloat(eok[1]) * 1e8;
   if (man) krw += parseFloat(man[1]) * 1e4;
   return krw > 0 ? Math.round(krw) : null;
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
 }
 
 /**

@@ -2,7 +2,7 @@ import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { fetchNaverFinance } from './naver-api.js';
 import { resolveKrSecurity } from './resolve-kr.js';
-import { parseKrxNumber } from './utils.js';
+import { parseKrxNumber, deadColumns } from './utils.js';
 import { formatToolResult } from '../types.js';
 import { TTL_6H } from '../finance/utils.js';
 
@@ -25,45 +25,41 @@ const InputSchema = z.object({
     .describe("'annual' (default, best for growth anchoring), 'quarter' (near-term momentum), or 'both'."),
 });
 
-/** Naver metric row titles → stable English keys. Unmapped titles pass through verbatim so upstream additions surface instead of vanishing. */
-const METRIC_KEYS: Record<string, string> = {
-  매출액: 'revenue',
-  영업이익: 'operatingProfit',
-  당기순이익: 'netProfit',
-  지배주주순이익: 'netProfitControlling',
-  비지배주주순이익: 'netProfitNonControlling',
-  영업이익률: 'operatingMarginPct',
-  순이익률: 'netMarginPct',
-  ROE: 'roePct',
-  부채비율: 'debtRatioPct',
-  당좌비율: 'quickRatioPct',
-  유보율: 'retentionRatioPct',
-  EPS: 'eps',
-  PER: 'per',
-  BPS: 'bps',
-  PBR: 'pbr',
-  주당배당금: 'dps',
+/**
+ * Naver metric row title → stable English key + display unit (as labeled on the
+ * Naver finance tab: 단위 억원, %, 배, 원). ONE table so the key set and the unit
+ * map cannot drift apart; METRIC_KEYS/METRIC_UNITS are derived views. Unmapped
+ * titles pass through verbatim so upstream additions surface instead of vanishing.
+ */
+const METRICS: Record<string, { key: string; unit: string }> = {
+  매출액: { key: 'revenue', unit: '억원' },
+  영업이익: { key: 'operatingProfit', unit: '억원' },
+  당기순이익: { key: 'netProfit', unit: '억원' },
+  지배주주순이익: { key: 'netProfitControlling', unit: '억원' },
+  비지배주주순이익: { key: 'netProfitNonControlling', unit: '억원' },
+  영업이익률: { key: 'operatingMarginPct', unit: '%' },
+  순이익률: { key: 'netMarginPct', unit: '%' },
+  ROE: { key: 'roePct', unit: '%' },
+  부채비율: { key: 'debtRatioPct', unit: '%' },
+  당좌비율: { key: 'quickRatioPct', unit: '%' },
+  유보율: { key: 'retentionRatioPct', unit: '%' },
+  EPS: { key: 'eps', unit: '원' },
+  PER: { key: 'per', unit: '배' },
+  BPS: { key: 'bps', unit: '원' },
+  PBR: { key: 'pbr', unit: '배' },
+  주당배당금: { key: 'dps', unit: '원' },
 };
 
-/** Units for the mapped metric keys, as labeled on the Naver finance tab (단위: 억원, %, 배, 원). */
-export const METRIC_UNITS: Record<string, string> = {
-  revenue: '억원',
-  operatingProfit: '억원',
-  netProfit: '억원',
-  netProfitControlling: '억원',
-  netProfitNonControlling: '억원',
-  operatingMarginPct: '%',
-  netMarginPct: '%',
-  roePct: '%',
-  debtRatioPct: '%',
-  quickRatioPct: '%',
-  retentionRatioPct: '%',
-  eps: '원',
-  per: '배',
-  bps: '원',
-  pbr: '배',
-  dps: '원',
-};
+const METRIC_KEYS: Record<string, string> = Object.fromEntries(
+  Object.entries(METRICS).map(([title, m]) => [title, m.key]),
+);
+
+export const METRIC_UNITS: Record<string, string> = Object.fromEntries(
+  Object.values(METRICS).map((m) => [m.key, m.unit]),
+);
+
+/** Rows every listed company carries — a whole column dead across periods = rename drift. */
+const CORE_METRIC_KEYS = ['revenue', 'operatingProfit', 'netProfit'];
 
 export interface ConsensusPeriod {
   /** Human period label, e.g. "2026.12" (annual) or "2026.06" (quarter). */
@@ -143,12 +139,20 @@ export function assessConsensus(blocks: ConsensusPeriod[][]): ConsensusAssessmen
   const hasConsensusEstimates = allPeriods.some((p) => p.isConsensusEstimate);
   const anyBlockEmpty = blocks.some((b) => b.length === 0);
   const anyKnownMetric = allPeriods.some((p) => Object.keys(p.metrics).some((k) => k in METRIC_UNITS));
+  // Partial-drift canary (deadColumns, the same mechanism the other Naver tools
+  // use): one renamed row title leaves its English key absent in EVERY period
+  // while sibling metrics still populate — an all-or-nothing check misses it.
+  // ≥2 periods so a single-column sliver can't trivially false-positive.
+  const deadCore =
+    allPeriods.length >= 2 ? deadColumns(allPeriods.map((p) => p.metrics), CORE_METRIC_KEYS) : [];
 
   const warning = anyBlockEmpty
     ? 'Naver finance 응답에서 기간 테이블을 파싱하지 못했습니다 — 응답 구조 변경 또는 일시적 오류 가능성이 있습니다. 실적/컨센서스 부재로 단정하지 마세요.'
     : !anyKnownMetric
       ? '알려진 재무 지표 행(매출액·영업이익 등)이 하나도 매핑되지 않았습니다. Naver finance 응답 구조 변경 가능성이 있어, 값을 신뢰하기 전 확인이 필요합니다.'
-      : null;
+      : deadCore.length > 0
+        ? `핵심 지표 컬럼이 전 기간 누락: ${deadCore.join(', ')}. Naver 행 제목 변경(rename) 가능성이 있어, 해당 지표를 부재로 단정하지 말고 확인이 필요합니다.`
+        : null;
 
   const note =
     !warning && !hasConsensusEstimates

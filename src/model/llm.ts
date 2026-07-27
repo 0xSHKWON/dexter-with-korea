@@ -297,7 +297,11 @@ interface InvokeOptions {
 }
 
 /**
- * Per-provider invoke options for the multi-turn paths.
+ * ONE prep step for the multi-turn call paths — message annotation and invoke
+ * options together, so the two Anthropic cache breakpoints cannot drift apart
+ * across call sites: (1) the system prompt gets its cache_control annotation
+ * (annotateSystemMessageForCaching — the pre-existing contract), and (2) a
+ * history breakpoint via the call option below.
  *
  * For Anthropic, `cache_control` is a ChatAnthropic *call option*: the library
  * copies the final formatted payload and places an ephemeral cache breakpoint
@@ -311,11 +315,19 @@ interface InvokeOptions {
  * Together with the system-prompt breakpoint this uses 2 of Anthropic's 4
  * allowed breakpoints per request. Other providers only get `signal`.
  */
-function buildInvokeOptions(providerId: string, signal?: AbortSignal): InvokeOptions | undefined {
-  const opts: InvokeOptions = {};
-  if (signal) opts.signal = signal;
-  if (providerId === 'anthropic') opts.cache_control = { type: 'ephemeral' };
-  return Object.keys(opts).length > 0 ? opts : undefined;
+function prepareInvoke(
+  providerId: string,
+  messages: BaseMessage[],
+  signal?: AbortSignal,
+): { finalMessages: BaseMessage[]; invokeOpts: InvokeOptions } {
+  const isAnthropic = providerId === 'anthropic';
+  return {
+    finalMessages: isAnthropic ? annotateSystemMessageForCaching(messages) : messages,
+    invokeOpts: {
+      ...(signal ? { signal } : {}),
+      ...(isAnthropic ? { cache_control: { type: 'ephemeral' as const } } : {}),
+    },
+  };
 }
 
 /**
@@ -345,12 +357,7 @@ export async function callLlmWithMessages(
   }
 
   const provider = resolveProvider(model);
-  const invokeOpts = buildInvokeOptions(provider.id, signal);
-
-  // For Anthropic: annotate SystemMessage with cache_control for prompt caching
-  const finalMessages = provider.id === 'anthropic'
-    ? annotateSystemMessageForCaching(messages)
-    : messages;
+  const { finalMessages, invokeOpts } = prepareInvoke(provider.id, messages, signal);
 
   const result = await withRetry(
     () => runnable.invoke(finalMessages, invokeOpts),
@@ -388,11 +395,7 @@ export async function* streamLlmWithMessages(
   }
 
   const provider = resolveProvider(model);
-  const invokeOpts = buildInvokeOptions(provider.id, signal);
-
-  const finalMessages = provider.id === 'anthropic'
-    ? annotateSystemMessageForCaching(messages)
-    : messages;
+  const { finalMessages, invokeOpts } = prepareInvoke(provider.id, messages, signal);
 
   const stream = await runnable.stream(finalMessages, invokeOpts);
 

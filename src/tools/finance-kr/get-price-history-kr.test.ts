@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'bun:test';
-import { computeSummary, aggregateBars, resolveGranularity, weekKey, parseIsoDateLocal, localYmd } from './get-price-history-kr.js';
+import { computeSummary, aggregateBars, resolveGranularity, parseIsoDateLocal, localYmd } from './get-price-history-kr.js';
+import { weekKey } from '../../data/compute-beta-kr.js';
 import type { PriceBar } from '../../data/fetchers/naver-price-history.js';
 
 const bar = (date: string, close: number, extra?: Partial<PriceBar>): PriceBar => ({

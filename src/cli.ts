@@ -111,8 +111,10 @@ function summarizeToolResult(tool: string, args: Record<string, unknown>, result
             : 'No beta';
         }
         if (tool === 'get_consensus_kr') {
-          const block = parsed.data.annual ?? parsed.data.quarter;
-          const periods = Array.isArray(block?.periods) ? block.periods : [];
+          // Count BOTH blocks — with period:'both' an annual-first ?? would ignore quarter.
+          const periods = [parsed.data.annual, parsed.data.quarter].flatMap(
+            (b: { periods?: unknown } | undefined) => (Array.isArray(b?.periods) ? b.periods : []),
+          );
           const est = periods.filter((p: { isConsensusEstimate?: boolean }) => p?.isConsensusEstimate).length;
           return periods.length > 0 ? `Found ${periods.length} periods (${est} est)` : 'No periods';
         }

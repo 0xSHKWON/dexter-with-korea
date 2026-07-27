@@ -1,7 +1,9 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { fetchNaverPriceHistory, type PriceBar, type NaverIndexCode } from '../../data/fetchers/naver-price-history.js';
+import { weekKey } from '../../data/compute-beta-kr.js';
 import { resolveKrSecurity } from './resolve-kr.js';
+import { round2 } from './utils.js';
 import { formatToolResult } from '../types.js';
 import { TTL_6H } from '../finance/utils.js';
 
@@ -47,18 +49,19 @@ export interface PriceSummary {
   maxDrawdownPct: number;
 }
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
-
 /** Objective window stats from the DAILY close series. Pure (testable). */
 export function computeSummary(bars: PriceBar[]): PriceSummary | null {
-  if (bars.length === 0) return null;
-  const first = bars[0];
-  const last = bars[bars.length - 1];
+  // A close of 0 is bogus source data (e.g. padding rows for a suspended listing),
+  // and dividing by it turns the whole summary into Infinity/NaN — skip such bars.
+  const valid = bars.filter((b) => b.close > 0);
+  if (valid.length === 0) return null;
+  const first = valid[0];
+  const last = valid[valid.length - 1];
   let high = first;
   let low = first;
   let peak = first.close;
   let maxDrawdown = 0;
-  for (const b of bars) {
+  for (const b of valid) {
     if (b.close > high.close) high = b;
     if (b.close < low.close) low = b;
     if (b.close > peak) peak = b.close;
@@ -96,14 +99,6 @@ export function localYmd(d: Date): string {
   const m = d.getMonth() + 1;
   const day = d.getDate();
   return `${d.getFullYear()}${m < 10 ? '0' : ''}${m}${day < 10 ? '0' : ''}${day}`;
-}
-
-/** Monday of the ISO date's week, as the weekly grouping key. */
-export function weekKey(isoDate: string): string {
-  const d = new Date(`${isoDate}T00:00:00Z`);
-  const daysSinceMonday = (d.getUTCDay() + 6) % 7;
-  d.setUTCDate(d.getUTCDate() - daysSinceMonday);
-  return d.toISOString().slice(0, 10);
 }
 
 /**
@@ -149,7 +144,22 @@ export function resolveGranularity(
   return 'monthly';
 }
 
-const INDEX_CODES: Record<string, NaverIndexCode> = { KOSPI: 'KOSPI', KOSDAQ: 'KOSDAQ' };
+// Korean aliases included: '코스피' misses Naver autocomplete entirely (returns []),
+// so without them a natural-Korean index request dead-ends in a resolver error.
+const INDEX_CODES: Record<string, NaverIndexCode> = {
+  KOSPI: 'KOSPI',
+  KOSDAQ: 'KOSDAQ',
+  코스피: 'KOSPI',
+  코스닥: 'KOSDAQ',
+};
+
+/**
+ * Cap returned bars so the tool result stays under the agent's 50KB tool-result
+ * cap (an over-cap payload is persisted to a file and the model only sees a
+ * 2,000-char preview). The summary is computed from the FULL daily series before
+ * this cap, so nothing is lost analytically — the cap only trims the bar list.
+ */
+export const MAX_RETURNED_BARS = 400;
 
 export const getPriceHistoryKr = new DynamicStructuredTool({
   name: 'get_price_history_kr',
@@ -201,12 +211,19 @@ export const getPriceHistoryKr = new DynamicStructuredTool({
       );
       const summary = computeSummary(daily);
       const granularity = resolveGranularity(input.granularity, daily.length);
-      const bars = granularity === 'daily' ? daily : aggregateBars(daily, granularity);
-      const note = !summary
-        ? '해당 기간에 거래 데이터가 없습니다 — 상장 전 구간이거나 잘못된 기간일 수 있습니다.'
-        : !windowClosed
-          ? '기간에 오늘이 포함됩니다 — 장중에는 마지막 bar가 진행 중(잠정) 값일 수 있습니다. 확정 실시간 현재가는 get_market_data_kr 기준으로 인용하세요.'
-          : null;
+      const allBars = granularity === 'daily' ? daily : aggregateBars(daily, granularity);
+      const bars = allBars.length > MAX_RETURNED_BARS ? allBars.slice(-MAX_RETURNED_BARS) : allBars;
+      const notes: string[] = [];
+      if (!summary) {
+        notes.push('해당 기간에 거래 데이터가 없습니다 — 상장 전 구간이거나 잘못된 기간일 수 있습니다.');
+      } else if (!windowClosed) {
+        notes.push('기간에 오늘이 포함됩니다 — 장중에는 마지막 bar가 진행 중(잠정) 값일 수 있습니다. 확정 실시간 현재가는 get_market_data_kr 기준으로 인용하세요.');
+      }
+      if (bars.length < allBars.length) {
+        notes.push(
+          `bar 목록은 가장 최근 ${MAX_RETURNED_BARS}개만 반환합니다 (전체 ${allBars.length}개 중 앞 ${allBars.length - bars.length}개 생략 — summary는 전체 일별 시계열 기준). 더 긴 구간은 weekly/monthly granularity를 쓰세요.`,
+        );
+      }
       return formatToolResult(
         {
           ...base,
@@ -214,7 +231,7 @@ export const getPriceHistoryKr = new DynamicStructuredTool({
           dailyBarCount: daily.length,
           summary,
           bars,
-          ...(note ? { _note: note } : {}),
+          ...(notes.length > 0 ? { _note: notes.join(' ') } : {}),
         },
         [url],
       );

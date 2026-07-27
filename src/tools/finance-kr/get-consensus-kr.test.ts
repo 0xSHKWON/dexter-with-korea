@@ -93,7 +93,7 @@ describe('assessConsensus', () => {
     period: '2025.12',
     key: '202512',
     isConsensusEstimate: false,
-    metrics: { revenue: 100 },
+    metrics: { revenue: 100, operatingProfit: 10, netProfit: 8 },
     ...over,
   });
 
@@ -126,5 +126,27 @@ describe('assessConsensus', () => {
     const a = assessConsensus([[period({ metrics: { 신규지표: 1 } })]]);
     expect(a.warning).toContain('매핑되지 않았습니다');
     expect(a.note).toBeNull();
+  });
+
+  it('PARTIAL rename (one core column dead across all periods, siblings healthy) → drift warning names the column', () => {
+    // Simulates Naver renaming 매출액 → 매출: 'revenue' vanishes from every period
+    // while operatingProfit/netProfit keep mapping. The old all-or-nothing canary
+    // missed exactly this case.
+    const dropRevenue = { operatingProfit: 10, netProfit: 8, 매출: 100 };
+    const a = assessConsensus([[
+      period({ metrics: { ...dropRevenue } }),
+      period({ key: '202412', metrics: { ...dropRevenue } }),
+    ]]);
+    expect(a.warning).toContain('revenue');
+    expect(a.warning).toContain('rename');
+    expect(a.note).toBeNull();
+  });
+
+  it('a genuinely null core value in SOME periods (estimate "-") does not trip the canary', () => {
+    const a = assessConsensus([[
+      period(),
+      period({ key: '202612', isConsensusEstimate: true, metrics: { revenue: 200, operatingProfit: null, netProfit: null } }),
+    ]]);
+    expect(a.warning).toBeNull();
   });
 });

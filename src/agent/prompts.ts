@@ -162,6 +162,8 @@ For any analyze / 어때 / 평가 / 매수·매도 판단 question on a Korean s
     구간이면 ≈0%는 "약세 부재"가 아니라 제도적 0이다. row 날짜를 재개 시점과 대조한 뒤에만 "≈0% = no bearish
     positioning / no squeeze fuel; rising = building short pressure"로 해석하라.
   · smart money: NPS / 5%룰 / 임원거래 방향(get_nps_holdings는 연말 스냅샷임을 명시).
+  · 주가 경로(질문이 추이·수익률·낙폭·상대성과를 다루면): get_price_history_kr로 기간수익률·고점 대비
+    낙폭·KOSPI/KOSDAQ 대비를 실측하라 — 기억 속 주가 경로를 서술하지 마라.
 - VALUE-UP lens (한국 고유, 2024~ 최대 catalyst): PBR<1이면 단순 "통계적 저평가"로 끝내지 말고 밸류업(기업가치제고)
   프로그램 re-rating 후보로 평가하라. get_filings_kr(exchange/material)에서 기업가치제고계획·자사주 취득/소각·배당정책
   변화를 찾아라. 환원 약속이 있으면 코리아 디스카운트 해소 트리거, **부재 자체는 디스카운트 지속의 근거**로 명시하라.
@@ -311,6 +313,19 @@ export function buildGroupSection(ctx: GroupContext): string {
  * @param soulContent - Optional SOUL.md identity content
  * @param channel - Delivery channel (e.g., 'whatsapp', 'cli') — selects formatting profile
  */
+/**
+ * The Tool Usage Policy bullet routing 6-digit tickers to KR tools. Tier-aware:
+ * naming DART-gated tools in a keyless session points the model at unbound tools
+ * and contradicts the keyless-tier playbook injected into the same prompt.
+ * KRX/NPS tools are gated by their own keys, so they carry an "등록 시" qualifier
+ * instead of another env check here.
+ */
+export function buildKrRoutingBullet(dartKeyPresent: boolean): string {
+  const dartTools = `get_financials_kr for fundamentals, get_filings_kr for DART disclosures, get_large_holders_kr for 5%-rule major shareholders, get_insider_trades_kr for executive/insider ownership, get_segments_kr for 사업부문별 매출·영업이익 (segment/divisional financials — the division mix behind a 재벌/복합 기업's headline P&L), read_filings_kr for the report narrative (사업 구성·주요 리스크·경영진단 MD&A from DART 사업/반기/분기보고서), `;
+  const keylessTools = `get_market_data_kr for current price·시가총액·발행주식수·PER/PBR/EPS·목표주가 컨센서스 (the get_market_data equivalent — get_market_data does NOT resolve 6-digit tickers), get_consensus_kr for 증권사 실적 컨센서스 (annual/quarterly forward 매출·영업이익·EPS estimates + recent actuals — anchor growth/전망 claims here instead of extrapolating), get_price_history_kr for 일별 주가 시계열 (기간수익률·고점 대비 낙폭·KOSPI/KOSDAQ 벤치마크 비교), get_foreign_ownership_kr for 외국인 지분율 (foreign ownership), get_short_balance_kr for 공매도 잔고 (short interest — 등록 시), and get_nps_holdings for 국민연금 (National Pension Service) holdings (등록 시)`;
+  return `- 6-digit numeric tickers (e.g. 005930, 035420) are Korean stocks — use ${dartKeyPresent ? dartTools : ''}${keylessTools}. ASCII tickers (AAPL, MSFT) use the US tools.`;
+}
+
 export function buildSystemPrompt(
   model: string,
   soulContent?: string | null,
@@ -343,7 +358,7 @@ ${toolDescriptions}
 ## Tool Usage Policy
 
 - Call get_financials or get_market_data ONCE with the full natural language query — they handle multi-company/multi-metric requests internally. Do NOT break up queries into multiple calls.
-- 6-digit numeric tickers (e.g. 005930, 035420) are Korean stocks — use get_financials_kr for fundamentals, get_market_data_kr for current price·시가총액·발행주식수·PER/PBR/EPS·목표주가 컨센서스 (the get_market_data equivalent — get_market_data does NOT resolve 6-digit tickers), get_filings_kr for DART disclosures, get_large_holders_kr for 5%-rule major shareholders, get_insider_trades_kr for executive/insider ownership, get_short_balance_kr for 공매도 잔고 (short interest), get_foreign_ownership_kr for 외국인 지분율 (foreign ownership), get_nps_holdings for 국민연금 (National Pension Service) holdings, get_segments_kr for 사업부문별 매출·영업이익 (segment/divisional financials — the division mix behind a 재벌/복합 기업's headline P&L), read_filings_kr for the report narrative (사업 구성·주요 리스크·경영진단 MD&A from DART 사업/반기/분기보고서), get_consensus_kr for 증권사 실적 컨센서스 (annual/quarterly forward 매출·영업이익·EPS estimates + recent actuals — anchor growth/전망 claims here instead of extrapolating), and get_price_history_kr for 일별 주가 시계열 (기간수익률·고점 대비 낙폭·KOSPI/KOSDAQ 벤치마크 비교). ASCII tickers (AAPL, MSFT) use the US tools.
+${buildKrRoutingBullet(hasDartKey())}
 - KR 종목 식별 안전장치: KR 도구들은 6자리 코드 대신 **회사명을 그대로 받아 자동 해석**한다(DART 레지스트리/Naver 키리스). 그러니 확실한 메가캡이 아니면 6자리 코드를 기억으로 지어내지 말고 **회사명을 그대로 넘겨라** — 코드가 한 자리만 틀려도 전혀 다른 회사 데이터가 조용히 반환되어 정교하지만 엉뚱한 분석을 쌓게 된다(리서치 에이전트 최악의 실패). 그리고 도구 결과의 회사명(name/corp_name)이 사용자가 말한 종목과 일치하는지 항상 확인하라.
 - Only use web_fetch when headlines are insufficient (need quotes, deal specifics, earnings details).
 - Tool results are automatically capped. If a result says "persisted to file", use read_file to access specific sections rather than processing the full dataset.
