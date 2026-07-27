@@ -264,9 +264,12 @@ export class Scratchpad {
     return new Set(
       query
         .toLowerCase()
-        .replace(/[^\w\s]/g, ' ')
+        // \w is ASCII-only — it strips Hangul (and every non-Latin script) to spaces,
+        // so keep all Unicode letters/numbers instead
+        .replace(/[^\p{L}\p{N}\s]/gu, ' ')
         .split(/\s+/)
-        .filter(w => w.length > 2) // Skip very short words
+        // Hangul packs meaning into 2-char words (삼성, 배당); Latin keeps the 3+ filter
+        .filter(w => (/\p{Script=Hangul}/u.test(w) ? w.length >= 2 : w.length > 2))
     );
   }
 
@@ -274,12 +277,11 @@ export class Scratchpad {
    * Calculate word overlap similarity between two word sets.
    */
   private calculateSimilarity(set1: Set<string>, set2: Set<string>): number {
-    if (set1.size === 0 || set2.size === 0) return 0;
-    
     const intersection = [...set1].filter(w => set2.has(w)).length;
     const union = new Set([...set1, ...set2]).size;
-    
-    return intersection / union; // Jaccard similarity
+
+    // Both sets empty → 0/0 = NaN, which silently fails every >= threshold check
+    return union === 0 ? 0 : intersection / union; // Jaccard similarity
   }
 
   /**

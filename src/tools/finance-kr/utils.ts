@@ -103,6 +103,11 @@ export function deadColumns<T>(rows: T[], columns: (keyof T)[]): string[] {
     .map((c) => String(c));
 }
 
+/** Round to 2 decimal places — the shared convention for derived % fields in KR tools. */
+export function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
 /**
  * KRX getJsonData responses wrap rows in an `OutBlock_1` array (some endpoints
  * use other keys). Missing/empty is a valid "no data" outcome, not an error.

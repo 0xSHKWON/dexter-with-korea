@@ -22,6 +22,8 @@ import { getShortBalanceKr, GET_SHORT_BALANCE_KR_DESCRIPTION } from './finance-k
 import { getForeignOwnershipKr, GET_FOREIGN_OWNERSHIP_KR_DESCRIPTION } from './finance-kr/get-foreign-ownership-kr.js';
 import { getMarketDataKr, GET_MARKET_DATA_KR_DESCRIPTION } from './finance-kr/get-market-data-kr.js';
 import { getBetaKr, GET_BETA_KR_DESCRIPTION } from './finance-kr/get-beta-kr.js';
+import { getConsensusKr, GET_CONSENSUS_KR_DESCRIPTION } from './finance-kr/get-consensus-kr.js';
+import { getPriceHistoryKr, GET_PRICE_HISTORY_KR_DESCRIPTION } from './finance-kr/get-price-history-kr.js';
 import { getNpsHoldings_tool, GET_NPS_HOLDINGS_DESCRIPTION } from './finance-kr/get-nps-holdings.js';
 import { getMacroRateKr, GET_MACRO_RATE_KR_DESCRIPTION } from './finance-kr/get-macro-rate-kr.js';
 import { GET_MARKET_DATA_DESCRIPTION } from './finance/get-market-data.js';
@@ -294,6 +296,28 @@ export function getToolRegistry(model: string): RegisteredTool[] {
     description: GET_BETA_KR_DESCRIPTION,
     compactDescription:
       'Korean equity β (regression vs KOSPI/KOSDAQ, Blume-adjusted) for a DCF cost of equity, for 6-digit tickers.',
+    concurrencySafe: true,
+  });
+
+  // Annual/quarterly financials WITH sell-side consensus estimates, from Naver's
+  // keyless finance tab — the sourced forward-growth anchor for KR valuation.
+  tools.push({
+    name: 'get_consensus_kr',
+    tool: getConsensusKr,
+    description: GET_CONSENSUS_KR_DESCRIPTION,
+    compactDescription:
+      'Korean 증권사 실적 컨센서스 — annual/quarterly 매출·영업이익·EPS forward estimates + recent actuals (억원), for 6-digit tickers.',
+    concurrencySafe: true,
+  });
+
+  // Daily OHLCV series for listings and the KOSPI/KOSDAQ indices, also from
+  // Naver's keyless chart API (the same source get_beta_kr regresses on).
+  tools.push({
+    name: 'get_price_history_kr',
+    tool: getPriceHistoryKr,
+    description: GET_PRICE_HISTORY_KR_DESCRIPTION,
+    compactDescription:
+      'Korean daily/weekly/monthly price history + 기간수익률·최대낙폭 summary, for 6-digit tickers or KOSPI/KOSDAQ.',
     concurrencySafe: true,
   });
 

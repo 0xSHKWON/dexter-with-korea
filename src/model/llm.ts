@@ -291,6 +291,45 @@ interface CallLlmWithMessagesOptions {
   signal?: AbortSignal;
 }
 
+interface InvokeOptions {
+  signal?: AbortSignal;
+  cache_control?: { type: 'ephemeral' };
+}
+
+/**
+ * ONE prep step for the multi-turn call paths — message annotation and invoke
+ * options together, so the two Anthropic cache breakpoints cannot drift apart
+ * across call sites: (1) the system prompt gets its cache_control annotation
+ * (annotateSystemMessageForCaching — the pre-existing contract), and (2) a
+ * history breakpoint via the call option below.
+ *
+ * For Anthropic, `cache_control` is a ChatAnthropic *call option*: the library
+ * copies the final formatted payload and places an ephemeral cache breakpoint
+ * on the last content block of the last message (string content is converted
+ * to a block array; after a tool turn the breakpoint lands on the tool_result
+ * block itself). Since the agent loop re-sends the whole conversation every
+ * iteration, this makes each call read the prior history from cache instead of
+ * re-billing it. We deliberately do NOT annotate the BaseMessages ourselves:
+ * a cache_control put on a ToolMessage's content blocks ends up nested inside
+ * tool_result.content in the wire payload, which the Anthropic API rejects.
+ * Together with the system-prompt breakpoint this uses 2 of Anthropic's 4
+ * allowed breakpoints per request. Other providers only get `signal`.
+ */
+function prepareInvoke(
+  providerId: string,
+  messages: BaseMessage[],
+  signal?: AbortSignal,
+): { finalMessages: BaseMessage[]; invokeOpts: InvokeOptions } {
+  const isAnthropic = providerId === 'anthropic';
+  return {
+    finalMessages: isAnthropic ? annotateSystemMessageForCaching(messages) : messages,
+    invokeOpts: {
+      ...(signal ? { signal } : {}),
+      ...(isAnthropic ? { cache_control: { type: 'ephemeral' as const } } : {}),
+    },
+  };
+}
+
 /**
  * Call an LLM with a full message array (multi-turn tool-calling).
  *
@@ -317,13 +356,8 @@ export async function callLlmWithMessages(
     runnable = llm.bindTools(tools);
   }
 
-  const invokeOpts = signal ? { signal } : undefined;
   const provider = resolveProvider(model);
-
-  // For Anthropic: annotate SystemMessage with cache_control for prompt caching
-  const finalMessages = provider.id === 'anthropic'
-    ? annotateSystemMessageForCaching(messages)
-    : messages;
+  const { finalMessages, invokeOpts } = prepareInvoke(provider.id, messages, signal);
 
   const result = await withRetry(
     () => runnable.invoke(finalMessages, invokeOpts),
@@ -360,12 +394,8 @@ export async function* streamLlmWithMessages(
     runnable = llm.bindTools(tools);
   }
 
-  const invokeOpts = signal ? { signal } : undefined;
   const provider = resolveProvider(model);
-
-  const finalMessages = provider.id === 'anthropic'
-    ? annotateSystemMessageForCaching(messages)
-    : messages;
+  const { finalMessages, invokeOpts } = prepareInvoke(provider.id, messages, signal);
 
   const stream = await runnable.stream(finalMessages, invokeOpts);
 

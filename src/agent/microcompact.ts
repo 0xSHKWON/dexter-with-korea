@@ -27,6 +27,10 @@ const COMPACTABLE_TOOLS = new Set([
   'get_financials', 'get_market_data', 'read_filings', 'stock_screener',
   'web_fetch', 'web_search', 'x_search', 'browser', 'read_file',
   'memory_search', 'memory_get', 'heartbeat', 'cron',
+  // Keyless KR read-only tools with large results (price series, consensus tables) —
+  // without these a KR-heavy session never triggers microcompact and grows straight
+  // to the expensive LLM-summarizing full compaction.
+  'get_consensus_kr', 'get_price_history_kr',
 ]);
 
 export interface MicrocompactResult {

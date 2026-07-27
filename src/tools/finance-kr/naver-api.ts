@@ -14,6 +14,38 @@ const AUTOCOMPLETE_URL = 'https://ac.stock.naver.com/ac';
 const USER_AGENT =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Safari/604.1';
 
+/**
+ * Shared fetch skeleton for the Naver mobile endpoints (trend/integration/finance).
+ * `context` is the ticker, used in error messages — `isNaverNoDataError` keys on the
+ * "no data for ticker" phrasing, so it must stay stable across endpoints. `mapNoData`
+ * turns 409/404 into that "no such ticker" error (an unknown 6-digit code returns 409,
+ * not 404); endpoints without that contract (trend) get the generic HTTP error.
+ */
+async function fetchNaverJson(url: string, context: string, mapNoData: boolean): Promise<unknown> {
+  let response: Response;
+  try {
+    response = await fetch(url, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' } });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error(`[Naver API] network error: ${context} — ${message}`);
+    throw new Error(`[Naver API] request failed for ${context}: ${message}`);
+  }
+  if (!response.ok) {
+    if (mapNoData && (response.status === 409 || response.status === 404)) {
+      throw new Error(`[Naver API] no data for ticker ${context} — check the 6-digit ticker (status ${response.status})`);
+    }
+    throw new Error(`[Naver API] request failed: ${response.status} ${response.statusText}`);
+  }
+  return await response.json().catch(() => {
+    throw new Error(`[Naver API] request failed: invalid JSON for ${context}`);
+  });
+}
+
+/** Narrow an unknown JSON value to an object payload (Naver's non-array endpoints). */
+function asObjectPayload(json: unknown): Record<string, unknown> | null {
+  return json && typeof json === 'object' && !Array.isArray(json) ? (json as Record<string, unknown>) : null;
+}
+
 export interface NaverTrendResult {
   rows: Record<string, unknown>[];
   url: string;
@@ -39,22 +71,7 @@ export async function fetchNaverTrend(
   }
 
   const url = `${BASE_URL}/${ticker}/trend`;
-  let response: Response;
-  try {
-    response = await fetch(url, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' } });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    logger.error(`[Naver API] network error: ${ticker} — ${message}`);
-    throw new Error(`[Naver API] request failed for ${ticker}: ${message}`);
-  }
-
-  if (!response.ok) {
-    throw new Error(`[Naver API] request failed: ${response.status} ${response.statusText}`);
-  }
-
-  const json = (await response.json().catch(() => {
-    throw new Error(`[Naver API] request failed: invalid JSON for ${ticker}`);
-  })) as unknown;
+  const json = await fetchNaverJson(url, ticker, false);
   const rows = Array.isArray(json) ? (json as Record<string, unknown>[]) : [];
 
   if (options?.cacheable) {
@@ -106,31 +123,55 @@ export async function fetchNaverIntegration(
   }
 
   const url = `${BASE_URL}/${ticker}/integration`;
-  let response: Response;
-  try {
-    response = await fetch(url, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' } });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    logger.error(`[Naver API] network error: ${ticker} — ${message}`);
-    throw new Error(`[Naver API] request failed for ${ticker}: ${message}`);
-  }
-
-  if (!response.ok) {
-    // An unknown/invalid 6-digit code returns 409 (not 404); surface that as a
-    // clear "no such ticker" rather than a raw HTTP status the model can't act on.
-    if (response.status === 409 || response.status === 404) {
-      throw new Error(`[Naver API] no data for ticker ${ticker} — check the 6-digit ticker (status ${response.status})`);
-    }
-    throw new Error(`[Naver API] request failed: ${response.status} ${response.statusText}`);
-  }
-
-  const json = (await response.json().catch(() => {
-    throw new Error(`[Naver API] request failed: invalid JSON for ${ticker}`);
-  })) as unknown;
-  const data =
-    json && typeof json === 'object' && !Array.isArray(json) ? (json as Record<string, unknown>) : null;
+  const data = asObjectPayload(await fetchNaverJson(url, ticker, true));
 
   if (options?.cacheable) {
+    writeCache(endpoint, params, { payload: data }, url);
+  }
+  return { data, url, fetchedAt: new Date().toISOString() };
+}
+
+export interface NaverFinanceResult {
+  data: Record<string, unknown> | null;
+  url: string;
+  /** When this payload was obtained from Naver (ISO) — the cache write time when served from cache. */
+  fetchedAt: string | null;
+}
+
+/**
+ * Fetch the `/finance/{annual|quarter}` payload for a 6-digit ticker — the
+ * financials tab of Naver's mobile stock page. Returns `financeInfo.trTitleList`
+ * (period columns, where `isConsensus: "Y"` marks a FORWARD analyst-consensus
+ * estimate rather than a reported actual) and `financeInfo.rowList` (metric rows:
+ * 매출액·영업이익·순이익·EPS·PER·주당배당금 …). This is the only keyless source of
+ * sell-side forward estimates, which anchor growth assumptions to a sourced value.
+ */
+export async function fetchNaverFinance(
+  ticker: string,
+  period: 'annual' | 'quarter',
+  options?: { cacheable?: boolean; ttlMs?: number },
+): Promise<NaverFinanceResult> {
+  const endpoint = '/naver/finance';
+  const params = { ticker, period };
+
+  if (options?.cacheable) {
+    const cached = readCache(endpoint, params, options.ttlMs);
+    if (cached) {
+      const payload = cached.data.payload;
+      return {
+        data: payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : null,
+        url: cached.url,
+        fetchedAt: cached.cachedAt,
+      };
+    }
+  }
+
+  const url = `${BASE_URL}/${ticker}/finance/${period}`;
+  const data = asObjectPayload(await fetchNaverJson(url, ticker, true));
+
+  // Never cache a null payload: a 200 with a non-object body is upstream
+  // drift/transience, and caching it would pin a wrong "no data" answer for the TTL.
+  if (options?.cacheable && data !== null) {
     writeCache(endpoint, params, { payload: data }, url);
   }
   return { data, url, fetchedAt: new Date().toISOString() };
