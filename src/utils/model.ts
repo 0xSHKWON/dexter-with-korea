@@ -16,6 +16,10 @@ const PROVIDER_MODELS: Record<string, Model[]> = {
     { id: 'gpt-5.6-sol', displayName: 'GPT 5.6 Sol' },
     { id: 'gpt-5.6-terra', displayName: 'GPT 5.6 Terra' },
     { id: 'gpt-5.6-luna', displayName: 'GPT 5.6 Luna' },
+    // Fork policy: keep the immediately-previous generation selectable. Upstream
+    // drops it from the catalog; we retain it (and skip its auto-upgrade in
+    // config.ts) so an existing gpt-5.5 choice is never silently rewritten.
+    { id: 'gpt-5.5', displayName: 'GPT 5.5' },
   ],
   anthropic: [
     { id: 'claude-sonnet-4-6', displayName: 'Sonnet 4.6' },

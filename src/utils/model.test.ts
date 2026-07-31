@@ -12,8 +12,16 @@ describe('OpenAI model catalog', () => {
       'gpt-5.6-sol',
       'gpt-5.6-terra',
       'gpt-5.6-luna',
+      // Fork policy: previous generation stays selectable, listed last so the
+      // provider default remains the newest tier.
+      'gpt-5.5',
     ]);
     expect(getDefaultModelForProvider('openai')).toBe('gpt-5.6-sol');
+  });
+
+  test('keeps the previous generation selectable with a display name', () => {
+    expect(getModelIdsForProvider('openai')).toContain('gpt-5.5');
+    expect(getModelDisplayName('gpt-5.5')).toBe('GPT 5.5');
   });
 
   test('uses Luna for lightweight OpenAI calls', () => {

@@ -16,9 +16,11 @@ const MODEL_TO_PROVIDER_MAP: Record<string, string> = {
   'gemini-3': 'google',
 };
 
-// Deprecated model IDs to upgrade on load
+// Deprecated model IDs to upgrade on load.
+// Fork policy: gpt-5.5 is the immediately-previous generation and stays
+// selectable (see PROVIDER_MODELS in utils/model.ts), so it is deliberately
+// absent here — upstream upgrades it, we do not. Only older tiers migrate.
 const DEPRECATED_MODEL_UPGRADES: Record<string, string> = {
-  'gpt-5.5': 'gpt-5.6-sol',
   'gpt-5.4': 'gpt-5.6-sol',
   'gpt-5.2': 'gpt-5.6-sol',
 };
