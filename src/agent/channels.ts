@@ -67,10 +67,46 @@ const WHATSAPP_PROFILE: ChannelProfile = {
   tables: null,
 };
 
+// Fork addition. The desktop app is the primary product here and has none of the
+// CLI's constraints: answers render through react-markdown + remark-gfm in a
+// ~1100x760 window, so headers and wide tables are fine, and its users are Korean
+// investors who are not at a terminal. Without this the desktop inherited
+// CLI_PROFILE (getChannelProfile falls back to it), which told the model to keep
+// answers short, skip markdown headers, and write tickers instead of names.
+const DESKTOP_PROFILE: ChannelProfile = {
+  label: 'Desktop',
+  preamble:
+    'Your output is rendered as markdown in a desktop app window. The reader is an investor, not a developer, and is not at a terminal.',
+  behavior: [
+    'Prioritize accuracy over validation - don\'t cheerfully agree with flawed assumptions',
+    'Use professional, objective tone without excessive praise or emotional validation',
+    'Cite the as-of date/period alongside market or financial numbers (price timestamps, fiscal periods, snapshot dates) - an undated figure reads as current when it may not be',
+    'Each question is answered on its own - there is no earlier conversation to refer back to, so never say "as I mentioned" and never defer part of the answer to a follow-up',
+    'Explain domain terms the first time they appear (e.g. WACC, terminal growth, 5%룰) in a short clause - the reader knows investing, not the tooling',
+    'Never ask users to provide raw data, paste values, or reference JSON/API internals - users ask questions, they don\'t have access to financial APIs',
+    'If data is incomplete, say what is missing and answer with what you have, without exposing implementation details',
+  ],
+  responseFormat: [
+    'Lead with the answer or key finding, then support it with specific data points',
+    'Use markdown headers to structure a long answer, and **bold** for the numbers that matter',
+    'Write the answer so it stands on its own - the reader will not be asking a follow-up in this thread',
+    'For casual or narrow questions, stay brief - structure should match the question, not decorate it',
+    'Don\'t narrate your actions or ask leading questions about what the user wants',
+  ],
+  tables: `Use markdown tables (GFM) - they render as real tables.
+
+- Prefer a table whenever you are comparing entities or periods
+- Company names as the reader knows them: "삼성전자" not "005930", "Apple" not "AAPL"
+- Headers carry the unit ("매출 (조원)") so cells stay bare numbers
+- Keep numbers readable at a glance: 416.2B / 12.3조 rather than full digits
+- Add an as-of column or a caption line when rows come from different dates`,
+};
+
 /** Registry of channel profiles. Add new channels here. */
 const CHANNEL_PROFILES: Record<string, ChannelProfile> = {
   cli: CLI_PROFILE,
   whatsapp: WHATSAPP_PROFILE,
+  desktop: DESKTOP_PROFILE,
 };
 
 /** Resolve the profile for a channel, falling back to CLI. */

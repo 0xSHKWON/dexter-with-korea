@@ -59,6 +59,10 @@ async function handleRun(req: Extract<SidecarRequest, { type: 'run' }>): Promise
       modelProvider: req.modelProvider,
       maxIterations: req.maxIterations,
       signal: controller.signal,
+      // Answers render as markdown in an app window, not on a terminal. Without
+      // this the agent fell back to the CLI profile and was told to keep responses
+      // short, avoid markdown headers, and use tickers instead of company names.
+      channel: 'desktop',
       // Persistent memory off for the first cut — keeps the sidecar dependency-light.
       memoryEnabled: false,
       // Let ask_user_question pause the turn for a desktop-rendered choice.

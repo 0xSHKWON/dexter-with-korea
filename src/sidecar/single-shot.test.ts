@@ -27,6 +27,12 @@ describe('sidecar runs are single-shot', () => {
     // saveAnswer is what triggers the per-answer summarization LLM call.
     expect(banned.filter((needle) => code.includes(needle))).toEqual([]);
   });
+
+  // Omitting this silently falls back to CLI_PROFILE, which tells the model it is
+  // on a terminal — short answers, no markdown headers, tickers over names.
+  it('declares the desktop channel', () => {
+    expect(code).toContain("channel: 'desktop'");
+  });
 });
 
 describe('the CLI keeps multi-turn context', () => {

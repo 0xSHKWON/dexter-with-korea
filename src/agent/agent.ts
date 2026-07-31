@@ -26,8 +26,21 @@ const DEFAULT_MAX_ITERATIONS = 10;
 const MAX_OVERFLOW_RETRIES = 2;
 const OVERFLOW_KEEP_ROUNDS = 3;
 
-/** Tools that require an interactive user and are only bound on the CLI channel. */
-const CLI_ONLY_TOOLS = new Set<string>(['ask_user_question', 'bash']);
+/**
+ * Tools bound only on the CLI channel. Shell access belongs to a terminal user
+ * running the CLI, not to the desktop app's investors.
+ *
+ * `ask_user_question` is deliberately NOT here: it needs an interactive user, but
+ * "interactive" is a property of the caller wiring `requestUserInput`, not of the
+ * channel string. The desktop wires it and renders the prompt itself, so gating it
+ * by channel would have killed it the moment the sidecar started declaring one.
+ */
+const CLI_ONLY_TOOLS = new Set<string>(['bash']);
+
+/** Tools that cannot function unless the caller wired the matching handler. */
+const HANDLER_GATED_TOOLS: ReadonlyArray<{ tool: string; wired: (c: AgentConfig) => boolean }> = [
+  { tool: 'ask_user_question', wired: (c) => c.requestUserInput !== undefined },
+];
 
 /**
  * The core agent class that handles the agent loop and tool execution.
@@ -97,6 +110,12 @@ export class Agent {
     // never sees a tool whose every call is auto-denied.
     if (!config.requestToolApproval) {
       tools = tools.filter(t => !APPROVAL_GATED_TOOLS.has(t.name));
+    }
+    const unwired = new Set(
+      HANDLER_GATED_TOOLS.filter(g => !g.wired(config)).map(g => g.tool),
+    );
+    if (unwired.size > 0) {
+      tools = tools.filter(t => !unwired.has(t.name));
     }
     // The concurrency map is a name→bool lookup; extra entries are harmless since
     // toolMap only holds the (possibly filtered) tools above.

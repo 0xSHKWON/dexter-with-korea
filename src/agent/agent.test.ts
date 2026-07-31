@@ -77,6 +77,38 @@ describe('approval-gated tool binding', () => {
     expect(prompt).toContain('use write_file or edit_file to modify');
   });
 
+  // ask_user_question needs an interactive user, but that is a property of the
+  // caller wiring requestUserInput, not of the channel string. The desktop declares
+  // channel 'desktop' AND renders the prompt itself, so it must keep the tool.
+  it('binds ask_user_question wherever requestUserInput is wired', async () => {
+    for (const channel of [undefined, 'desktop']) {
+      const agent = await Agent.create({
+        memoryEnabled: false,
+        channel,
+        requestUserInput: async () => ({ answers: [] }),
+      });
+      expect({ channel, bound: toolNames(agent).includes('ask_user_question') }).toEqual({
+        channel,
+        bound: true,
+      });
+    }
+  });
+
+  it('drops ask_user_question when no handler is wired', async () => {
+    const agent = await Agent.create({ memoryEnabled: false, channel: 'whatsapp' });
+    expect(toolNames(agent)).not.toContain('ask_user_question');
+  });
+
+  it('keeps bash off every non-CLI channel', async () => {
+    const agent = await Agent.create({
+      memoryEnabled: false,
+      channel: 'desktop',
+      requestToolApproval: async () => 'deny',
+      requestUserInput: async () => ({ answers: [] }),
+    });
+    expect(toolNames(agent)).not.toContain('bash');
+  });
+
   it('still drops CLI-only tools on a non-CLI channel', async () => {
     const names = toolNames(
       await Agent.create({
