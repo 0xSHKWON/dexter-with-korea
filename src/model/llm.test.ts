@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'bun:test'
 import { AIMessage, HumanMessage, SystemMessage, ToolMessage, type BaseMessage } from '@langchain/core/messages';
 import { ChatAnthropic } from '@langchain/anthropic';
 import { ChatOpenAI } from '@langchain/openai';
-import { callLlmWithMessages, streamLlmWithMessages } from './llm.js';
+import { callLlmWithMessages, getChatModel, streamLlmWithMessages } from './llm.js';
 
 // The factories in llm.ts throw if the provider's API key env var is unset.
 // Network is never hit: the request-layer methods below are stubbed.
@@ -230,5 +230,26 @@ describe('non-Anthropic providers are unaffected', () => {
     const options = openaiCall!.options as any;
     expect(options.signal).toBe(controller.signal);
     expect(options.cache_control).toBeUndefined();
+  });
+});
+
+// Upstream (virattt/dexter): GPT-5.6 family must route through the OpenAI Responses API.
+describe('OpenAI API routing', () => {
+  it('uses the Responses API for the GPT-5.6 family', () => {
+    const previousApiKey = process.env.OPENAI_API_KEY;
+    process.env.OPENAI_API_KEY = 'test-key';
+
+    try {
+      for (const model of ['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna']) {
+        const llm = getChatModel(model) as { useResponsesApi?: boolean };
+        expect(llm.useResponsesApi).toBe(true);
+      }
+    } finally {
+      if (previousApiKey === undefined) {
+        delete process.env.OPENAI_API_KEY;
+      } else {
+        process.env.OPENAI_API_KEY = previousApiKey;
+      }
+    }
   });
 });

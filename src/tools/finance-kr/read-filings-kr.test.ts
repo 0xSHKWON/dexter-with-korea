@@ -77,7 +77,7 @@ describe('resolveInternalModel', () => {
 
   it('defaults to the agent provider fast tier (cost)', () => {
     delete process.env.READ_FILINGS_KR_MODEL;
-    expect(resolveInternalModel('gpt-5.5')).toBe('gpt-5.4-mini'); // OpenAI fastModel
+    expect(resolveInternalModel('gpt-5.5')).toBe('gpt-5.6-luna'); // OpenAI fastModel
     expect(resolveInternalModel('claude-opus-4-8')).toBe('claude-haiku-4-5'); // Anthropic fastModel
   });
 
@@ -88,6 +88,6 @@ describe('resolveInternalModel', () => {
 
   it('ignores a `your-` placeholder override', () => {
     process.env.READ_FILINGS_KR_MODEL = 'your-model';
-    expect(resolveInternalModel('gpt-5.5')).toBe('gpt-5.4-mini');
+    expect(resolveInternalModel('gpt-5.5')).toBe('gpt-5.6-luna');
   });
 });
