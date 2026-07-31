@@ -432,8 +432,12 @@ export function getTools(model: string): StructuredToolInterface[] {
  * Uses 1-2 sentence descriptions instead of full multi-paragraph ones.
  * The LLM already has full tool schemas via bindTools().
  */
-export function buildCompactToolDescriptions(model: string): string {
+export function buildCompactToolDescriptions(
+  model: string,
+  boundToolNames?: ReadonlySet<string>,
+): string {
   return getToolRegistry(model)
+    .filter((t) => !boundToolNames || boundToolNames.has(t.name))
     .map((t) => `- **${t.name}**: ${t.compactDescription}`)
     .join('\n');
 }

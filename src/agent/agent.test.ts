@@ -52,6 +52,31 @@ describe('approval-gated tool binding', () => {
     expect(names).toContain('ask_user_question');
   });
 
+  it('does not advertise unbound tools in the system prompt', async () => {
+    // Desktop shape: the prompt must not promise a tool the model cannot call, or
+    // it plans around write_file and then fails every attempt.
+    const agent = await Agent.create({ memoryEnabled: false });
+    const prompt = (agent as unknown as { systemPrompt: string }).systemPrompt;
+
+    for (const tool of ['write_file', 'edit_file', 'bash']) {
+      expect({ tool, advertised: prompt.includes(`**${tool}**`) }).toEqual({ tool, advertised: false });
+    }
+    expect(prompt).not.toContain('use write_file or edit_file to modify');
+    // Tools that ARE bound still get described.
+    expect(prompt).toContain('**get_market_data_kr**');
+  });
+
+  it('advertises them when they are bound', async () => {
+    const agent = await Agent.create({
+      memoryEnabled: false,
+      requestToolApproval: async () => 'deny',
+    });
+    const prompt = (agent as unknown as { systemPrompt: string }).systemPrompt;
+
+    expect(prompt).toContain('**write_file**');
+    expect(prompt).toContain('use write_file or edit_file to modify');
+  });
+
   it('still drops CLI-only tools on a non-CLI channel', async () => {
     const names = toolNames(
       await Agent.create({

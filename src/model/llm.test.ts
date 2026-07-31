@@ -244,6 +244,9 @@ describe('OpenAI API routing', () => {
         const llm = getChatModel(model) as { useResponsesApi?: boolean };
         expect(llm.useResponsesApi).toBe(true);
       }
+      // The fork keeps gpt-5.5 selectable; it predates the Responses API and must
+      // stay on Chat Completions (widening the prefix check would silently reroute it).
+      expect((getChatModel('gpt-5.5') as { useResponsesApi?: boolean }).useResponsesApi).toBe(false);
     } finally {
       if (previousApiKey === undefined) {
         delete process.env.OPENAI_API_KEY;

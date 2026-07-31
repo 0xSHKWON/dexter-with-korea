@@ -145,6 +145,12 @@ function summarizeToolResult(tool: string, args: Record<string, unknown>, result
         if (tool === 'web_search') {
           return 'Did 1 search';
         }
+        if (tool === 'bash') {
+          if (parsed.data.timedOut) return 'Timed out';
+          if (parsed.data.interrupted) return 'Interrupted';
+          const code = parsed.data.exitCode;
+          return typeof code === 'number' ? (code === 0 ? 'Exit 0' : `Exit ${code}`) : 'Ran command';
+        }
         return `Received ${keys.length} fields`;
       }
     }

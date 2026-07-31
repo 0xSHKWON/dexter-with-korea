@@ -129,6 +129,7 @@ export class Agent {
         memoryFiles,
         memoryContext,
         rulesContent,
+        new Set(tools.map(t => t.name)),
       );
     }
     return new Agent(config, tools, systemPrompt, concurrencyMap);

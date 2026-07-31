@@ -25,10 +25,22 @@ const NEVER_READ_ONLY = new Set<string>([
 type FlagCheck = (args: string[]) => boolean;
 const ALWAYS: FlagCheck = () => true;
 
-/** Read-only unless one of the given (write-causing) flags appears. */
+/**
+ * Read-only unless one of the given (write-causing) flags appears — in any of the
+ * three spellings a flag can take: bare (`-o FILE`), attached (`-oFILE`), or
+ * `=`-joined (`--output=FILE`). Matching only the bare form would classify
+ * `sort --output=~/.bashrc` as read-only.
+ */
 const safeUnless = (writeFlags: string[]): FlagCheck => {
   const set = new Set(writeFlags);
-  return (args) => !args.some((a) => set.has(a) || (a.startsWith('--') && set.has(a)));
+  const shortFlags = writeFlags.filter((f) => /^-[^-]$/.test(f));
+  return (args) =>
+    !args.some((a) => {
+      if (set.has(a)) return true;
+      const eq = a.indexOf('=');
+      if (eq > 0 && set.has(a.slice(0, eq))) return true;
+      return shortFlags.some((f) => a.length > f.length && a.startsWith(f));
+    });
 };
 
 const GIT_READONLY_SUBCMDS = new Set([
@@ -57,13 +69,24 @@ const READ_ONLY: Record<string, FlagCheck> = {
   printenv: ALWAYS, file: ALWAYS, cksum: ALWAYS, md5sum: ALWAYS, sha1sum: ALWAYS, sha256sum: ALWAYS,
   cut: ALWAYS, uniq: ALWAYS, comm: ALWAYS, column: ALWAYS, diff: ALWAYS, cmp: ALWAYS,
   df: ALWAYS, du: ALWAYS, ps: ALWAYS, uptime: ALWAYS, free: ALWAYS, env: ALWAYS,
-  which: ALWAYS, type: ALWAYS, tree: ALWAYS, jq: ALWAYS, yq: ALWAYS,
+  which: ALWAYS, type: ALWAYS, jq: ALWAYS, yq: ALWAYS,
+  tree: safeUnless(['-o']),
   grep: ALWAYS, egrep: ALWAYS, fgrep: ALWAYS, rg: ALWAYS, ag: ALWAYS,
   sort: safeUnless(['-o', '--output']),
   git: gitReadOnly,
   npm: npmReadOnly,
   find: findReadOnly,
 };
+
+/**
+ * True if the command is read-only for EVERY flag combination (its check is
+ * ALWAYS). Commands whose safety is flag-dependent — `find -delete`, `sort -o`,
+ * `tree -o`, `git <subcmd>` — return false, so `proposeRule` never mints a
+ * bare-command wildcard that would cover their destructive spellings.
+ */
+export function isFlagIndependentReadOnly(base: string): boolean {
+  return READ_ONLY[base] === ALWAYS;
+}
 
 /** True if the segment is read-only (no mutation). Conservative / fail-closed. */
 export function isReadOnly(seg: ParsedSegment): boolean {

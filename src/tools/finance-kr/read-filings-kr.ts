@@ -338,7 +338,7 @@ function errMsg(error: unknown): string {
 
 /**
  * Model for this tool's internal plan + summary calls. These are extract/compress
- * subtasks, so they default to the agent provider's fast tier (e.g. gpt-5.4-mini)
+ * subtasks, so they default to the agent provider's fast tier (e.g. gpt-5.6-luna)
  * to keep cost down while the agent itself stays on the flagship. Override with
  * READ_FILINGS_KR_MODEL to force a specific model (e.g. the flagship for max quality).
  */

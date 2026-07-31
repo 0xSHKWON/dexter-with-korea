@@ -92,11 +92,17 @@ export function evaluateBash(command: string, rules: RuleSet = loadRuleSet()): P
     }
   }
 
-  // 5. Allow only if EVERY segment is independently allowed. A segment with a
-  // write redirect can never be auto-allowed by a word-based rule (the rule can't
-  // express the redirect target), so it forces a prompt.
+  // 5. Allow only if EVERY segment is independently allowed. A segment forces a
+  // prompt when it carries something a word-based rule cannot express:
+  //   - a write redirect — the rule says nothing about the target file;
+  //   - an env prefix — `GIT_EXTERNAL_DIFF=./evil git diff` runs ./evil, yet the
+  //     assignment is stripped before matching, so `Bash(git diff:*)` would cover it;
+  //   - a path-qualified command word — `./ls` is matched by basename, so a planted
+  //     `./ls` would inherit a rule meant for the real one.
   const allowMatches = parsed.segments.map((seg) =>
-    seg.hasWriteRedirect ? undefined : matchRuleSet(seg, rules.allow),
+    seg.hasWriteRedirect || seg.env.length > 0 || seg.command.includes('/')
+      ? undefined
+      : matchRuleSet(seg, rules.allow),
   );
   if (allowMatches.every((m) => m !== undefined)) {
     return { mode: 'allow', reason: 'Matches an allow rule.', command, classification, matchedRule: serializeRule(allowMatches[0]!) };

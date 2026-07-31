@@ -31,6 +31,8 @@ export interface ParsedSegment {
   env: string[];
   /** True if the segment contains a write redirect (`>`, `>>`, `2>`, `&>`). */
   hasWriteRedirect: boolean;
+  /** Targets of write redirects — the files the segment would create/truncate. */
+  redirectTargets: string[];
   /** The raw segment text (trimmed). */
   raw: string;
 }
@@ -323,6 +325,7 @@ function splitSegments(tokens: Token[]): Token[][] {
 function buildSegment(tokens: Token[]): ParsedSegment {
   const env: string[] = [];
   let hasWriteRedirect = false;
+  const redirectTargets: string[] = [];
   const words: string[] = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -330,8 +333,12 @@ function buildSegment(tokens: Token[]): ParsedSegment {
     if (t.kind === 'op') {
       if (t.text === '>' || t.text === '>>' || t.text === '&>') {
         hasWriteRedirect = true;
-        // Skip the redirect target word, if present.
-        if (tokens[i + 1]?.kind === 'word') i += 1;
+        // Keep the target out of `words` (it is not an argument) but retain it so
+        // the secret floor can see what would be written.
+        if (tokens[i + 1]?.kind === 'word') {
+          redirectTargets.push(tokens[i + 1].text);
+          i += 1;
+        }
       } else if (t.text === '<') {
         // Input redirect: skip its target (not a write).
         if (tokens[i + 1]?.kind === 'word') i += 1;
@@ -373,6 +380,7 @@ function buildSegment(tokens: Token[]): ParsedSegment {
     args,
     env,
     hasWriteRedirect,
+    redirectTargets,
     raw: '',
   };
 }
@@ -392,7 +400,15 @@ export function parseCommand(command: string): ParsedCommand {
     return { segments: [], unknown: true, reason };
   }
   const segmentTokens = splitSegments(tokens);
-  const segments = segmentTokens.map(buildSegment).filter((seg) => seg.command !== '');
+  // A segment can reduce to no command word and still have effects: `PATH=/tmp/evil`
+  // (persists for the rest of the shell) or `> secrets.txt` (truncates it). Dropping
+  // those hid them from both the rule matcher and the built-in floor, so
+  // `ls && > file` or `PATH=/tmp/evil; ls` auto-allowed under a plain `Bash(ls:*)`.
+  // Keep them: with no command word they can never match a rule, so they force a
+  // prompt, and `builtinDeny` still sees their env and redirect targets.
+  const segments = segmentTokens
+    .map(buildSegment)
+    .filter((seg) => seg.command !== '' || seg.env.length > 0 || seg.hasWriteRedirect);
   if (segments.length === 0) {
     // Empty (e.g. whitespace only) — treat as unknown so it can't auto-allow.
     return { segments: [], unknown: true, reason: 'empty command' };

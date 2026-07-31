@@ -12,7 +12,7 @@
  * (never by concatenating raw user input) so a crafted command can't inject a rule.
  */
 import type { ParsedSegment } from './command-parser.js';
-import { isReadOnly } from './read-only.js';
+import { isFlagIndependentReadOnly, isReadOnly } from './read-only.js';
 import { loadConfig, saveConfig } from '../utils/config.js';
 
 export type Decision = 'allow' | 'ask' | 'deny';
@@ -51,7 +51,10 @@ export function parseRule(input: string): ShellRule | null {
   if (content.endsWith(':*')) {
     const prefix = content.slice(0, -2).trim();
     const words = prefix.split(/\s+/).filter(Boolean);
-    if (words.length === 0) return { kind: 'toolwide', raw: serializeRule({ kind: 'toolwide', raw: '' }) };
+    // `Bash(:*)` is almost certainly a typo, not a deliberate allow-everything.
+    // Silently promoting it to tool-wide turned an empty-looking rule into full
+    // shell access, so treat it as malformed (`Bash` remains the explicit form).
+    if (words.length === 0) return null;
     return { kind: 'prefix', words, raw: s };
   }
   const words = content.trim().split(/\s+/).filter(Boolean);
@@ -142,7 +145,9 @@ export function builtinDeny(seg: ParsedSegment): { denied: boolean; reason?: str
   if (seg.env.some((e) => DANGEROUS_ENV.test(e))) {
     return { denied: true, reason: 'sets a sensitive environment variable (possible code/PATH injection)' };
   }
-  const candidates = [seg.command, ...seg.args].flatMap(secretCandidates);
+  // Redirect targets count: `echo x > .env` writes the secret just as surely as
+  // reading it would leak it.
+  const candidates = [seg.command, ...seg.args, ...seg.redirectTargets].flatMap(secretCandidates);
   if (candidates.some((w) => SECRET_PATTERNS.some((re) => re.test(w)))) {
     return { denied: true, reason: 'references a sensitive/secret path' };
   }
@@ -162,18 +167,29 @@ const SUBCOMMAND_COMMANDS = new Set(['git', 'npm', 'pnpm', 'yarn', 'bun', 'docke
  * Only read-only commands get a wildcard prefix (`Bash(ls:*)`). A mutating command
  * gets the EXACT command (`Bash(rm important.txt)`), so approving one benign
  * invocation can never auto-allow a destructive sibling like `rm -rf /`.
+ *
+ * A wildcard is only safe when the command is read-only for every flag combination.
+ * `find`/`sort`/`tree` are read-only *as invoked* but turn destructive with a flag
+ * (`find -delete`, `find -exec rm`, `sort -o`), so approving `find . -name x` must
+ * not mint `Bash(find:*)` — those fall back to the exact form.
  */
 export function proposeRule(seg: ParsedSegment): string {
   const words = [seg.base, ...seg.args];
-  if (!isReadOnly(seg)) {
-    return serializeRule({ kind: 'exact', words, raw: '' });
-  }
+  const exact = serializeRule({ kind: 'exact', words, raw: '' });
+  if (!isReadOnly(seg)) return exact;
+
+  // Scoping to a read-only subcommand keeps the wildcard safe (`Bash(git log:*)`
+  // cannot become `git push`), so this stays available even for commands whose
+  // bare form is flag-dependent.
   if (SUBCOMMAND_COMMANDS.has(seg.base)) {
     const sub = seg.args.find((a) => !a.startsWith('-'));
     if (sub) {
       return serializeRule({ kind: 'prefix', words: [seg.base, sub], raw: '' });
     }
+    return exact;
   }
+
+  if (!isFlagIndependentReadOnly(seg.base)) return exact;
   return serializeRule({ kind: 'prefix', words: [seg.base], raw: '' });
 }
 
