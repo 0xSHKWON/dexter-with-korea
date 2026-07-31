@@ -26,8 +26,8 @@ export const PROVIDERS: ProviderMeta[] = [
     displayName: 'OpenAI',
     apiKeyEnvVar: 'OPENAI_API_KEY',
     requiresKey: true,
-    defaultModel: 'gpt-5.5',
-    suggestedModels: ['gpt-5.5', 'gpt-5.4'],
+    defaultModel: 'gpt-5.6-sol',
+    suggestedModels: ['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.5'],
   },
   {
     id: 'anthropic',
@@ -85,6 +85,15 @@ export const PROVIDERS: ProviderMeta[] = [
     defaultModel: 'ollama:llama3.1',
     suggestedModels: ['ollama:llama3.1', 'ollama:qwen2.5'],
     note: 'Local — no API key required. Prefix model ids with "ollama:"',
+  },
+  {
+    id: 'ollama-cloud',
+    displayName: 'Ollama Cloud',
+    apiKeyEnvVar: 'OLLAMA_CLOUD_API_KEY',
+    requiresKey: true,
+    defaultModel: 'ollama-cloud:gpt-oss:120b',
+    suggestedModels: ['ollama-cloud:gpt-oss:120b', 'ollama-cloud:qwen3-coder:480b'],
+    note: 'Hosted Ollama. Prefix model ids with "ollama-cloud:"',
   },
 ];
 

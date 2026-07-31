@@ -334,8 +334,17 @@ export function buildSystemPrompt(
   memoryFiles?: string[],
   memoryContext?: string | null,
   rulesContent?: string | null,
+  /**
+   * Names of the tools actually bound for this run. `Agent.create` filters the
+   * registry by channel and by whether an approval handler is wired, so listing
+   * the raw registry here would advertise tools the model cannot call — on the
+   * desktop that meant promising `write_file` and then failing every attempt.
+   */
+  boundToolNames?: ReadonlySet<string>,
 ): string {
-  const toolDescriptions = buildCompactToolDescriptions(model);
+  const toolDescriptions = buildCompactToolDescriptions(model, boundToolNames);
+  const canWriteFiles =
+    !boundToolNames || boundToolNames.has('write_file') || boundToolNames.has('edit_file');
   const profile = getChannelProfile(channel);
 
   const behaviorBullets = profile.behavior.map(b => `- ${b}`).join('\n');
@@ -387,7 +396,9 @@ ${rulesContent}
 ## Rule Management
 
 To manage research rules, the user can say "add a rule", "show my rules", "remove rule about X".
-Rules are stored in .dexter/RULES.md — use write_file or edit_file to modify them.
+${canWriteFiles
+  ? 'Rules are stored in .dexter/RULES.md — use write_file or edit_file to modify them.'
+  : 'Rules are stored in .dexter/RULES.md. You cannot edit files in this app — you can show the current rules and explain a change, but tell the user to apply it themselves.'}
 
 ${soulContent ? `## Identity
 

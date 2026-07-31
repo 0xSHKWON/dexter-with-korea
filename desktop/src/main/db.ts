@@ -60,6 +60,10 @@ export function initDb(): Database.Database {
 const MODEL_ID_UPGRADES: Record<string, string> = {
   'gemini-3': 'gemini-3-flash-preview',
   'grok-4-1': 'grok-4-0709',
+  // Retired with the upstream v1.0.3 catalog. gpt-5.5 is deliberately NOT here —
+  // the fork keeps it selectable (see PROVIDER_MODELS in src/utils/model.ts).
+  'gpt-5.4': 'gpt-5.6-sol',
+  'gpt-5.2': 'gpt-5.6-sol',
 };
 
 function migrateBadModelIds(database: Database.Database): void {

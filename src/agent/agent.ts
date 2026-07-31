@@ -15,18 +15,19 @@ import { compactContext, salvagePartialAnswer, MAX_CONSECUTIVE_COMPACTION_FAILUR
 import { microcompactMessages } from './microcompact.js';
 import { createRunContext, type RunContext } from './run-context.js';
 import { AgentToolExecutor } from './tool-executor.js';
+import { APPROVAL_GATED_TOOLS } from '../permissions/engine.js';
 import { MemoryManager } from '../memory/index.js';
 import { runMemoryFlush, shouldRunMemoryFlush } from '../memory/flush.js';
 import { resolveProvider } from '../providers.js';
 
 
-const DEFAULT_MODEL = 'gpt-5.5';
+const DEFAULT_MODEL = 'gpt-5.6-sol';
 const DEFAULT_MAX_ITERATIONS = 10;
 const MAX_OVERFLOW_RETRIES = 2;
 const OVERFLOW_KEEP_ROUNDS = 3;
 
 /** Tools that require an interactive user and are only bound on the CLI channel. */
-const CLI_ONLY_TOOLS = new Set<string>(['ask_user_question']);
+const CLI_ONLY_TOOLS = new Set<string>(['ask_user_question', 'bash']);
 
 /**
  * The core agent class that handles the agent loop and tool execution.
@@ -90,6 +91,13 @@ export class Agent {
     if (!isCli) {
       tools = tools.filter(t => !CLI_ONLY_TOOLS.has(t.name));
     }
+    // Channel alone is not enough: the desktop sidecar leaves `channel` unset (so it
+    // reads as CLI) but wires no approval handler, and the executor fails closed to
+    // 'deny'. Drop approval-gated tools whenever no handler is present so the model
+    // never sees a tool whose every call is auto-denied.
+    if (!config.requestToolApproval) {
+      tools = tools.filter(t => !APPROVAL_GATED_TOOLS.has(t.name));
+    }
     // The concurrency map is a name→bool lookup; extra entries are harmless since
     // toolMap only holds the (possibly filtered) tools above.
     const concurrencyMap = getToolConcurrencyMap(model);
@@ -121,6 +129,7 @@ export class Agent {
         memoryFiles,
         memoryContext,
         rulesContent,
+        new Set(tools.map(t => t.name)),
       );
     }
     return new Agent(config, tools, systemPrompt, concurrencyMap);
@@ -532,14 +541,14 @@ export class Agent {
   }
 
   private truncateMessages(messages: BaseMessage[], keepRounds: number): number {
-    let roundStartIndex = 0;
+    let roundStartIndex = -1;
     for (let i = 0; i < messages.length; i++) {
       if (messages[i] instanceof AIMessage) {
         roundStartIndex = i;
         break;
       }
     }
-    if (roundStartIndex === 0) return 0;
+    if (roundStartIndex === -1) return 0;
 
     const rounds: { start: number; end: number }[] = [];
     let i = roundStartIndex;

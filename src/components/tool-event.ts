@@ -63,12 +63,14 @@ function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-function approvalLabel(decision: ApprovalDecision): string {
+export function approvalLabel(decision: ApprovalDecision): string {
   switch (decision) {
     case 'allow-once':
       return 'Approved';
     case 'allow-session':
       return 'Approved (session)';
+    case 'allow-always':
+      return 'Approved (always)';
     case 'deny':
       return 'Denied';
   }

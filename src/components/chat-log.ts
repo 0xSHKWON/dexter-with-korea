@@ -1,9 +1,9 @@
 import { Container, Spacer, Text, type TUI } from '@mariozechner/pi-tui';
-import type { TokenUsage } from '../agent/types.js';
+import type { ApprovalDecision, TokenUsage } from '../agent/types.js';
 import type { QuestionAnswer } from '../tools/ask-user-question/types.js';
 import { theme } from '../theme.js';
 import { AnswerBoxComponent } from './answer-box.js';
-import { ToolEventComponent } from './tool-event.js';
+import { ToolEventComponent, approvalLabel } from './tool-event.js';
 import { SubagentGroupComponent } from './subagent-group.js';
 import { UserQueryComponent } from './user-query.js';
 
@@ -56,7 +56,7 @@ interface ToolDisplayComponent {
   setComplete(summary: string, duration: number): void;
   setError(error: string): void;
   setLimitWarning(warning?: string): void;
-  setApproval(decision: 'allow-once' | 'allow-session' | 'deny'): void;
+  setApproval(decision: ApprovalDecision): void;
   setDenied(path: string, tool: string): void;
   dispose?(): void;
 }
@@ -106,14 +106,11 @@ class BrowserSessionComponent extends Container implements ToolDisplayComponent 
     this.addChild(this.detail);
   }
 
-  setApproval(decision: 'allow-once' | 'allow-session' | 'deny'): void {
+  setApproval(decision: ApprovalDecision): void {
     this.clearDetail();
-    const label =
-      decision === 'allow-once'
-        ? 'Approved'
-        : decision === 'allow-session'
-          ? 'Approved (session)'
-          : 'Denied';
+    // Shared with ToolEventComponent so a new ApprovalDecision member can never
+    // fall through to a success-colored "Denied" here.
+    const label = approvalLabel(decision);
     const color = decision === 'deny' ? theme.warning : theme.primary;
     this.detail = new Text(`${theme.muted('⎿  ')}${color(label)}`, 0, 0);
     this.addChild(this.detail);

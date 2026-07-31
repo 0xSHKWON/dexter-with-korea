@@ -1,4 +1,5 @@
 import { Container, Spacer, Text, type TUI } from '@mariozechner/pi-tui';
+import type { ApprovalDecision } from '../agent/types.js';
 import { theme } from '../theme.js';
 import { subscribeSpinner, SPINNER_INTERVAL_MS } from '../utils/spinner.js';
 import { formatTokensCompact } from '../utils/format.js';
@@ -17,7 +18,7 @@ export interface SubagentLineHandle {
   setComplete(summary: string, duration: number): void;
   setError(error: string): void;
   setLimitWarning(warning?: string): void;
-  setApproval(decision: 'allow-once' | 'allow-session' | 'deny'): void;
+  setApproval(decision: ApprovalDecision): void;
   setDenied(path: string, tool: string): void;
   dispose?(): void;
 }
