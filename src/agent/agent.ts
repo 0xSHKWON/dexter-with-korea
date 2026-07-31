@@ -117,6 +117,10 @@ export class Agent {
     if (unwired.size > 0) {
       tools = tools.filter(t => !unwired.has(t.name));
     }
+    if (config.unsupportedTools?.length) {
+      const unsupported = new Set(config.unsupportedTools);
+      tools = tools.filter(t => !unsupported.has(t.name));
+    }
     // The concurrency map is a name→bool lookup; extra entries are harmless since
     // toolMap only holds the (possibly filtered) tools above.
     const concurrencyMap = getToolConcurrencyMap(model);

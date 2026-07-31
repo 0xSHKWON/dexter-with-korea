@@ -34,10 +34,17 @@ import type { SecretStatus } from '../shared/types';
 function statusFor(envVar: string): SecretStatus {
   const buf = getSecret(envVar);
   if (!buf) return { envVar, exists: false, last4: null, updatedAt: null };
+  // A stored row is not a usable key. safeStorage is bound to the OS keychain, so
+  // a re-signed build can leave rows that no longer decrypt — and sidecar.ts skips
+  // those silently when injecting env. Reporting `exists` from row presence alone
+  // showed every key green while every run failed with "API_KEY not found".
+  const last4 = previewLast4(buf);
+  // Empty is unusable too — it would be injected as an empty env var and 401.
+  if (!last4) return { envVar, exists: false, last4: null, updatedAt: null };
   return {
     envVar,
     exists: true,
-    last4: previewLast4(buf),
+    last4,
     updatedAt: getSecretUpdatedAt(envVar),
   };
 }

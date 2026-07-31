@@ -99,6 +99,24 @@ describe('approval-gated tool binding', () => {
     expect(toolNames(agent)).not.toContain('ask_user_question');
   });
 
+  // A host knows what it cannot execute. The desktop ships no Chromium and runs no
+  // cron scheduler, and binding those let the model promise work that never ran.
+  it('drops tools the host declares unsupported, and stops advertising them', async () => {
+    const unsupported = ['cron', 'heartbeat', 'browser'];
+    const agent = await Agent.create({ memoryEnabled: false, unsupportedTools: unsupported });
+    const names = toolNames(agent);
+    const prompt = (agent as unknown as { systemPrompt: string }).systemPrompt;
+
+    expect(unsupported.filter((t) => names.includes(t))).toEqual([]);
+    expect(unsupported.filter((t) => prompt.includes(`**${t}**`))).toEqual([]);
+    expect(names).toContain('get_market_data_kr');
+  });
+
+  it('leaves them bound for hosts that can run them', async () => {
+    const names = toolNames(await Agent.create({ memoryEnabled: false }));
+    expect(['cron', 'heartbeat', 'browser'].filter((t) => !names.includes(t))).toEqual([]);
+  });
+
   it('keeps bash off every non-CLI channel', async () => {
     const agent = await Agent.create({
       memoryEnabled: false,

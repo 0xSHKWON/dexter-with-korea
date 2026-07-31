@@ -77,6 +77,13 @@ export interface AgentConfig {
    */
   toolAllowlist?: string[];
   /**
+   * Tool names this host cannot actually execute, dropped at bind time. A host
+   * knows its own limits better than any channel string does: the desktop ships
+   * no Playwright Chromium and runs no cron scheduler, so binding those tools
+   * only lets the model promise things that never happen.
+   */
+  unsupportedTools?: string[];
+  /**
    * Use this exact system prompt instead of building one. When set, the soul,
    * rules, and memory context are skipped entirely. Used by delegated workers
    * that run with a self-contained worker prompt.

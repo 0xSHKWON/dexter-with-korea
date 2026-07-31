@@ -63,6 +63,13 @@ async function handleRun(req: Extract<SidecarRequest, { type: 'run' }>): Promise
       // this the agent fell back to the CLI profile and was told to keep responses
       // short, avoid markdown headers, and use tickers instead of company names.
       channel: 'desktop',
+      // Nothing in the app can run these, and binding them let the model promise
+      // work that never happened ("매일 아침 정리해드릴게요" with no scheduler):
+      //   cron/heartbeat — the runner lives in the gateway (gateway.ts), which the
+      //     desktop never starts, and cron results are delivered over WhatsApp.
+      //   browser — prepare-core.mjs deliberately does not stage Playwright's
+      //     Chromium, so every launch fails.
+      unsupportedTools: ['cron', 'heartbeat', 'browser'],
       // Persistent memory off for the first cut — keeps the sidecar dependency-light.
       memoryEnabled: false,
       // Let ask_user_question pause the turn for a desktop-rendered choice.

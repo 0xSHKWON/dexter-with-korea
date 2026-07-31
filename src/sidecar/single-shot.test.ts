@@ -33,6 +33,15 @@ describe('sidecar runs are single-shot', () => {
   it('declares the desktop channel', () => {
     expect(code).toContain("channel: 'desktop'");
   });
+
+  // The app runs no cron scheduler and ships no Chromium; binding these let the
+  // model schedule work that never ran.
+  it('declares the tools the app cannot execute', () => {
+    const declared = code.match(/unsupportedTools:\s*\[([^\]]*)\]/)?.[1] ?? '';
+    for (const tool of ['cron', 'heartbeat', 'browser']) {
+      expect({ tool, declared: declared.includes(`'${tool}'`) }).toEqual({ tool, declared: true });
+    }
+  });
 });
 
 describe('the CLI keeps multi-turn context', () => {
