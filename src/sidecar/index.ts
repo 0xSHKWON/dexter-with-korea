@@ -14,7 +14,6 @@ import { config } from 'dotenv';
 import { z } from 'zod';
 import { Agent } from '../agent/agent.js';
 import { callLlm } from '../model/llm.js';
-import { InMemoryChatHistory } from '../utils/in-memory-chat-history.js';
 import type { DoneEvent } from '../agent/types.js';
 import type { SidecarRequest, SidecarMessage, ConvertResult } from './protocol.js';
 import { createUserInputBridge } from './user-input-bridge.js';
@@ -25,8 +24,15 @@ console.info = console.log;
 
 config({ quiet: true });
 
-// Conversation history is in-memory only (volatile) — fine for the desktop use case.
-const history = new InMemoryChatHistory();
+// The desktop is single-shot by design: one History row is one question and one
+// answer, and asking something else means opening a new conversation. So a run
+// carries no prior turns — deliberately unlike the CLI, which threads one
+// InMemoryChatHistory through a whole session.
+//
+// Carrying them was actively harmful here: the last 3 answers were re-injected in
+// full on every iteration of the agent loop, so consecutive unrelated questions
+// (SK하이닉스 DCF → 삼성전자 순매수) polluted each other, and every answer paid for
+// an extra summarization LLM call whose result is only read from turn 4 on.
 const activeRuns = new Map<string, AbortController>();
 
 function send(msg: SidecarMessage): void {
@@ -45,8 +51,6 @@ const userInput = createUserInputBridge({
 async function handleRun(req: Extract<SidecarRequest, { type: 'run' }>): Promise<void> {
   const controller = new AbortController();
   activeRuns.set(req.id, controller);
-  history.setModel(req.model);
-  history.saveUserQuery(req.query);
 
   let answer = '';
   try {
@@ -61,16 +65,13 @@ async function handleRun(req: Extract<SidecarRequest, { type: 'run' }>): Promise
       requestUserInput: userInput.requestUserInput(req.id),
     });
 
-    for await (const event of agent.run(req.query, history)) {
+    for await (const event of agent.run(req.query)) {
       send({ type: 'event', id: req.id, event });
       if (event.type === 'done') {
         answer = (event as DoneEvent).answer;
       }
     }
 
-    if (answer) {
-      await history.saveAnswer(answer).catch(() => {});
-    }
     send({ type: 'done', id: req.id, answer });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -151,7 +152,8 @@ rl.on('line', (line) => {
   } else if (req.type === 'convert') {
     void handleConvert(req);
   } else if (req.type === 'reset') {
-    history.clear();
+    // Runs carry no history, so switching conversations only has to release any
+    // question still waiting on the previous one.
     userInput.abandonAll();
   }
 });
