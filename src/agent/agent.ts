@@ -15,6 +15,7 @@ import { compactContext, salvagePartialAnswer, MAX_CONSECUTIVE_COMPACTION_FAILUR
 import { microcompactMessages } from './microcompact.js';
 import { createRunContext, type RunContext } from './run-context.js';
 import { AgentToolExecutor } from './tool-executor.js';
+import { APPROVAL_GATED_TOOLS } from '../permissions/engine.js';
 import { MemoryManager } from '../memory/index.js';
 import { runMemoryFlush, shouldRunMemoryFlush } from '../memory/flush.js';
 import { resolveProvider } from '../providers.js';
@@ -89,6 +90,13 @@ export class Agent {
     const isCli = !config.channel || config.channel === 'cli';
     if (!isCli) {
       tools = tools.filter(t => !CLI_ONLY_TOOLS.has(t.name));
+    }
+    // Channel alone is not enough: the desktop sidecar leaves `channel` unset (so it
+    // reads as CLI) but wires no approval handler, and the executor fails closed to
+    // 'deny'. Drop approval-gated tools whenever no handler is present so the model
+    // never sees a tool whose every call is auto-denied.
+    if (!config.requestToolApproval) {
+      tools = tools.filter(t => !APPROVAL_GATED_TOOLS.has(t.name));
     }
     // The concurrency map is a name→bool lookup; extra entries are harmless since
     // toolMap only holds the (possibly filtered) tools above.

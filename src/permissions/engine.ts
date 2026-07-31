@@ -24,6 +24,21 @@ import { builtinDeny, loadRuleSet, matchRuleSet, proposeRule, serializeRule, typ
 const LEGACY_APPROVAL_TOOLS = new Set<string>(['write_file', 'edit_file']);
 
 /**
+ * Tools whose calls can reach an approval prompt. When the caller wires no
+ * `requestToolApproval` handler the executor fails closed to 'deny', so Agent.create
+ * drops these instead of binding them (see agent.ts) — otherwise the model burns
+ * iterations on calls that can never run.
+ *
+ * `bash` is included even though allow-rules can resolve it without a prompt: a
+ * channel with no approval UI also has no way to add those rules, so anything not
+ * already allow-listed would silently deny.
+ */
+export const APPROVAL_GATED_TOOLS: ReadonlySet<string> = new Set<string>([
+  ...LEGACY_APPROVAL_TOOLS,
+  'bash',
+]);
+
+/**
  * Shared session-approval key for the file-writing tools, preserving the legacy
  * behavior where approving one of write_file/edit_file covers the other.
  */
