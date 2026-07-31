@@ -89,6 +89,8 @@ export interface DexterApi {
   work: {
     /** Convert pasted ledger data into DART standard accounts. Result arrives via chat.onEvent. */
     convert(rawData: string): Promise<{ runId: string }>;
+    /** Abort an in-flight conversion. */
+    cancel(runId: string): Promise<void>;
     /** Export a converted result to a styled .xlsx via a save dialog. */
     export(result: ConvertResult): Promise<{ saved: boolean; path?: string }>;
     /** Archive a conversion to the local DB. */

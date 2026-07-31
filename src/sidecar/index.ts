@@ -113,6 +113,11 @@ const CONVERT_SYSTEM_PROMPT =
   '당신은 한국 회계·DART 전자공시 전문가입니다. 회사 장부 계정을 DART 표준 재무제표 계정과목(택사노미)에 정확히 매핑하고, 불확실한 항목은 note로 표시합니다. 금액을 임의로 만들지 말고 입력에 있는 값만 사용하세요.';
 
 async function handleConvert(req: Extract<SidecarRequest, { type: 'convert' }>): Promise<void> {
+  // Register like a run does: without this a `cancel` for a conversion matched
+  // nothing, so a stalled structured-output call left the UI on "변환 중…" with
+  // force-quitting the app as the only way out.
+  const controller = new AbortController();
+  activeRuns.set(req.id, controller);
   try {
     const prompt = `다음은 회사의 시산표/장부 데이터입니다(엑셀에서 복사). 각 계정을 한국 DART 전자공시 표준 재무제표 계정과목으로 매핑하세요.
 
@@ -131,12 +136,15 @@ ${req.rawData}`;
       model: req.model,
       systemPrompt: CONVERT_SYSTEM_PROMPT,
       outputSchema: CONVERT_SCHEMA,
+      signal: controller.signal,
     });
 
     send({ type: 'convert_result', id: req.id, result: response as unknown as ConvertResult });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     send({ type: 'error', id: req.id, message });
+  } finally {
+    activeRuns.delete(req.id);
   }
 }
 

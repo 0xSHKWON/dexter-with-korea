@@ -144,6 +144,9 @@ export function registerIpc(): void {
     return { runId };
   });
 
+  ipcMain.handle('work:cancel', (_e, runId: string) => {
+    sidecar.send({ type: 'cancel', id: runId });
+  });
   ipcMain.handle('work:save', (_e, raw: string, result: ConvertResult): ConversionRecord => {
     const id = randomUUID();
     const createdAt = Date.now();

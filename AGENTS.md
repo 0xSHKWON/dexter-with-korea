@@ -84,7 +84,7 @@
 - LLM keys: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `XAI_API_KEY`, `OPENROUTER_API_KEY`, `MOONSHOT_API_KEY`, `DEEPSEEK_API_KEY`
 - Ollama: `OLLAMA_BASE_URL` (default `http://127.0.0.1:11434`)
 - US finance: `FINANCIAL_DATASETS_API_KEY`
-- Korean data: `DART_API_KEY` (재무·공시), `KRX_ID`+`KRX_PW` or `KRX_COOKIE` (공매도), `DATA_GO_KR_SERVICE_KEY` (국민연금). Naver tools (외국인·현재가) need no key.
+- Korean data: `DART_API_KEY` (재무·공시), `KRX_ID`+`KRX_PW` (공매도), `DATA_GO_KR_SERVICE_KEY` (국민연금). Naver tools (외국인·현재가) need no key.
 - Search: `EXASEARCH_API_KEY`, `PERPLEXITY_API_KEY`, `TAVILY_API_KEY`, `LANGSEARCH_API_KEY` (fallback chain in that order)
 - Tracing: `LANGSMITH_API_KEY`, `LANGSMITH_ENDPOINT`, `LANGSMITH_PROJECT`, `LANGSMITH_TRACING`
 - Never commit `.env` files or real API keys.

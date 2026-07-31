@@ -89,9 +89,9 @@ const SECTIONS: Section[] = [
     title: '한국 주식 데이터',
     intro: '한국 종목 리서치를 풍부하게 하려면 권장합니다. DART만 있어도 재무·공시 분석이 가능합니다.',
     items: [
-      { label: 'DART 전자공시', envVar: 'DART_API_KEY', required: true, url: 'https://opendart.fss.or.kr', urlLabel: 'opendart.fss.or.kr', desc: '인증키 신청·관리 → 오픈API 이용신청 (무료, 일 20,000건). 재무제표·공시·지배구조 등 5개 도구가 켜집니다.' },
+      { label: 'DART 전자공시', envVar: 'DART_API_KEY', required: true, url: 'https://opendart.fss.or.kr', urlLabel: 'opendart.fss.or.kr', desc: '인증키 신청·관리 → 오픈API 이용신청 (무료, 일 20,000건). 재무제표·공시·지배구조 등 7개 도구가 켜집니다.' },
       { label: 'KRX 공매도 잔고 (ID)', envVar: 'KRX_ID', url: 'https://data.krx.co.kr', urlLabel: 'data.krx.co.kr', desc: 'KRX 데이터마켓플레이스 회원가입·로그인 후, 그 계정 아이디를 입력.' },
-      { label: 'KRX 공매도 잔고 (비밀번호)', envVar: 'KRX_PW', url: 'https://data.krx.co.kr', urlLabel: 'data.krx.co.kr', desc: '위 계정의 비밀번호. 소셜/네이버 로그인이라 비밀번호가 없으면 대신 KRX_COOKIE를 씁니다(추후 지원).' },
+      { label: 'KRX 공매도 잔고 (비밀번호)', envVar: 'KRX_PW', url: 'https://data.krx.co.kr', urlLabel: 'data.krx.co.kr', desc: '위 계정의 비밀번호. 소셜·네이버 로그인 계정은 비밀번호가 없으니 data.krx.co.kr에서 일반 회원으로 가입해 주세요.' },
       { label: '국민연금 보유', envVar: 'DATA_GO_KR_SERVICE_KEY', url: 'https://www.data.go.kr', urlLabel: 'data.go.kr', desc: '공공데이터포털 회원가입 → 데이터 3070507 활용신청 → Decoded(디코딩) 서비스키를 입력.' },
       { label: 'ECOS 한국은행', envVar: 'ECOS_API_KEY', url: 'https://ecos.bok.or.kr', urlLabel: 'ecos.bok.or.kr', desc: 'OpenAPI 인증키 신청 (무료). 국고채 수익률(DCF 무위험금리)·원/달러 환율·기준금리를 공식 출처로 가져와 web_search 추론을 대체합니다.' },
     ],
