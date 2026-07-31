@@ -307,6 +307,7 @@ export default function App(): JSX.Element {
             onOpenSettings={() => setView('settings')}
             seed={chatSeed}
             onSeedConsumed={() => setChatSeed(null)}
+            onNewChat={newChat}
           />
         </div>
         <div className={`view ${view === 'work' ? '' : 'hidden'}`}>
