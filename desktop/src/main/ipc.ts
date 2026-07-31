@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { ipcMain, dialog, shell, BrowserWindow } from 'electron';
 import ExcelJS from 'exceljs';
 import { checkForUpdate } from './updater';
-import { PROVIDERS } from './providers';
+import { PROVIDERS, getProviderById } from './providers';
 import { DATA_SOURCES } from './data-sources';
 import type {
   ConvertResult,
@@ -42,6 +42,23 @@ function statusFor(envVar: string): SecretStatus {
   };
 }
 
+const DEFAULT_PROVIDER_ID = 'openai';
+
+/**
+ * Provider + model for a sidecar run. The model falls back to the provider's
+ * catalog default rather than a hardcoded id: hardcoding it here meant retiring a
+ * model in providers.ts left the runtime silently pointing at the old one, so the
+ * Settings screen and the model actually used could disagree on a fresh install.
+ */
+function resolveRun(): { provider: string; model: string } {
+  const provider = getSetting<string>('provider', DEFAULT_PROVIDER_ID);
+  const fallback =
+    getProviderById(provider)?.defaultModel ??
+    getProviderById(DEFAULT_PROVIDER_ID)?.defaultModel ??
+    '';
+  return { provider, model: getSetting<string>('modelId', fallback) };
+}
+
 export function registerIpc(): void {
   ipcMain.handle('providers:list', () => PROVIDERS);
   ipcMain.handle('datasources:list', () => DATA_SOURCES);
@@ -76,8 +93,7 @@ export function registerIpc(): void {
 
   // ── chat (sidecar) ────────────────────────────────────────────────────────
   ipcMain.handle('chat:send', (_e, query: string) => {
-    const provider = getSetting<string>('provider', 'openai');
-    const model = getSetting<string>('modelId', 'gpt-5.5');
+    const { provider, model } = resolveRun();
     const runId = randomUUID();
     sidecar.send({ type: 'run', id: runId, query, model, modelProvider: provider });
     return { runId };
@@ -115,8 +131,7 @@ export function registerIpc(): void {
 
   // ── work (ledger → DART accounts) ─────────────────────────────────────────
   ipcMain.handle('work:convert', (_e, rawData: string) => {
-    const provider = getSetting<string>('provider', 'openai');
-    const model = getSetting<string>('modelId', 'gpt-5.5');
+    const { provider, model } = resolveRun();
     const runId = randomUUID();
     sidecar.send({ type: 'convert', id: runId, rawData, model, modelProvider: provider });
     return { runId };

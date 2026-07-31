@@ -6,6 +6,8 @@
  * failing check.
  */
 import { describe, expect, it } from 'bun:test';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
 import { PROVIDERS as DESKTOP_PROVIDERS } from './providers.js';
 import { PROVIDERS as CORE_PROVIDERS } from '../../../src/providers.js';
 import { getModelIdsForProvider, getDefaultModelForProvider } from '../../../src/utils/model.js';
@@ -50,5 +52,14 @@ describe('desktop provider catalog stays in sync with the core', () => {
       const core = CORE_PROVIDERS.find((c) => c.id === p.id);
       expect({ id: p.id, env: p.apiKeyEnvVar }).toEqual({ id: p.id, env: core?.apiKeyEnvVar });
     }
+  });
+
+  // ipc.ts used to hardcode `getSetting('modelId', 'gpt-5.5')`. Resyncing
+  // providers.ts alone then left Settings showing one default while runs used
+  // another. The fallback must be derived from the catalog, not written out again.
+  it('ipc.ts does not hardcode a model id', () => {
+    const ipcSource = readFileSync(fileURLToPath(new URL('./ipc.ts', import.meta.url)), 'utf-8');
+    const hardcoded = ipcSource.match(/['"](?:gpt-|claude-|gemini-|grok-|kimi-|deepseek-)[\w.:-]+['"]/g);
+    expect(hardcoded ?? []).toEqual([]);
   });
 });
