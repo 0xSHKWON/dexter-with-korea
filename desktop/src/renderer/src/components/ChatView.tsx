@@ -1,6 +1,7 @@
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { normalizeKoreanBold } from '../markdown';
 import ThreeLogo from './ThreeLogo';
 import QuestionPrompt from './QuestionPrompt';
 import type {
@@ -153,7 +154,7 @@ function StepsBlock({ steps, live }: { steps: ChatStep[]; live: boolean }): JSX.
           {steps.map((s, i) =>
             s.kind === 'text' ? (
               <div key={i} className="reasoning-step reasoning-text">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{s.text ?? ''}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{normalizeKoreanBold(s.text ?? '')}</ReactMarkdown>
               </div>
             ) : (
               <div key={i} className={`reasoning-step reasoning-tool state-${s.state ?? 'running'}`}>
@@ -461,7 +462,7 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
                   <>
                     {m.steps && m.steps.length > 0 && <StepsBlock steps={m.steps} live={!!m.pending} />}
                     {m.content ? (
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{normalizeKoreanBold(m.content)}</ReactMarkdown>
                     ) : (
                       m.pending &&
                       (!m.steps || m.steps.length === 0) && <span className="typing">{m.status ?? '●●●'}</span>

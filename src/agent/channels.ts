@@ -89,10 +89,6 @@ const DESKTOP_PROFILE: ChannelProfile = {
   responseFormat: [
     'Lead with the answer or key finding, then support it with specific data points',
     'Use markdown headers to structure a long answer, and **bold** for the numbers that matter',
-    // CommonMark cannot close emphasis when the span ends in punctuation and a
-    // letter follows immediately, so `**71.5%**와` renders as literal asterisks —
-    // and in Korean a particle almost always follows a percentage.
-    'When a Korean particle follows a bolded value that ends in % or ), put the particle inside the bold (**71.5%와**, not **71.5%**와) or leave a space — otherwise the asterisks show up in the answer',
     'Write the answer so it stands on its own - the reader will not be asking a follow-up in this thread',
     'For casual or narrow questions, stay brief - structure should match the question, not decorate it',
     'Don\'t narrate your actions or ask leading questions about what the user wants',

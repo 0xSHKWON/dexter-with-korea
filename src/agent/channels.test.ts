@@ -28,16 +28,6 @@ describe('desktop channel profile', () => {
     expect(getChannelProfile('whatsapp').tables).toBeNull();
   });
 
-  // Observed in a real answer: `**영업이익률 71.5%**와` rendered with literal
-  // asterisks. CommonMark will not close emphasis when the span ends in
-  // punctuation and a letter follows, and in Korean a particle almost always
-  // follows a percentage — so the profile has to say how to write it.
-  it('tells the model how to bold a percentage followed by a Korean particle', () => {
-    const rules = desktop.responseFormat.join('\n');
-    expect(rules).toContain('**71.5%와**');
-    expect(rules).toContain('not **71.5%**와');
-  });
-
   it('keeps the correctness rules that are not about formatting', () => {
     const behavior = desktop.behavior.join('\n');
     expect(behavior).toContain('as-of date/period');
