@@ -943,6 +943,18 @@ code {
   border-bottom: 1px solid var(--border);
 }
 
+.page-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.page-head-actions .field-hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .page-head h1 {
   font-size: 20px;
   font-weight: 700;

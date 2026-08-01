@@ -18,6 +18,7 @@ const api: DexterApi = {
     set: (envVar, value) => ipcRenderer.invoke('secrets:set', envVar, value),
     remove: (envVar) => ipcRenderer.invoke('secrets:remove', envVar),
     encryptionAvailable: () => ipcRenderer.invoke('secrets:encryptionAvailable'),
+    exportEnv: () => ipcRenderer.invoke('secrets:exportEnv'),
   },
   chat: {
     send: (query) => ipcRenderer.invoke('chat:send', query),

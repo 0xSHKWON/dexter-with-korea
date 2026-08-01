@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { ipcMain, dialog, shell, BrowserWindow } from 'electron';
+import { ipcMain, clipboard, dialog, shell, BrowserWindow } from 'electron';
 import ExcelJS from 'exceljs';
 import { checkForUpdate } from './updater';
 import { PROVIDERS, getProviderById } from './providers';
@@ -27,9 +27,9 @@ import {
   listChatRows,
   deleteChat,
 } from './db';
-import { encryptSecret, previewLast4, isEncryptionAvailable } from './secrets';
+import { encryptSecret, decryptSecret, previewLast4, isEncryptionAvailable } from './secrets';
 import { sidecar } from './sidecar';
-import type { SecretStatus } from '../shared/types';
+import type { SecretStatus, SecretExportResult } from '../shared/types';
 
 function statusFor(envVar: string): SecretStatus {
   const buf = getSecret(envVar);
@@ -97,6 +97,43 @@ export function registerIpc(): void {
     sidecar.stop();
   });
   ipcMain.handle('secrets:encryptionAvailable', () => isEncryptionAvailable());
+
+  // Copy every stored key as .env lines, for pasting into the CLI's .env.
+  //
+  // Decryption and formatting stay in the main process and the text goes straight
+  // to the clipboard: plaintext keys must never cross to the renderer, which today
+  // only ever sees `exists` + last-4 (see statusFor). The return value is counts
+  // and env-var names only.
+  ipcMain.handle('secrets:exportEnv', (): SecretExportResult => {
+    const envVars = [
+      ...PROVIDERS.filter((p) => p.apiKeyEnvVar).map((p) => p.apiKeyEnvVar as string),
+      ...DATA_SOURCES.map((d) => d.envVar),
+    ];
+
+    const lines: string[] = [];
+    const exported: string[] = [];
+    const undecryptable: string[] = [];
+
+    for (const envVar of envVars) {
+      const buf = getSecret(envVar);
+      if (!buf) continue;
+      let value: string;
+      try {
+        value = decryptSecret(buf);
+      } catch {
+        undecryptable.push(envVar);
+        continue;
+      }
+      if (!value) continue;
+      lines.push(`${envVar}=${value}`);
+      exported.push(envVar);
+    }
+
+    if (lines.length === 0) return { exported: [], undecryptable, copied: false };
+
+    clipboard.writeText(`${lines.join('\n')}\n`);
+    return { exported, undecryptable, copied: true };
+  });
 
   // ── chat (sidecar) ────────────────────────────────────────────────────────
   ipcMain.handle('chat:send', (_e, query: string) => {

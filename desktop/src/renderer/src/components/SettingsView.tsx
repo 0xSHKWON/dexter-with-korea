@@ -33,6 +33,25 @@ export default function SettingsView({ onKeysChanged }: { onKeysChanged?: () => 
     setStatuses(Object.fromEntries(list.map((s) => [s.envVar, s])));
   }
 
+  async function exportEnv(): Promise<void> {
+    // The main process decrypts and writes to the clipboard itself — key values
+    // never come back here (see the secrets:exportEnv handler).
+    try {
+      const r = await window.dexter.secrets.exportEnv();
+      if (!r.copied) {
+        flash('내보낼 키가 없습니다.');
+        return;
+      }
+      flash(
+        r.undecryptable.length > 0
+          ? `${r.exported.length}개를 복사했습니다. ${r.undecryptable.length}개는 읽을 수 없어 제외됐습니다 — 다시 입력해 주세요.`
+          : `${r.exported.length}개 키를 .env 형식으로 복사했습니다.`,
+      );
+    } catch (e) {
+      flash(`복사 실패: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
   useEffect(() => {
     (async () => {
       const [provs, sources, setts, encOk] = await Promise.all([
@@ -146,6 +165,12 @@ export default function SettingsView({ onKeysChanged }: { onKeysChanged?: () => 
         <p className="sub">
           키는 이 컴퓨터에 암호화되어 저장됩니다. 발급 방법은 <b>도움말</b>을 참고하세요.
         </p>
+        <div className="page-head-actions">
+          <button className="btn" onClick={() => void exportEnv()}>
+            .env로 키 복사
+          </button>
+          <span className="field-hint">터미널(CLI)에서 쓰려면 복사해 .env에 붙여넣으세요.</span>
+        </div>
       </header>
 
       {!encAvailable && (

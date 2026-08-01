@@ -39,7 +39,11 @@ const COMMANDS = {
 
     const args = ['--no-sandbox'];
     if (process.env.DEXTER_REAL_PROFILE !== '1') {
-      userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dexter-driver-'));
+      // DEXTER_USER_DATA_DIR points at a profile you prepared yourself — e.g. a
+      // copy of the real dexter-desktop.db with the chat rows deleted, so a run
+      // can use the stored API keys without writing into the real history. It is
+      // yours to clean up; a mkdtemp profile is removed on quit.
+      userDataDir = process.env.DEXTER_USER_DATA_DIR ?? fs.mkdtempSync(path.join(os.tmpdir(), 'dexter-driver-'));
       args.push(`--user-data-dir=${userDataDir}`);
     }
     args.push(APP_DIR);
@@ -185,7 +189,10 @@ const COMMANDS = {
 
   async quit() {
     if (app) await app.close().catch(() => {});
-    if (userDataDir) fs.rmSync(userDataDir, { recursive: true, force: true });
+    // Only remove a profile this driver created — never a caller-supplied one.
+    if (userDataDir && !process.env.DEXTER_USER_DATA_DIR) {
+      fs.rmSync(userDataDir, { recursive: true, force: true });
+    }
     app = null;
     page = null;
     userDataDir = null;

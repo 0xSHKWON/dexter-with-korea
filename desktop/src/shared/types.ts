@@ -29,6 +29,15 @@ export interface SecretStatus {
   updatedAt: number | null;
 }
 
+/** Outcome of an .env export. Deliberately carries no key values. */
+export interface SecretExportResult {
+  /** Env var names written to the clipboard. */
+  exported: string[];
+  /** Stored but undecryptable — the user must re-enter these. */
+  undecryptable: string[];
+  copied: boolean;
+}
+
 export interface AppSettings {
   provider?: string;
   modelId?: string;
@@ -72,6 +81,8 @@ export interface DexterApi {
     set(envVar: string, value: string): Promise<SecretStatus>;
     remove(envVar: string): Promise<void>;
     encryptionAvailable(): Promise<boolean>;
+    /** Copy every stored key to the clipboard as .env lines. */
+    exportEnv(): Promise<SecretExportResult>;
   };
   chat: {
     send(query: string): Promise<{ runId: string }>;
