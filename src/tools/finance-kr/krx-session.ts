@@ -44,28 +44,6 @@ function getCredentials(): { id: string; pw: string } | null {
   return { id, pw };
 }
 
-/**
- * Manual session-cookie override (KRX_COOKIE) for accounts that log in via a
- * social provider (Naver/Kakao) and thus have no native ID/PW to POST. Paste
- * the `Cookie` header from a logged-in browser session on data.krx.co.kr.
- * Cannot auto-refresh — the user re-pastes when it expires.
- */
-function getCookieOverride(): string | null {
-  const cookie = process.env.KRX_COOKIE ?? '';
-  return cookie && !cookie.startsWith('your-') ? cookie : null;
-}
-
-export function sessionFromCookie(cookie: string): KrxSession {
-  const cookies = new Map<string, string>();
-  for (const segment of cookie.split(';')) {
-    const part = segment.trim();
-    const eq = part.indexOf('=');
-    if (eq <= 0) continue;
-    cookies.set(part.slice(0, eq).trim(), part.slice(eq + 1).trim());
-  }
-  return { cookies, loginAt: Date.now() };
-}
-
 /** Merge a response's Set-Cookie headers into the jar (name=value only). */
 function absorbCookies(jar: Map<string, string>, response: Response): void {
   // Bun/undici expose getSetCookie(); fall back to the single-header form.
@@ -164,16 +142,6 @@ async function login(): Promise<KrxSession | null> {
  * surface this as a graceful tool error). Concurrent calls share one login.
  */
 export async function getKrxSession(options?: { forceRefresh?: boolean }): Promise<KrxSession | null> {
-  // A manually-supplied cookie takes precedence (social-login accounts). It
-  // can't be refreshed server-side, so we just (re)wrap it as-is.
-  const cookieOverride = getCookieOverride();
-  if (cookieOverride) {
-    if (!memorySession || options?.forceRefresh) {
-      memorySession = sessionFromCookie(cookieOverride);
-    }
-    return memorySession;
-  }
-
   const now = Date.now();
   if (
     !options?.forceRefresh &&

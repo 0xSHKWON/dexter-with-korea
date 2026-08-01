@@ -14,7 +14,6 @@ import { config } from 'dotenv';
 import { z } from 'zod';
 import { Agent } from '../agent/agent.js';
 import { callLlm } from '../model/llm.js';
-import { InMemoryChatHistory } from '../utils/in-memory-chat-history.js';
 import type { DoneEvent } from '../agent/types.js';
 import type { SidecarRequest, SidecarMessage, ConvertResult } from './protocol.js';
 import { createUserInputBridge } from './user-input-bridge.js';
@@ -25,8 +24,15 @@ console.info = console.log;
 
 config({ quiet: true });
 
-// Conversation history is in-memory only (volatile) — fine for the desktop use case.
-const history = new InMemoryChatHistory();
+// The desktop is single-shot by design: one History row is one question and one
+// answer, and asking something else means opening a new conversation. So a run
+// carries no prior turns — deliberately unlike the CLI, which threads one
+// InMemoryChatHistory through a whole session.
+//
+// Carrying them was actively harmful here: the last 3 answers were re-injected in
+// full on every iteration of the agent loop, so consecutive unrelated questions
+// (SK하이닉스 DCF → 삼성전자 순매수) polluted each other, and every answer paid for
+// an extra summarization LLM call whose result is only read from turn 4 on.
 const activeRuns = new Map<string, AbortController>();
 
 function send(msg: SidecarMessage): void {
@@ -45,8 +51,6 @@ const userInput = createUserInputBridge({
 async function handleRun(req: Extract<SidecarRequest, { type: 'run' }>): Promise<void> {
   const controller = new AbortController();
   activeRuns.set(req.id, controller);
-  history.setModel(req.model);
-  history.saveUserQuery(req.query);
 
   let answer = '';
   try {
@@ -55,22 +59,30 @@ async function handleRun(req: Extract<SidecarRequest, { type: 'run' }>): Promise
       modelProvider: req.modelProvider,
       maxIterations: req.maxIterations,
       signal: controller.signal,
+      // Answers render as markdown in an app window, not on a terminal. Without
+      // this the agent fell back to the CLI profile and was told to keep responses
+      // short, avoid markdown headers, and use tickers instead of company names.
+      channel: 'desktop',
+      // Nothing in the app can run these, and binding them let the model promise
+      // work that never happened ("매일 아침 정리해드릴게요" with no scheduler):
+      //   cron/heartbeat — the runner lives in the gateway (gateway.ts), which the
+      //     desktop never starts, and cron results are delivered over WhatsApp.
+      //   browser — prepare-core.mjs deliberately does not stage Playwright's
+      //     Chromium, so every launch fails.
+      unsupportedTools: ['cron', 'heartbeat', 'browser'],
       // Persistent memory off for the first cut — keeps the sidecar dependency-light.
       memoryEnabled: false,
       // Let ask_user_question pause the turn for a desktop-rendered choice.
       requestUserInput: userInput.requestUserInput(req.id),
     });
 
-    for await (const event of agent.run(req.query, history)) {
+    for await (const event of agent.run(req.query)) {
       send({ type: 'event', id: req.id, event });
       if (event.type === 'done') {
         answer = (event as DoneEvent).answer;
       }
     }
 
-    if (answer) {
-      await history.saveAnswer(answer).catch(() => {});
-    }
     send({ type: 'done', id: req.id, answer });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -101,6 +113,11 @@ const CONVERT_SYSTEM_PROMPT =
   '당신은 한국 회계·DART 전자공시 전문가입니다. 회사 장부 계정을 DART 표준 재무제표 계정과목(택사노미)에 정확히 매핑하고, 불확실한 항목은 note로 표시합니다. 금액을 임의로 만들지 말고 입력에 있는 값만 사용하세요.';
 
 async function handleConvert(req: Extract<SidecarRequest, { type: 'convert' }>): Promise<void> {
+  // Register like a run does: without this a `cancel` for a conversion matched
+  // nothing, so a stalled structured-output call left the UI on "변환 중…" with
+  // force-quitting the app as the only way out.
+  const controller = new AbortController();
+  activeRuns.set(req.id, controller);
   try {
     const prompt = `다음은 회사의 시산표/장부 데이터입니다(엑셀에서 복사). 각 계정을 한국 DART 전자공시 표준 재무제표 계정과목으로 매핑하세요.
 
@@ -119,12 +136,15 @@ ${req.rawData}`;
       model: req.model,
       systemPrompt: CONVERT_SYSTEM_PROMPT,
       outputSchema: CONVERT_SCHEMA,
+      signal: controller.signal,
     });
 
     send({ type: 'convert_result', id: req.id, result: response as unknown as ConvertResult });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     send({ type: 'error', id: req.id, message });
+  } finally {
+    activeRuns.delete(req.id);
   }
 }
 
@@ -151,7 +171,8 @@ rl.on('line', (line) => {
   } else if (req.type === 'convert') {
     void handleConvert(req);
   } else if (req.type === 'reset') {
-    history.clear();
+    // Runs carry no history, so switching conversations only has to release any
+    // question still waiting on the previous one.
     userInput.abandonAll();
   }
 });

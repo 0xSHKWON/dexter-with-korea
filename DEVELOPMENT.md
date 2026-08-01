@@ -53,7 +53,7 @@
 | `get_foreign_ownership_kr` | 외국인 지분율 + 외국인/기관/개인 순매수 (Naver) | **키 불필요** |
 | `get_beta_kr` | 실측 β — 주가·지수 수익률 회귀(원시+Blume 조정, R²·표본 수·품질 플래그 포함) (Naver 시세) | **키 불필요** |
 | `get_macro_rate_kr` | 국고채 수익률(DCF 무위험금리)·원/달러 환율·기준금리 (한국은행 ECOS) | `ECOS_API_KEY` |
-| `get_short_balance_kr` | 공매도 순보유잔고 (KRX) | `KRX_ID`+`KRX_PW` 또는 `KRX_COOKIE` |
+| `get_short_balance_kr` | 공매도 순보유잔고 (KRX) | `KRX_ID`+`KRX_PW` |
 | `get_nps_holdings` | 국민연금 국내주식 보유 (data.go.kr) | `DATA_GO_KR_SERVICE_KEY` |
 
 미국 시장 도구(`get_financials`/`get_market_data`/`read_filings`/`stock_screener`)와 범용 도구도 같은 루프에서 동작합니다: `web_search`·`web_fetch`(웹 검색/페이지 정독), `ask_user_question`(모호하면 되묻기), `spawn_subagent`(독립 하위 작업을 격리 서브에이전트로 위임 — 한 턴에 여러 개를 띄워 병렬 fan-out).
@@ -110,7 +110,6 @@ FINANCIAL_DATASETS_API_KEY=your-financial-datasets-api-key
 # 한국 시장
 DART_API_KEY=your-dart-api-key        # 재무·공시·지배구조 (무료, 일 20,000건 — opendart.fss.or.kr)
 # KRX_ID / KRX_PW                      # 공매도 잔고 (data.krx.co.kr 로그인)
-# KRX_COOKIE=JSESSIONID=...            # 소셜 로그인 계정은 브라우저 쿠키 붙여넣기
 # DATA_GO_KR_SERVICE_KEY=...           # 국민연금 (data.go.kr, Decoded 키)
 # DART_MAX_CONCURRENCY=4               # (선택) DART 동시 호출 상한
 # READ_FILINGS_KR_MODEL=...            # (선택) read_filings_kr 내부 요약 모델
@@ -119,7 +118,7 @@ DART_API_KEY=your-dart-api-key        # 재무·공시·지배구조 (무료, �
 # EXASEARCH_API_KEY / PERPLEXITY_API_KEY / TAVILY_API_KEY / LANGSEARCH_API_KEY / X_BEARER_TOKEN
 ```
 
-**활성화 규칙:** `DART_API_KEY` → 5개 DART 도구 · `KRX_ID`+`KRX_PW`(또는 `KRX_COOKIE`) → 공매도 · `DATA_GO_KR_SERVICE_KEY` → 국민연금. 현재가·외국인 지분율은 키 없이 항상 등록.
+**활성화 규칙:** `DART_API_KEY` → 7개 DART 도구 · `KRX_ID`+`KRX_PW` → 공매도 · `DATA_GO_KR_SERVICE_KEY` → 국민연금. 현재가·외국인 지분율은 키 없이 항상 등록.
 
 ## 개발 · 평가
 

@@ -1,6 +1,7 @@
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { normalizeKoreanBold } from '../markdown';
 import ThreeLogo from './ThreeLogo';
 import QuestionPrompt from './QuestionPrompt';
 import type {
@@ -29,6 +30,8 @@ interface Props {
   /** A prompt to prefill into the composer (e.g. from a Help example). */
   seed?: string | null;
   onSeedConsumed?: () => void;
+  /** Start a fresh conversation — one History row holds one question and one answer. */
+  onNewChat: () => void;
 }
 
 const EXAMPLES = [
@@ -151,7 +154,7 @@ function StepsBlock({ steps, live }: { steps: ChatStep[]; live: boolean }): JSX.
           {steps.map((s, i) =>
             s.kind === 'text' ? (
               <div key={i} className="reasoning-step reasoning-text">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{s.text ?? ''}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{normalizeKoreanBold(s.text ?? '')}</ReactMarkdown>
               </div>
             ) : (
               <div key={i} className={`reasoning-step reasoning-tool state-${s.state ?? 'running'}`}>
@@ -167,7 +170,7 @@ function StepsBlock({ steps, live }: { steps: ChatStep[]; live: boolean }): JSX.
   );
 }
 
-export default function ChatView({ conversation, onSaved, onOpenSettings, seed, onSeedConsumed }: Props): JSX.Element {
+export default function ChatView({ conversation, onSaved, onOpenSettings, seed, onSeedConsumed, onNewChat }: Props): JSX.Element {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -405,7 +408,26 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
     taRef.current?.focus();
   }
 
+  /**
+   * Clear this view, then let the parent switch conversations. Resetting locally
+   * matters because the load effect keys on `conversation?.id`: a turn that never
+   * persisted (cancelled, or a sidecar-level error — neither calls persist) leaves
+   * chatId already null, so null → null is not a change, the effect never runs,
+   * and the "새 질문하기" button silently does nothing.
+   */
+  function startNewChat(): void {
+    currentIdRef.current = null;
+    setMessages([]);
+    setInput('');
+    onNewChat();
+  }
+
   const empty = messages.length === 0;
+  // This thread has had its answer — a settled assistant turn with content. Covers
+  // errors and cancellations too: both land as non-pending assistant text, and
+  // retrying belongs in a new conversation just as much as a new question does.
+  const answered =
+    !sending && !pendingQuestion && messages.some((m) => m.role === 'assistant' && !m.pending && m.content.trim());
 
   return (
     <div className="chat">
@@ -440,7 +462,7 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
                   <>
                     {m.steps && m.steps.length > 0 && <StepsBlock steps={m.steps} live={!!m.pending} />}
                     {m.content ? (
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{normalizeKoreanBold(m.content)}</ReactMarkdown>
                     ) : (
                       m.pending &&
                       (!m.steps || m.steps.length === 0) && <span className="typing">{m.status ?? '●●●'}</span>
@@ -464,25 +486,38 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
       </div>
 
       <div className="composer">
-        <div className="composer-inner">
-          <textarea
-            ref={taRef}
-            rows={1}
-            placeholder="질문을 입력하세요  (Enter 전송 · Shift+Enter 줄바꿈)"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={onKeyDown}
-          />
-          {sending ? (
-            <button className="btn ghost send-btn" onClick={cancel}>
-              중단
+        {answered ? (
+          // One History row is one question and one answer: the row's title is its
+          // first question, so a follow-up here would be filed under an unrelated
+          // heading and be undiscoverable later. The engine matches this — a run
+          // carries no prior turns (src/sidecar/index.ts).
+          <div className="composer-inner composer-done">
+            <span className="composer-note">답변이 끝났습니다. 다음 질문은 새 대화로 시작하세요.</span>
+            <button className="btn primary send-btn" onClick={startNewChat}>
+              새 질문하기
             </button>
-          ) : (
-            <button className="btn primary send-btn" onClick={() => void send()} disabled={!input.trim()}>
-              전송
-            </button>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="composer-inner">
+            <textarea
+              ref={taRef}
+              rows={1}
+              placeholder="질문을 입력하세요  (Enter 전송 · Shift+Enter 줄바꿈)"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={onKeyDown}
+            />
+            {sending ? (
+              <button className="btn ghost send-btn" onClick={cancel}>
+                중단
+              </button>
+            ) : (
+              <button className="btn primary send-btn" onClick={() => void send()} disabled={!input.trim()}>
+                전송
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

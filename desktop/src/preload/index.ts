@@ -18,6 +18,7 @@ const api: DexterApi = {
     set: (envVar, value) => ipcRenderer.invoke('secrets:set', envVar, value),
     remove: (envVar) => ipcRenderer.invoke('secrets:remove', envVar),
     encryptionAvailable: () => ipcRenderer.invoke('secrets:encryptionAvailable'),
+    exportEnv: () => ipcRenderer.invoke('secrets:exportEnv'),
   },
   chat: {
     send: (query) => ipcRenderer.invoke('chat:send', query),
@@ -36,6 +37,7 @@ const api: DexterApi = {
   },
   work: {
     convert: (rawData) => ipcRenderer.invoke('work:convert', rawData),
+    cancel: (runId) => ipcRenderer.invoke('work:cancel', runId),
     export: (result) => ipcRenderer.invoke('work:export', result),
     save: (raw, result) => ipcRenderer.invoke('work:save', raw, result),
     list: () => ipcRenderer.invoke('work:list'),

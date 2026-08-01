@@ -77,6 +77,56 @@ describe('approval-gated tool binding', () => {
     expect(prompt).toContain('use write_file or edit_file to modify');
   });
 
+  // ask_user_question needs an interactive user, but that is a property of the
+  // caller wiring requestUserInput, not of the channel string. The desktop declares
+  // channel 'desktop' AND renders the prompt itself, so it must keep the tool.
+  it('binds ask_user_question wherever requestUserInput is wired', async () => {
+    for (const channel of [undefined, 'desktop']) {
+      const agent = await Agent.create({
+        memoryEnabled: false,
+        channel,
+        requestUserInput: async () => ({ answers: [] }),
+      });
+      expect({ channel, bound: toolNames(agent).includes('ask_user_question') }).toEqual({
+        channel,
+        bound: true,
+      });
+    }
+  });
+
+  it('drops ask_user_question when no handler is wired', async () => {
+    const agent = await Agent.create({ memoryEnabled: false, channel: 'whatsapp' });
+    expect(toolNames(agent)).not.toContain('ask_user_question');
+  });
+
+  // A host knows what it cannot execute. The desktop ships no Chromium and runs no
+  // cron scheduler, and binding those let the model promise work that never ran.
+  it('drops tools the host declares unsupported, and stops advertising them', async () => {
+    const unsupported = ['cron', 'heartbeat', 'browser'];
+    const agent = await Agent.create({ memoryEnabled: false, unsupportedTools: unsupported });
+    const names = toolNames(agent);
+    const prompt = (agent as unknown as { systemPrompt: string }).systemPrompt;
+
+    expect(unsupported.filter((t) => names.includes(t))).toEqual([]);
+    expect(unsupported.filter((t) => prompt.includes(`**${t}**`))).toEqual([]);
+    expect(names).toContain('get_market_data_kr');
+  });
+
+  it('leaves them bound for hosts that can run them', async () => {
+    const names = toolNames(await Agent.create({ memoryEnabled: false }));
+    expect(['cron', 'heartbeat', 'browser'].filter((t) => !names.includes(t))).toEqual([]);
+  });
+
+  it('keeps bash off every non-CLI channel', async () => {
+    const agent = await Agent.create({
+      memoryEnabled: false,
+      channel: 'desktop',
+      requestToolApproval: async () => 'deny',
+      requestUserInput: async () => ({ answers: [] }),
+    });
+    expect(toolNames(agent)).not.toContain('bash');
+  });
+
   it('still drops CLI-only tools on a non-CLI channel', async () => {
     const names = toolNames(
       await Agent.create({

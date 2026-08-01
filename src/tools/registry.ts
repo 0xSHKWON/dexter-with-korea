@@ -322,16 +322,13 @@ export function getToolRegistry(model: string): RegisteredTool[] {
     concurrencySafe: true,
   });
 
-  // 공매도 잔고 requires a KRX Data Marketplace login — either a native ID/PW
-  // or a pasted session cookie (KRX_COOKIE) for social-login accounts.
+  // 공매도 잔고 requires a KRX Data Marketplace login (native ID/PW).
   const hasKrxIdPw =
     !!process.env.KRX_ID &&
     !!process.env.KRX_PW &&
     !process.env.KRX_ID.startsWith('your-') &&
     !process.env.KRX_PW.startsWith('your-');
-  const hasKrxCookie =
-    !!process.env.KRX_COOKIE && !process.env.KRX_COOKIE.startsWith('your-');
-  if (hasKrxIdPw || hasKrxCookie) {
+  if (hasKrxIdPw) {
     tools.push({
       name: 'get_short_balance_kr',
       tool: getShortBalanceKr,

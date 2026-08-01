@@ -7,7 +7,7 @@ import type { DataSource } from '../shared/types';
 
 export const DATA_SOURCES: DataSource[] = [
   // 한국 주식
-  { envVar: 'DART_API_KEY', label: 'DART 전자공시', group: 'kr', note: '재무·공시·지배구조 등 5개 도구를 활성화 (opendart.fss.or.kr)' },
+  { envVar: 'DART_API_KEY', label: 'DART 전자공시', group: 'kr', note: '재무·공시·지배구조 등 7개 도구를 활성화 (opendart.fss.or.kr)' },
   { envVar: 'KRX_ID', label: 'KRX 아이디', group: 'kr', note: '공매도 순보유잔고 (data.krx.co.kr 로그인 계정)' },
   { envVar: 'KRX_PW', label: 'KRX 비밀번호', group: 'kr' },
   { envVar: 'DATA_GO_KR_SERVICE_KEY', label: '국민연금 (data.go.kr)', group: 'kr', note: 'Decoded(디코딩) 서비스키' },

@@ -94,7 +94,7 @@ export const krxApi = {
 
     if (isLogoutBody(raw)) {
       throw new Error(
-        `[KRX API] not authenticated (LOGOUT) for ${label} — check KRX_ID/KRX_PW, or refresh KRX_COOKIE if using a social-login session`,
+        `[KRX API] not authenticated (LOGOUT) for ${label} — check KRX_ID/KRX_PW`,
       );
     }
 

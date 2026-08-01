@@ -79,6 +79,10 @@ export default function HistoryView({
     else onSelectWork(it.id);
   }
   function del(it: HistItem): void {
+    // The ✕ sits right next to the row that opens the item, and history lives only
+    // in the local DB — no undo, no export, no copy anywhere else.
+    const label = it.title.length > 40 ? `${it.title.slice(0, 40)}…` : it.title;
+    if (!window.confirm(`"${label}"을(를) 삭제할까요?\n\n삭제한 기록은 되돌릴 수 없습니다.`)) return;
     if (it.kind === 'chat') onDeleteChat(it.id);
     else onDeleteWork(it.id);
   }

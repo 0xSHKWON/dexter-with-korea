@@ -31,6 +31,30 @@ jobs:
       - name: Run ${{ matrix.task }}
         run: ${{ matrix.command }}
 
+  # The desktop app is the primary product but sits outside the root tsconfig
+  # ("include": ["src/**/*"]), so `bun run typecheck` above never sees it — main/
+  # preload/renderer could break and CI would stay green. Its own tsc projects are
+  # the only thing that checks the Electron and React code.
+  desktop-typecheck:
+    if: github.event.action != 'labeled' || github.event.label.name == 'run-ci'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Skips postinstall: electron-rebuild of better-sqlite3 needs no native build
+      # just to typecheck, and it is the slowest step by far.
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm install --no-audit --no-fund --ignore-scripts
+
+      - name: Typecheck desktop (main + preload + renderer)
+        working-directory: desktop
+        run: npm run typecheck
+
   # KR-eval regression run (replay mode — recorded tool fixtures, no DART/KRX/Naver network;
   # LLM keys for agent + judge come from repo secrets). This is OPT-IN: it runs only when a
   # PR carries the `run-eval` label, NOT on every main push. Rationale: agent + judge are

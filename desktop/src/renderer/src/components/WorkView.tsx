@@ -67,6 +67,18 @@ export default function WorkView({ conversion, onSaved }: Props): JSX.Element {
     }
   }
 
+  async function cancelConvert(): Promise<void> {
+    const runId = activeRef.current;
+    if (!runId) return;
+    activeRef.current = null;
+    setConverting(false);
+    try {
+      await window.dexter.work.cancel(runId);
+    } catch {
+      // The run is already detached from the UI; a failed cancel changes nothing here.
+    }
+  }
+
   async function downloadExcel(): Promise<void> {
     if (!conversion) return;
     try {
@@ -161,6 +173,13 @@ export default function WorkView({ conversion, onSaved }: Props): JSX.Element {
           <button className="btn primary" onClick={() => void convert()} disabled={!raw.trim() || converting}>
             {converting ? '변환 중…' : 'DART 표준으로 변환'}
           </button>
+          {/* Without this a stalled conversion left the button on "변환 중…" with no
+              way out but force-quitting the app. */}
+          {converting && (
+            <button className="btn ghost" onClick={() => void cancelConvert()}>
+              취소
+            </button>
+          )}
         </div>
       </section>
 

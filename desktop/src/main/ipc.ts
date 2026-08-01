@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { ipcMain, dialog, shell, BrowserWindow } from 'electron';
+import { ipcMain, clipboard, dialog, shell, BrowserWindow } from 'electron';
 import ExcelJS from 'exceljs';
 import { checkForUpdate } from './updater';
-import { PROVIDERS } from './providers';
+import { PROVIDERS, getProviderById } from './providers';
 import { DATA_SOURCES } from './data-sources';
 import type {
   ConvertResult,
@@ -27,19 +27,43 @@ import {
   listChatRows,
   deleteChat,
 } from './db';
-import { encryptSecret, previewLast4, isEncryptionAvailable } from './secrets';
+import { encryptSecret, decryptSecret, previewLast4, isEncryptionAvailable } from './secrets';
 import { sidecar } from './sidecar';
-import type { SecretStatus } from '../shared/types';
+import type { SecretStatus, SecretExportResult } from '../shared/types';
 
 function statusFor(envVar: string): SecretStatus {
   const buf = getSecret(envVar);
   if (!buf) return { envVar, exists: false, last4: null, updatedAt: null };
+  // A stored row is not a usable key. safeStorage is bound to the OS keychain, so
+  // a re-signed build can leave rows that no longer decrypt — and sidecar.ts skips
+  // those silently when injecting env. Reporting `exists` from row presence alone
+  // showed every key green while every run failed with "API_KEY not found".
+  const last4 = previewLast4(buf);
+  // Empty is unusable too — it would be injected as an empty env var and 401.
+  if (!last4) return { envVar, exists: false, last4: null, updatedAt: null };
   return {
     envVar,
     exists: true,
-    last4: previewLast4(buf),
+    last4,
     updatedAt: getSecretUpdatedAt(envVar),
   };
+}
+
+const DEFAULT_PROVIDER_ID = 'openai';
+
+/**
+ * Provider + model for a sidecar run. The model falls back to the provider's
+ * catalog default rather than a hardcoded id: hardcoding it here meant retiring a
+ * model in providers.ts left the runtime silently pointing at the old one, so the
+ * Settings screen and the model actually used could disagree on a fresh install.
+ */
+function resolveRun(): { provider: string; model: string } {
+  const provider = getSetting<string>('provider', DEFAULT_PROVIDER_ID);
+  const fallback =
+    getProviderById(provider)?.defaultModel ??
+    getProviderById(DEFAULT_PROVIDER_ID)?.defaultModel ??
+    '';
+  return { provider, model: getSetting<string>('modelId', fallback) };
 }
 
 export function registerIpc(): void {
@@ -74,10 +98,46 @@ export function registerIpc(): void {
   });
   ipcMain.handle('secrets:encryptionAvailable', () => isEncryptionAvailable());
 
+  // Copy every stored key as .env lines, for pasting into the CLI's .env.
+  //
+  // Decryption and formatting stay in the main process and the text goes straight
+  // to the clipboard: plaintext keys must never cross to the renderer, which today
+  // only ever sees `exists` + last-4 (see statusFor). The return value is counts
+  // and env-var names only.
+  ipcMain.handle('secrets:exportEnv', (): SecretExportResult => {
+    const envVars = [
+      ...PROVIDERS.filter((p) => p.apiKeyEnvVar).map((p) => p.apiKeyEnvVar as string),
+      ...DATA_SOURCES.map((d) => d.envVar),
+    ];
+
+    const lines: string[] = [];
+    const exported: string[] = [];
+    const undecryptable: string[] = [];
+
+    for (const envVar of envVars) {
+      const buf = getSecret(envVar);
+      if (!buf) continue;
+      let value: string;
+      try {
+        value = decryptSecret(buf);
+      } catch {
+        undecryptable.push(envVar);
+        continue;
+      }
+      if (!value) continue;
+      lines.push(`${envVar}=${value}`);
+      exported.push(envVar);
+    }
+
+    if (lines.length === 0) return { exported: [], undecryptable, copied: false };
+
+    clipboard.writeText(`${lines.join('\n')}\n`);
+    return { exported, undecryptable, copied: true };
+  });
+
   // ── chat (sidecar) ────────────────────────────────────────────────────────
   ipcMain.handle('chat:send', (_e, query: string) => {
-    const provider = getSetting<string>('provider', 'openai');
-    const model = getSetting<string>('modelId', 'gpt-5.5');
+    const { provider, model } = resolveRun();
     const runId = randomUUID();
     sidecar.send({ type: 'run', id: runId, query, model, modelProvider: provider });
     return { runId };
@@ -115,13 +175,15 @@ export function registerIpc(): void {
 
   // ── work (ledger → DART accounts) ─────────────────────────────────────────
   ipcMain.handle('work:convert', (_e, rawData: string) => {
-    const provider = getSetting<string>('provider', 'openai');
-    const model = getSetting<string>('modelId', 'gpt-5.5');
+    const { provider, model } = resolveRun();
     const runId = randomUUID();
     sidecar.send({ type: 'convert', id: runId, rawData, model, modelProvider: provider });
     return { runId };
   });
 
+  ipcMain.handle('work:cancel', (_e, runId: string) => {
+    sidecar.send({ type: 'cancel', id: runId });
+  });
   ipcMain.handle('work:save', (_e, raw: string, result: ConvertResult): ConversionRecord => {
     const id = randomUUID();
     const createdAt = Date.now();

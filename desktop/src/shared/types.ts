@@ -29,6 +29,15 @@ export interface SecretStatus {
   updatedAt: number | null;
 }
 
+/** Outcome of an .env export. Deliberately carries no key values. */
+export interface SecretExportResult {
+  /** Env var names written to the clipboard. */
+  exported: string[];
+  /** Stored but undecryptable — the user must re-enter these. */
+  undecryptable: string[];
+  copied: boolean;
+}
+
 export interface AppSettings {
   provider?: string;
   modelId?: string;
@@ -72,6 +81,8 @@ export interface DexterApi {
     set(envVar: string, value: string): Promise<SecretStatus>;
     remove(envVar: string): Promise<void>;
     encryptionAvailable(): Promise<boolean>;
+    /** Copy every stored key to the clipboard as .env lines. */
+    exportEnv(): Promise<SecretExportResult>;
   };
   chat: {
     send(query: string): Promise<{ runId: string }>;
@@ -89,6 +100,8 @@ export interface DexterApi {
   work: {
     /** Convert pasted ledger data into DART standard accounts. Result arrives via chat.onEvent. */
     convert(rawData: string): Promise<{ runId: string }>;
+    /** Abort an in-flight conversion. */
+    cancel(runId: string): Promise<void>;
     /** Export a converted result to a styled .xlsx via a save dialog. */
     export(result: ConvertResult): Promise<{ saved: boolean; path?: string }>;
     /** Archive a conversion to the local DB. */

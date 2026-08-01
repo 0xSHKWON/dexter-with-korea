@@ -895,6 +895,17 @@ code {
   align-items: flex-end;
 }
 
+/* Answered state: the composer is replaced by a prompt to open a new conversation. */
+.composer-done {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.composer-note {
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .composer textarea {
   flex: 1;
   resize: none;
@@ -930,6 +941,18 @@ code {
   margin-bottom: 4px;
   padding-bottom: 18px;
   border-bottom: 1px solid var(--border);
+}
+
+.page-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.page-head-actions .field-hint {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .page-head h1 {
