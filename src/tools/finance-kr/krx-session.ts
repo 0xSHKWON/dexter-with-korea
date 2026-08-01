@@ -44,23 +44,6 @@ function getCredentials(): { id: string; pw: string } | null {
   return { id, pw };
 }
 
-/**
- * Parse a `Cookie` header into a session jar. Kept for the login flow's own
- * cookie handling; there is no pasted-cookie entry point — KRX access is ID/PW
- * only, since copying a session cookie out of DevTools asks more of a user than
- * signing up for a native account does, and it silently expires.
- */
-export function sessionFromCookie(cookie: string): KrxSession {
-  const cookies = new Map<string, string>();
-  for (const segment of cookie.split(';')) {
-    const part = segment.trim();
-    const eq = part.indexOf('=');
-    if (eq <= 0) continue;
-    cookies.set(part.slice(0, eq).trim(), part.slice(eq + 1).trim());
-  }
-  return { cookies, loginAt: Date.now() };
-}
-
 /** Merge a response's Set-Cookie headers into the jar (name=value only). */
 function absorbCookies(jar: Map<string, string>, response: Response): void {
   // Bun/undici expose getSetCookie(); fall back to the single-header form.

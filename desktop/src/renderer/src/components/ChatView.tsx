@@ -407,6 +407,20 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
     taRef.current?.focus();
   }
 
+  /**
+   * Clear this view, then let the parent switch conversations. Resetting locally
+   * matters because the load effect keys on `conversation?.id`: a turn that never
+   * persisted (cancelled, or a sidecar-level error — neither calls persist) leaves
+   * chatId already null, so null → null is not a change, the effect never runs,
+   * and the "새 질문하기" button silently does nothing.
+   */
+  function startNewChat(): void {
+    currentIdRef.current = null;
+    setMessages([]);
+    setInput('');
+    onNewChat();
+  }
+
   const empty = messages.length === 0;
   // This thread has had its answer — a settled assistant turn with content. Covers
   // errors and cancellations too: both land as non-pending assistant text, and
@@ -478,7 +492,7 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
           // carries no prior turns (src/sidecar/index.ts).
           <div className="composer-inner composer-done">
             <span className="composer-note">답변이 끝났습니다. 다음 질문은 새 대화로 시작하세요.</span>
-            <button className="btn primary send-btn" onClick={onNewChat}>
+            <button className="btn primary send-btn" onClick={startNewChat}>
               새 질문하기
             </button>
           </div>

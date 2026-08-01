@@ -1,23 +1,29 @@
 import { describe, it, expect } from 'bun:test';
-import { sessionFromCookie, cookieHeader } from './krx-session.js';
+import { cookieHeader, type KrxSession } from './krx-session.js';
 
-describe('sessionFromCookie', () => {
-  it('parses a Cookie header into a jar and round-trips via cookieHeader', () => {
-    const session = sessionFromCookie('JSESSIONID=abc123; __smVisitorID=xyz; mdc.client_session=true');
-    expect(session.cookies.get('JSESSIONID')).toBe('abc123');
-    expect(session.cookies.get('__smVisitorID')).toBe('xyz');
-    expect(session.cookies.get('mdc.client_session')).toBe('true');
-    expect(cookieHeader(session)).toBe('JSESSIONID=abc123; __smVisitorID=xyz; mdc.client_session=true');
+const session = (pairs: [string, string][]): KrxSession => ({
+  cookies: new Map(pairs),
+  loginAt: 0,
+});
+
+describe('cookieHeader', () => {
+  it('serializes the jar in insertion order', () => {
+    expect(
+      cookieHeader(
+        session([
+          ['JSESSIONID', 'abc123'],
+          ['__smVisitorID', 'xyz'],
+          ['mdc.client_session', 'true'],
+        ]),
+      ),
+    ).toBe('JSESSIONID=abc123; __smVisitorID=xyz; mdc.client_session=true');
   });
 
-  it('tolerates a single cookie and stray whitespace', () => {
-    const session = sessionFromCookie('  JSESSIONID=only  ');
-    expect(session.cookies.get('JSESSIONID')).toBe('only');
+  it('handles a single cookie', () => {
+    expect(cookieHeader(session([['JSESSIONID', 'only']]))).toBe('JSESSIONID=only');
   });
 
-  it('skips malformed segments without a value', () => {
-    const session = sessionFromCookie('JSESSIONID=ok; garbage; =novalue');
-    expect(session.cookies.get('JSESSIONID')).toBe('ok');
-    expect(session.cookies.size).toBe(1);
+  it('is empty for an empty jar', () => {
+    expect(cookieHeader(session([]))).toBe('');
   });
 });
