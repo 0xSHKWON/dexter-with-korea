@@ -129,7 +129,7 @@ LG화학 물적분할이 기존 주주가치에 어떤 영향이었는지 분석
 
 ## 라이선스
 
-MIT. 업스트림: [virattt/dexter](https://github.com/virattt/dexter).
+MIT ([`LICENSE`](./LICENSE)). 원본 [virattt/dexter](https://github.com/virattt/dexter)(MIT)의 파생물이며, `src/tools/finance-kr/`·`src/data/`·`src/skills/dcf`·`src/skills/kr-spinoff` 등 한국 시장 데이터 파이프라인이 본 포크의 기여입니다.
 
 ## ⚠️ 면책 조항
 
