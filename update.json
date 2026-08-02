@@ -1,6 +1,6 @@
 {
-  "latest": "1.1.2",
+  "latest": "1.2.0",
   "minRequired": "1.0.0",
   "url": "https://github.com/0xSHKWON/dexter-with-korea/releases/latest",
-  "notes": "한국은행 ECOS 연동 추가 — 국고채 금리(DCF 무위험금리)·원/달러 환율·기준금리를 공식 출처로 가져옵니다. 설정에 ECOS 키를 넣으면 적용됩니다."
+  "notes": "업스트림 v1.0.3 반영 — bash 툴·권한 승인 엔진, GPT-5.6·Ollama Cloud 모델 추가. 한국 주식은 목표주가 컨센서스·주가 시계열 도구가 새로 들어갔고, 데스크탑은 모델 폴백·API 키 .env 내보내기·세션 안정화가 개선됐습니다."
 }
