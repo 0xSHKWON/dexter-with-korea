@@ -1,4 +1,6 @@
-# 국내 기업 분석 에이전트 🇰🇷
+# Dexter 🇰🇷 — 국내 기업 분석 AI 에이전트
+
+[![Release](https://img.shields.io/github/v/release/0xSHKWON/dexter-with-korea?label=release&color=0d1117)](https://github.com/0xSHKWON/dexter-with-korea/releases/latest) [![CI](https://github.com/0xSHKWON/dexter-with-korea/actions/workflows/ci.yml/badge.svg)](https://github.com/0xSHKWON/dexter-with-korea/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 
 **한국 주식을 1차 출처에서 직접 리서치해 정리해 주는 AI 에이전트.**
 
@@ -6,7 +8,7 @@
 
 [![macOS 다운로드](https://img.shields.io/badge/⬇%20macOS%20다운로드-0d1117?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/0xSHKWON/dexter-with-korea/releases/latest/download/Dexter-mac-arm64.dmg) &nbsp; [![Windows 다운로드](https://img.shields.io/badge/⬇%20Windows%20다운로드-0d1117?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/0xSHKWON/dexter-with-korea/releases/latest/download/Dexter-windows-x64.exe)
 
-받아서 설치 → 설정에서 API 키만 넣으면 바로 시작. *(macOS는 Apple Silicon · M1 이상)* · [모든 버전](https://github.com/0xSHKWON/dexter-with-korea/releases)
+받아서 설치 → 설정에서 **LLM 키 하나**(OpenAI·Anthropic 등 — 로컬 Ollama면 키도 불필요)만 넣으면 바로 시작. 금융 데이터 키는 선택이며, 넣는 만큼 리서치가 깊어집니다. *(macOS는 Apple Silicon · M1 이상)* · [모든 버전](https://github.com/0xSHKWON/dexter-with-korea/releases) · [웹 소개 페이지](https://0xshkwon.github.io/dexter-with-korea/)
 
 > **처음 실행 시** (아직 코드 서명 전이라 경고가 떠요) — **macOS 15/26**: 경고가 뜨면 **시스템 설정 → 개인정보 보호 및 보안**으로 가서 맨 아래 **"확인 없이 열기"**를 누르세요 (macOS 14 이하는 앱 **우클릭 → 열기**). **Windows**: "Windows의 PC 보호" 창에서 **추가 정보 → 실행**. 한 번만 하면 다음부턴 그냥 열립니다.
 
@@ -112,7 +114,7 @@ LG화학 물적분할이 기존 주주가치에 어떤 영향이었는지 분석
 
 ## 시작하기
 
-키가 하나도 없어도 **한국 종목 현재가·외국인 지분율(Naver)** 은 바로 동작합니다. 재무·공시·공매도·연기금 같은 깊은 리서치는 해당 키를 넣으면 자동으로 켜집니다.
+**LLM 키 하나**(또는 로컬 Ollama)면 시작할 수 있습니다. 금융 데이터 키는 하나도 없어도 **한국 종목 현재가·외국인 지분율(Naver)** 은 바로 동작하고, 재무·공시·공매도·연기금 같은 깊은 리서치는 해당 키를 넣으면 자동으로 켜집니다.
 
 - **데스크톱 앱 (Windows/macOS)** — 맨 위 **⬇ 다운로드** 버튼으로 받아 설치한 뒤, 설정 화면에서 키만 입력하면 끝.
 - **CLI · 개발자** — Bun으로 바로 실행. 설치·키·도구 상세·견고성·평가까지 전부 → **[개발 문서](DEVELOPMENT.md)**
