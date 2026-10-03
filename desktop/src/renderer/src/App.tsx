@@ -18,6 +18,9 @@ const SEARCH_ENVS = [
   'LANGSEARCH_API_KEY',
 ];
 
+// raw.githubusercontent.com caches ~5 min anyway; re-checking more often buys nothing.
+const UPDATE_RECHECK_THROTTLE_MS = 5 * 60 * 1000;
+
 function BackIcon(): JSX.Element {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -95,7 +98,8 @@ export default function App(): JSX.Element {
   const [workId, setWorkId] = useState<string | null>(null);
 
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
-  const [updateDismissed, setUpdateDismissed] = useState(false);
+  // Dismiss is per-version: a newer release published later must nudge again.
+  const [dismissedVersion, setDismissedVersion] = useState<string | null>(null);
   const [autoUpdate, setAutoUpdate] = useState<AutoUpdateStatus | null>(null);
 
   async function loadStatus(): Promise<void> {
@@ -134,7 +138,40 @@ export default function App(): JSX.Element {
     void window.dexter.work.list().then(setWorks).catch(() => {});
     void window.dexter.update.check().then(setUpdate).catch(() => {});
     const off = window.dexter.update.onStatus(setAutoUpdate);
+    // Catch up on a status pushed before this subscription existed; a live event wins.
+    void window.dexter.update
+      .autoStatus()
+      .then((s) => setAutoUpdate((prev) => prev ?? s))
+      .catch(() => {});
     return off;
+  }, []);
+
+  // Re-check the manifest whenever the user comes back to the window, so a release
+  // published after launch shows without a restart (no background timer).
+  useEffect(() => {
+    let last = Date.now();
+    const recheck = (): void => {
+      if (Date.now() - last < UPDATE_RECHECK_THROTTLE_MS) return;
+      last = Date.now();
+      void window.dexter.update
+        .check()
+        .then((info) => {
+          // latest === null means the fetch failed (fail-open) — keep what we have.
+          if (info.latest === null) return;
+          // Don't lock the app mid-session; the hard gate applies on next launch.
+          setUpdate(info.status === 'required' ? { ...info, status: 'optional' } : info);
+        })
+        .catch(() => {});
+    };
+    const onVisible = (): void => {
+      if (document.visibilityState === 'visible') recheck();
+    };
+    window.addEventListener('focus', recheck);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', recheck);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, []);
 
   // Help example → start a fresh chat with the prompt prefilled in the composer.
@@ -194,7 +231,7 @@ export default function App(): JSX.Element {
 
   // Windows auto-update (electron-updater) takes over the optional nudge when active.
   const autoActive = autoUpdate?.state === 'downloading' || autoUpdate?.state === 'downloaded';
-  const showUpdateBanner = update?.status === 'optional' && !updateDismissed && !autoActive;
+  const showUpdateBanner = update?.status === 'optional' && update.latest !== dismissedVersion && !autoActive;
 
   return (
     <div className={`app ${collapsed ? 'collapsed' : ''}`}>
@@ -320,7 +357,7 @@ export default function App(): JSX.Element {
               <button className="btn primary sm" onClick={() => void window.dexter.update.open(update.url)}>
                 업데이트
               </button>
-              <button className="btn ghost sm" onClick={() => setUpdateDismissed(true)}>
+              <button className="btn ghost sm" onClick={() => setDismissedVersion(update.latest)}>
                 나중에
               </button>
             </div>

@@ -196,6 +196,8 @@ export interface DexterApi {
     open(url: string): Promise<void>;
     /** Quit and install a downloaded update (Windows auto-update). */
     install(): Promise<void>;
+    /** Latest electron-updater status (null if none yet / not Windows). */
+    autoStatus(): Promise<AutoUpdateStatus | null>;
     /** Subscribe to electron-updater progress (Windows); returns unsubscribe. */
     onStatus(cb: (s: AutoUpdateStatus) => void): () => void;
   };

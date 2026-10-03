@@ -13,8 +13,36 @@ import type { AutoUpdateStatus } from '../shared/types';
 
 const { autoUpdater } = pkg;
 
+// Startup check only would leave a long-running app blind to a release published
+// after launch — users had to restart just to see the banner. Re-check when the
+// user comes back to the app instead of on a timer, throttled.
+const RECHECK_THROTTLE_MS = 5 * 60 * 1000;
+let lastCheck = 0;
+
+// Last pushed status, so a renderer that subscribes late (window still loading at
+// startup, or a reload) can catch up instead of missing `update-downloaded`.
+let lastStatus: AutoUpdateStatus | null = null;
+
+export function getAutoUpdateStatus(): AutoUpdateStatus | null {
+  return lastStatus;
+}
+
 function broadcast(status: AutoUpdateStatus): void {
-  for (const w of BrowserWindow.getAllWindows()) w.webContents.send('update:status', status);
+  // download-progress carries no version; keep the one from update-available.
+  if (status.state === 'downloading' && !status.version && lastStatus?.version) {
+    status = { ...status, version: lastStatus.version };
+  }
+  lastStatus = status;
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (!w.isDestroyed()) w.webContents.send('update:status', status);
+  }
+}
+
+function check(): void {
+  lastCheck = Date.now();
+  autoUpdater.checkForUpdates().catch(() => {
+    /* offline / no feed — stay silent, app works normally */
+  });
 }
 
 export function initAutoUpdater(): void {
@@ -41,7 +69,11 @@ export function initAutoUpdater(): void {
 
   ipcMain.handle('update:install', () => autoUpdater.quitAndInstall());
 
-  autoUpdater.checkForUpdates().catch(() => {
-    /* offline / no feed — stay silent, app works normally */
+  check();
+  app.on('browser-window-focus', () => {
+    if (Date.now() - lastCheck < RECHECK_THROTTLE_MS) return;
+    const busy = lastStatus?.state === 'checking' || lastStatus?.state === 'downloading';
+    // Once downloaded there's nothing more to do until the user restarts.
+    if (!busy && lastStatus?.state !== 'downloaded') check();
   });
 }
