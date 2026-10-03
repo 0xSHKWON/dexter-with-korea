@@ -1,4 +1,4 @@
-# Dexter 🇰🇷 해외 및 국내 기업 분석 AI 에이전트
+# 해외 및 국내 기업 분석 AI 에이전트 앱
 
 [![Release](https://img.shields.io/github/v/release/0xSHKWON/dexter-with-korea?label=release&color=0d1117)](https://github.com/0xSHKWON/dexter-with-korea/releases/latest) [![CI](https://github.com/0xSHKWON/dexter-with-korea/actions/workflows/ci.yml/badge.svg)](https://github.com/0xSHKWON/dexter-with-korea/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 
