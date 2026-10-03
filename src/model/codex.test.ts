@@ -123,7 +123,10 @@ describe('Codex chat model (mocked backend)', () => {
     requests = [];
   });
   afterAll(() => {
-    process.env.DEXTER_DIR = realDir;
+    // Bun ≥1.4 stores `= undefined` as the string "undefined" (Node semantics), which
+    // would leak a bogus DEXTER_DIR into later test files — delete instead.
+    if (realDir === undefined) delete process.env.DEXTER_DIR;
+    else process.env.DEXTER_DIR = realDir;
     rmSync(dir, { recursive: true, force: true });
   });
 
