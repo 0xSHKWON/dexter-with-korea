@@ -17,6 +17,7 @@ import { callLlm } from '../model/llm.js';
 import type { DoneEvent } from '../agent/types.js';
 import type { SidecarRequest, SidecarMessage, ConvertResult } from './protocol.js';
 import { createUserInputBridge } from './user-input-bridge.js';
+import { login } from '../auth/store.js';
 
 // stdout is the protocol channel — keep stray logging off it.
 console.log = (...args: unknown[]) => process.stderr.write(args.map(String).join(' ') + '\n');
@@ -148,6 +149,28 @@ ${req.rawData}`;
   }
 }
 
+const activeLogins = new Map<string, AbortController>();
+
+async function handleAuthLogin(req: Extract<SidecarRequest, { type: 'auth_login' }>): Promise<void> {
+  const controller = new AbortController();
+  activeLogins.set(req.id, controller);
+  try {
+    const creds = await login(
+      req.provider,
+      {
+        onAuth: ({ url, userCode }) => send({ type: 'auth_prompt', id: req.id, url, userCode }),
+        signal: controller.signal,
+      },
+      req.mode ?? 'browser',
+    );
+    send({ type: 'auth_result', id: req.id, ok: true, email: creds.email, plan: creds.plan });
+  } catch (e) {
+    send({ type: 'auth_result', id: req.id, ok: false, error: e instanceof Error ? e.message : String(e) });
+  } finally {
+    activeLogins.delete(req.id);
+  }
+}
+
 const rl = createInterface({ input: process.stdin });
 rl.on('line', (line) => {
   const trimmed = line.trim();
@@ -170,6 +193,10 @@ rl.on('line', (line) => {
     userInput.resolveAnswer(req.questionId, req.answers);
   } else if (req.type === 'convert') {
     void handleConvert(req);
+  } else if (req.type === 'auth_login') {
+    void handleAuthLogin(req);
+  } else if (req.type === 'auth_cancel') {
+    activeLogins.get(req.id)?.abort();
   } else if (req.type === 'reset') {
     // Runs carry no history, so switching conversations only has to release any
     // question still waiting on the previous one.

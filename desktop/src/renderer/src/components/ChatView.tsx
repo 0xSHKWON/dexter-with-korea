@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { normalizeKoreanBold } from '../markdown';
 import ThreeLogo from './ThreeLogo';
 import QuestionPrompt from './QuestionPrompt';
+import ModelPicker from './ModelPicker';
 import type {
   AgentEvent,
   ChatConversation,
@@ -32,6 +33,8 @@ interface Props {
   onSeedConsumed?: () => void;
   /** Start a fresh conversation — one History row holds one question and one answer. */
   onNewChat: () => void;
+  /** The default model was switched from the composer picker. */
+  onModelChanged?: () => void;
 }
 
 const EXAMPLES = [
@@ -170,7 +173,15 @@ function StepsBlock({ steps, live }: { steps: ChatStep[]; live: boolean }): JSX.
   );
 }
 
-export default function ChatView({ conversation, onSaved, onOpenSettings, seed, onSeedConsumed, onNewChat }: Props): JSX.Element {
+export default function ChatView({
+  conversation,
+  onSaved,
+  onOpenSettings,
+  seed,
+  onSeedConsumed,
+  onNewChat,
+  onModelChanged,
+}: Props): JSX.Element {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -178,6 +189,11 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
   const [pendingQuestion, setPendingQuestion] = useState<{ questionId: string; questions: Question[] } | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Follow the stream only while the reader is at the bottom; scrolling up to
+  // reread must not be yanked back down by every incoming token.
+  const pinnedRef = useRef(true);
+  const [pinned, setPinned] = useState(true);
+  const lastScrollTopRef = useRef(0);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const activeRef = useRef<{ runId: string; pendingId: string } | null>(null);
   const currentIdRef = useRef<string | null>(null);
@@ -186,12 +202,14 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
   useEffect(() => {
     (async () => {
       try {
-        const [provs, statuses] = await Promise.all([
+        const [provs, statuses, codex, claude] = await Promise.all([
           window.dexter.providers.list(),
           window.dexter.secrets.statusAll(),
+          window.dexter.auth.status(),
+          window.dexter.claudeCode.status(),
         ]);
         const llmEnvs = new Set(provs.filter((p) => p.apiKeyEnvVar).map((p) => p.apiKeyEnvVar as string));
-        setHasLlmKey(statuses.some((s) => llmEnvs.has(s.envVar) && s.exists));
+        setHasLlmKey(codex.loggedIn || claude.loggedIn || statuses.some((s) => llmEnvs.has(s.envVar) && s.exists));
       } catch {
         setHasLlmKey(false);
       }
@@ -339,14 +357,49 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
     return window.dexter.chat.onEvent(handle);
   }, []);
 
-  useEffect(() => {
+  function setPin(value: boolean): void {
+    pinnedRef.current = value;
+    setPinned(value);
+  }
+
+  // Only an upward move unpins. Judging by distance-from-bottom alone misfires:
+  // by the time our own scrollTo's event fires, more tokens have grown the
+  // content, so it looks like the user left the bottom. Growth and our
+  // scroll-to-bottom never decrease scrollTop; a wheel/drag/key up does.
+  function onScroll(): void {
+    const el = scrollRef.current;
+    if (!el) return;
+    const top = el.scrollTop;
+    const movedUp = top < lastScrollTopRef.current - 2;
+    lastScrollTopRef.current = top;
+    if (movedUp) {
+      if (pinnedRef.current) setPin(false);
+    } else if (!pinnedRef.current && el.scrollHeight - top - el.clientHeight < 48) {
+      setPin(true);
+    }
+  }
+
+  function scrollToBottom(): void {
+    setPin(true);
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+  }
+
+  useEffect(() => {
+    if (pinnedRef.current) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages, pendingQuestion]);
+
+  // Opening another conversation starts at its latest message. A new chat also
+  // gets its id mid-stream (first save) — that must not re-pin a reader who
+  // scrolled up, hence the in-flight check.
+  useEffect(() => {
+    if (!activeRef.current) setPin(true);
+  }, [conversation?.id]);
 
   async function send(): Promise<void> {
     const text = input.trim();
     if (!text || sending) return;
     setInput('');
+    setPin(true);
     if (!currentIdRef.current) currentIdRef.current = crypto.randomUUID();
     const pendingId = crypto.randomUUID();
     setMessages((m) => [
@@ -431,7 +484,7 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
 
   return (
     <div className="chat">
-      <div className="chat-messages" ref={scrollRef}>
+      <div className="chat-messages" ref={scrollRef} onScroll={onScroll}>
         {empty ? (
           <div className="chat-empty">
             <ThreeLogo />
@@ -439,7 +492,7 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
             <p className="muted">DART·KRX에 직접 가지 않아도, 질문하면 데이터를 모아 정리해 드립니다.</p>
             {hasLlmKey === false ? (
               <div className="empty-cta">
-                <p className="muted">시작하려면 LLM API 키가 필요합니다.</p>
+                <p className="muted">시작하려면 Claude·ChatGPT 로그인 또는 LLM API 키가 필요합니다.</p>
                 <button className="btn primary" onClick={onOpenSettings}>
                   설정 열기
                 </button>
@@ -486,6 +539,11 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
       </div>
 
       <div className="composer">
+        {!pinned && !empty && (
+          <button className="jump-latest" onClick={scrollToBottom}>
+            ↓ {sending ? '최신 내용' : '맨 아래로'}
+          </button>
+        )}
         {answered ? (
           // One History row is one question and one answer: the row's title is its
           // first question, so a follow-up here would be filed under an unrelated
@@ -499,6 +557,7 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
           </div>
         ) : (
           <div className="composer-inner">
+            <ModelPicker disabled={sending} onChanged={onModelChanged} onOpenSettings={onOpenSettings} />
             <textarea
               ref={taRef}
               rows={1}

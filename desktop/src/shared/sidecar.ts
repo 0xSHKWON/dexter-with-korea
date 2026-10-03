@@ -109,11 +109,16 @@ export type SidecarToMain =
   | { type: 'done'; id: string; answer: string }
   | { type: 'error'; id: string; message: string }
   | { type: 'convert_result'; id: string; result: ConvertResult }
-  | { type: 'question'; id: string; questionId: string; questions: Question[] };
+  | { type: 'question'; id: string; questionId: string; questions: Question[] }
+  | { type: 'auth_prompt'; id: string; url: string; userCode?: string }
+  | { type: 'auth_result'; id: string; ok: true; email?: string; plan?: string }
+  | { type: 'auth_result'; id: string; ok: false; error: string };
 
 export type MainToSidecar =
   | { type: 'run'; id: string; query: string; model: string; modelProvider: string }
   | { type: 'cancel'; id: string }
   | { type: 'reset' }
   | { type: 'convert'; id: string; rawData: string; model: string; modelProvider: string }
-  | { type: 'answer'; questionId: string; answers: UserAnswers };
+  | { type: 'answer'; questionId: string; answers: UserAnswers }
+  | { type: 'auth_login'; id: string; provider: 'openai-codex'; mode?: 'browser' | 'device' }
+  | { type: 'auth_cancel'; id: string };

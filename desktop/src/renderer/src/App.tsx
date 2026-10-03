@@ -90,16 +90,20 @@ export default function App(): JSX.Element {
 
   async function loadStatus(): Promise<void> {
     try {
-      const [provs, setts, secs] = await Promise.all([
+      const [provs, setts, secs, codex, claude] = await Promise.all([
         window.dexter.providers.list(),
         window.dexter.settings.getAll(),
         window.dexter.secrets.statusAll(),
+        window.dexter.auth.status(),
+        window.dexter.claudeCode.status(),
       ]);
       const sec: Record<string, boolean> = {};
       for (const s of secs) sec[s.envVar] = s.exists;
-      const llm = provs.some((p) => p.apiKeyEnvVar && sec[p.apiKeyEnvVar]);
+      const llm = codex.loggedIn || claude.loggedIn || provs.some((p) => p.apiKeyEnvVar && sec[p.apiKeyEnvVar]);
+      // Show the catalog label ("Opus 5.5"), not the routing id ("claude-code:claude-opus-5-5").
+      const modelLabel = provs.flatMap((p) => p.models).find((m) => m.id === setts.modelId)?.label;
       setStatus({
-        modelId: setts.modelId,
+        modelId: modelLabel ?? setts.modelId,
         llm,
         items: [
           { label: 'DART', connected: !!sec['DART_API_KEY'] },
@@ -308,6 +312,7 @@ export default function App(): JSX.Element {
             seed={chatSeed}
             onSeedConsumed={() => setChatSeed(null)}
             onNewChat={newChat}
+            onModelChanged={loadStatus}
           />
         </div>
         <div className={`view ${view === 'work' ? '' : 'hidden'}`}>

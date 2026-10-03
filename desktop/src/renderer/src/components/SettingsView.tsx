@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type {
-  AppSettings,
   DataSource,
   DataSourceGroup,
   ProviderMeta,
@@ -8,20 +7,19 @@ import type {
 } from '../../../shared/types';
 import KeyCard from './KeyCard';
 import KrxKeyCard from './KrxKeyCard';
+import AgentsSection from './AgentsSection';
+import { useCodexAuth } from '../useCodexAuth';
+import { useClaudeCode } from '../useClaudeCode';
 
 export default function SettingsView({ onKeysChanged }: { onKeysChanged?: () => void }): JSX.Element {
   const [providers, setProviders] = useState<ProviderMeta[]>([]);
   const [dataSources, setDataSources] = useState<DataSource[]>([]);
-  const [settings, setSettings] = useState<AppSettings>({});
   const [statuses, setStatuses] = useState<Record<string, SecretStatus>>({});
   const [encAvailable, setEncAvailable] = useState(true);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
-
-  // default-model form
-  const [provider, setProvider] = useState('openai');
-  const [modelId, setModelId] = useState('');
-  const [savingModel, setSavingModel] = useState(false);
+  const codex = useCodexAuth();
+  const claude = useClaudeCode();
 
   function flash(msg: string): void {
     setToast(msg);
@@ -54,48 +52,18 @@ export default function SettingsView({ onKeysChanged }: { onKeysChanged?: () => 
 
   useEffect(() => {
     (async () => {
-      const [provs, sources, setts, encOk] = await Promise.all([
+      const [provs, sources, encOk] = await Promise.all([
         window.dexter.providers.list(),
         window.dexter.datasources.list(),
-        window.dexter.settings.getAll(),
         window.dexter.secrets.encryptionAvailable(),
       ]);
       setProviders(provs);
       setDataSources(sources);
-      setSettings(setts);
       setEncAvailable(encOk);
       await refreshStatuses();
-
-      const initialProvider = setts.provider ?? 'openai';
-      setProvider(initialProvider);
-      const meta = provs.find((p) => p.id === initialProvider);
-      setModelId(setts.modelId ?? meta?.defaultModel ?? '');
       setLoading(false);
     })();
   }, []);
-
-  const activeProviderMeta = useMemo(
-    () => providers.find((p) => p.id === provider),
-    [providers, provider],
-  );
-
-  function onProviderChange(id: string): void {
-    setProvider(id);
-    const meta = providers.find((p) => p.id === id);
-    setModelId(meta?.defaultModel ?? '');
-  }
-
-  async function saveModel(): Promise<void> {
-    setSavingModel(true);
-    try {
-      await window.dexter.settings.set('provider', provider);
-      await window.dexter.settings.set('modelId', modelId.trim());
-      setSettings((s) => ({ ...s, provider, modelId: modelId.trim() }));
-      flash('기본 모델이 저장되었습니다');
-    } finally {
-      setSavingModel(false);
-    }
-  }
 
   async function onKeyChanged(msg: string): Promise<void> {
     await refreshStatuses();
@@ -111,7 +79,9 @@ export default function SettingsView({ onKeysChanged }: { onKeysChanged?: () => 
     );
   }
 
-  const keyedProviders = providers.filter((p) => p.requiresKey && p.apiKeyEnvVar);
+  // OpenAI / Anthropic keys live in the Agents tabs (Codex / Claude Code → API 키).
+  const AGENT_KEYED = new Set(['openai', 'anthropic']);
+  const keyedProviders = providers.filter((p) => p.requiresKey && p.apiKeyEnvVar && !AGENT_KEYED.has(p.id));
 
   function dataSourceSection(
     title: string,
@@ -179,50 +149,12 @@ export default function SettingsView({ onKeysChanged }: { onKeysChanged?: () => 
         </div>
       )}
 
-      <section className="card">
-        <h2>기본 모델</h2>
-        <div className="field-row">
-          <label className="field">
-            <span className="field-label">공급자</span>
-            <select value={provider} onChange={(e) => onProviderChange(e.target.value)}>
-              {providers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.displayName}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="field grow">
-            <span className="field-label">모델 ID</span>
-            <input
-              list="model-suggestions"
-              value={modelId}
-              placeholder={activeProviderMeta?.defaultModel ?? 'model-id'}
-              onChange={(e) => setModelId(e.target.value)}
-            />
-            <datalist id="model-suggestions">
-              {(activeProviderMeta?.suggestedModels ?? []).map((m) => (
-                <option key={m} value={m} />
-              ))}
-            </datalist>
-          </label>
-
-          <button className="btn primary" onClick={saveModel} disabled={savingModel}>
-            {savingModel ? '저장 중…' : '저장'}
-          </button>
-        </div>
-        {activeProviderMeta?.note && <p className="hint">{activeProviderMeta.note}</p>}
-        <p className="hint">
-          현재 설정: <code>{settings.provider ?? '—'}</code> / <code>{settings.modelId ?? '—'}</code>
-        </p>
-      </section>
+      <AgentsSection claude={claude} codex={codex} statuses={statuses} onChanged={onKeyChanged} />
 
       <section className="card">
         <h2>
-          LLM API 키 <span className="sec-tag req">필수</span>
+          기타 LLM API 키 <span className="sec-tag">선택</span>
         </h2>
-        <p className="sec-intro">모델을 사용하려면 최소 하나가 필요합니다.</p>
         <div className="provider-list">
           {keyedProviders.map((p) => (
             <KeyCard

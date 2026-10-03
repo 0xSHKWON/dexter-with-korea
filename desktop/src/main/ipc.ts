@@ -29,6 +29,8 @@ import {
 } from './db';
 import { encryptSecret, decryptSecret, previewLast4, isEncryptionAvailable } from './secrets';
 import { sidecar } from './sidecar';
+import { codexCancelLogin, codexLogin, codexLogout, codexStatus } from './auth';
+import { CLAUDE_CODE_PATH_SETTING, claudeCodeCancelLogin, claudeCodeLogin, claudeCodeStatus } from './claude-code';
 import type { SecretStatus, SecretExportResult } from '../shared/types';
 
 function statusFor(envVar: string): SecretStatus {
@@ -73,9 +75,18 @@ export function registerIpc(): void {
   ipcMain.handle('update:check', () => checkForUpdate());
   ipcMain.handle('update:open', (_e, url: string) => shell.openExternal(url));
 
+  ipcMain.handle('auth:status', () => codexStatus());
+  ipcMain.handle('auth:login', (_e, mode: 'browser' | 'device') => codexLogin(mode === 'device' ? 'device' : 'browser'));
+  ipcMain.handle('auth:cancel', () => codexCancelLogin());
+  ipcMain.handle('auth:logout', () => codexLogout());
+  ipcMain.handle('claudeCode:status', () => claudeCodeStatus());
+  ipcMain.handle('claudeCode:login', () => claudeCodeLogin());
+  ipcMain.handle('claudeCode:cancel', () => claudeCodeCancelLogin());
+
   ipcMain.handle('settings:getAll', () => getAllSettings());
   ipcMain.handle('settings:set', (_e, key: string, value: unknown) => {
     setSetting(key, value);
+    if (key === CLAUDE_CODE_PATH_SETTING) sidecar.stop(); // respawn with the new CLAUDE_CODE_PATH
   });
 
   ipcMain.handle('secrets:statusAll', () => {

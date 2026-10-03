@@ -9,6 +9,17 @@ const api: DexterApi = {
   datasources: {
     list: () => ipcRenderer.invoke('datasources:list'),
   },
+  auth: {
+    status: () => ipcRenderer.invoke('auth:status'),
+    login: (mode) => ipcRenderer.invoke('auth:login', mode),
+    cancel: () => ipcRenderer.invoke('auth:cancel'),
+    logout: () => ipcRenderer.invoke('auth:logout'),
+  },
+  claudeCode: {
+    status: () => ipcRenderer.invoke('claudeCode:status'),
+    login: () => ipcRenderer.invoke('claudeCode:login'),
+    cancel: () => ipcRenderer.invoke('claudeCode:cancel'),
+  },
   settings: {
     getAll: () => ipcRenderer.invoke('settings:getAll'),
     set: (key, value) => ipcRenderer.invoke('settings:set', key, value),

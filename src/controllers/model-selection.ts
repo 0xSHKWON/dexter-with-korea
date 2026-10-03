@@ -10,6 +10,7 @@ import {
   type Model,
 } from '../utils/model.js';
 import { getOllamaModels, getOllamaCloudModels } from '../utils/ollama.js';
+import { getProviderById } from '../providers.js';
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from '../model/llm.js';
 import { InMemoryChatHistory } from '../utils/in-memory-chat-history.js';
 
@@ -31,6 +32,8 @@ export interface ModelSelectionState {
 }
 
 type ChangeListener = () => void;
+/** Runs a subscription login for an OAuth provider; resolves true on success. */
+type LoginHandler = (providerId: string) => Promise<boolean>;
 
 export class ModelSelectionController {
   private providerValue: string;
@@ -41,11 +44,17 @@ export class ModelSelectionController {
   private pendingSelectedModelId: string | null = null;
   private readonly onError: (message: string) => void;
   private readonly onChange?: ChangeListener;
+  private readonly onLoginRequired?: LoginHandler;
   private readonly chatHistory = new InMemoryChatHistory(DEFAULT_MODEL);
 
-  constructor(onError: (message: string) => void, onChange?: ChangeListener) {
+  constructor(
+    onError: (message: string) => void,
+    onChange?: ChangeListener,
+    onLoginRequired?: LoginHandler,
+  ) {
     this.onError = onError;
     this.onChange = onChange;
+    this.onLoginRequired = onLoginRequired;
     this.providerValue = getSetting('provider', DEFAULT_PROVIDER);
     const savedModel = getSetting('modelId', null) as string | null;
     this.modelValue =
@@ -146,9 +155,26 @@ export class ModelSelectionController {
       return;
     }
 
+    const authType = getProviderById(this.pendingProviderValue)?.authType;
+    if (authType === 'oauth' || authType === 'cli') {
+      void this.loginThenSwitch(this.pendingProviderValue, fullModelId);
+      return;
+    }
+
     this.pendingSelectedModelId = fullModelId;
     this.appStateValue = 'api_key_confirm';
     this.emitChange();
+  }
+
+  /** Login-based providers have no key to type — run the browser login, then switch. */
+  private async loginThenSwitch(providerId: string, modelId: string) {
+    this.resetPendingState();
+    const ok = (await this.onLoginRequired?.(providerId)) ?? false;
+    if (ok) {
+      this.completeModelSwitch(providerId, modelId);
+    } else {
+      this.onError(`Not logged in to ${getProviderDisplayName(providerId)}. Model unchanged.`);
+    }
   }
 
   handleModelInputSubmit(modelName: string | null) {

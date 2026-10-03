@@ -1,15 +1,50 @@
 /** Types shared across main, preload, and renderer. Pure types only. */
 import type { SidecarToMain, ConvertResult, ConversionRecord, ChatConversation, UserAnswers } from './sidecar';
 
+export interface ModelOption {
+  id: string;
+  label: string;
+}
+
 export interface ProviderMeta {
   id: string;
   displayName: string;
+  /** Short column title in the model picker (e.g. "Claude", "Codex"). */
+  shortName?: string;
   apiKeyEnvVar?: string;
+  /** 'oauth' = ChatGPT-plan login; 'cli' = the user's logged-in Claude Code. */
+  authType?: 'apiKey' | 'oauth' | 'cli';
   requiresKey: boolean;
   defaultModel: string;
-  suggestedModels: string[];
+  models: ModelOption[];
   note?: string;
 }
+
+/** Subscription-login state, read from the core's auth.json. Never carries tokens. */
+export interface OAuthStatus {
+  loggedIn: boolean;
+  email?: string;
+  plan?: string;
+}
+
+/** The local Claude Code CLI: installed, and logged in with its own `claude auth login`. */
+export interface ClaudeCodeStatus {
+  installed: boolean;
+  loggedIn: boolean;
+  /** Resolved `claude` binary (custom path setting or auto-detected). */
+  path?: string;
+  version?: string;
+  email?: string;
+  /** "claude.ai" (subscription) | "api_key" | … — from `claude auth status`. */
+  authMethod?: string;
+  /** "firstParty" | "bedrock" | "vertex" | … */
+  apiProvider?: string;
+  orgName?: string;
+  /** "pro" | "max" | … */
+  subscriptionType?: string;
+}
+
+export type AuthLoginResult = { ok: true; email?: string; plan?: string } | { ok: false; error: string };
 
 export type DataSourceGroup = 'kr' | 'search' | 'other';
 
@@ -71,6 +106,20 @@ export interface DexterApi {
   };
   datasources: {
     list(): Promise<DataSource[]>;
+  };
+  auth: {
+    /** ChatGPT (Codex) login state. */
+    status(): Promise<OAuthStatus>;
+    /** Run the login; resolves when it finishes. The device code arrives as an `auth_prompt` chat event. */
+    login(mode: 'browser' | 'device'): Promise<AuthLoginResult>;
+    cancel(): Promise<void>;
+    logout(): Promise<void>;
+  };
+  claudeCode: {
+    status(): Promise<ClaudeCodeStatus>;
+    /** Runs `claude auth login` (opens the browser); resolves when it exits. */
+    login(): Promise<AuthLoginResult>;
+    cancel(): Promise<void>;
   };
   settings: {
     getAll(): Promise<AppSettings>;

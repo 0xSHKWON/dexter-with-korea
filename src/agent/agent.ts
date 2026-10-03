@@ -19,6 +19,7 @@ import { APPROVAL_GATED_TOOLS } from '../permissions/engine.js';
 import { MemoryManager } from '../memory/index.js';
 import { runMemoryFlush, shouldRunMemoryFlush } from '../memory/flush.js';
 import { resolveProvider } from '../providers.js';
+import { runClaudeCodeTurn } from './claude-code-runner.js';
 
 
 const DEFAULT_MODEL = 'gpt-6-astra';
@@ -166,6 +167,11 @@ export class Agent {
 
     if (this.tools.length === 0) {
       yield { type: 'done', answer: 'No tools available. Please check your API key configuration.', toolCalls: [], iterations: 0, totalTime: Date.now() - startTime };
+      return;
+    }
+
+    if (resolveProvider(this.model).id === 'claude-code') {
+      yield* this.runViaClaudeCode(query, inMemoryHistory);
       return;
     }
 
@@ -510,6 +516,37 @@ export class Agent {
   // ---------------------------------------------------------------------------
   // Response handling
   // ---------------------------------------------------------------------------
+
+  /**
+   * Claude Code path: the whole turn (tool loop included) runs in one `claude -p`
+   * session; our tools reach it over MCP but still execute through toolExecutor.
+   * The native loop's compaction / iteration cap / queue draining don't apply.
+   */
+  private async *runViaClaudeCode(query: string, inMemoryHistory?: InMemoryChatHistory): AsyncGenerator<AgentEvent, void> {
+    const ctx = createRunContext(query);
+    const history = (inMemoryHistory?.getRecentTurnsAsMessages() ?? [])
+      .map((m) => `[${m._getType() === 'human' ? 'User' : 'Assistant'}]\n${extractTextContent(m as AIMessage)}`)
+      .join('\n\n');
+    const prompt = history ? `Earlier in this conversation:\n\n${history}\n\n[User]\n${query}` : query;
+
+    try {
+      const result = yield* runClaudeCodeTurn({
+        model: this.model,
+        systemPrompt: this.systemPrompt,
+        prompt,
+        tools: this.tools,
+        signal: this.signal,
+        executeTool: (name, args, id) =>
+          this.toolExecutor.executeAll(new AIMessage({ content: '', tool_calls: [{ name, args, id, type: 'tool_call' }] }), ctx),
+      });
+      ctx.iteration = result.numTurns;
+      ctx.tokenCounter.add(result.usage);
+      yield* this.handleDirectResponse(result.isError ? `Error: [Claude Code] ${result.answer}` : result.answer, ctx);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      yield* this.handleDirectResponse(`Error: ${formatUserFacingError(message, 'Claude Code')}`, ctx);
+    }
+  }
 
   private async *handleDirectResponse(
     responseText: string,

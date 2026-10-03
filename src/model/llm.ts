@@ -12,8 +12,11 @@ import { z } from 'zod';
 import { DEFAULT_SYSTEM_PROMPT } from '@/agent/prompts';
 import type { TokenUsage } from '@/agent/types';
 import { logger } from '@/utils';
+import { extractTextContent } from '@/utils/ai-message';
 import { classifyError, isNonRetryableError } from '@/utils/errors';
 import { resolveProvider, getProviderById } from '@/providers';
+import { createCodexChatModel } from '@/model/codex';
+import { ChatClaudeCode } from '@/model/claude-code';
 
 export const DEFAULT_PROVIDER = 'openai';
 export const DEFAULT_MODEL = 'gpt-6-astra';
@@ -72,6 +75,11 @@ const MODEL_FACTORIES: Record<string, ModelFactory> = {
       ...opts,
       apiKey: getApiKey('ANTHROPIC_API_KEY'),
     }),
+  // The user's Claude Code CLI login. Only non-agentic calls land here; the agent
+  // loop hands whole turns to Claude Code (agent/claude-code-runner.ts).
+  'claude-code': (name) => new ChatClaudeCode({ model: name }),
+  // ChatGPT subscription via OAuth — always streams on the wire (see model/codex.ts).
+  'openai-codex': (name) => createCodexChatModel(name),
   google: (name, opts) =>
     new ChatGoogleGenerativeAI({
       model: name,
@@ -264,8 +272,10 @@ export async function callLlm(prompt: string, options: CallLlmOptions = {}): Pro
 
   // If no outputSchema and no tools, extract content from AIMessage
   // When tools are provided, return the full AIMessage to preserve tool_calls
+  // Responses-API streams (Codex) and thinking models return content as blocks;
+  // plain-text callers expect a string.
   if (!outputSchema && !tools && result && typeof result === 'object' && 'content' in result) {
-    return { response: (result as { content: string }).content, usage };
+    return { response: extractTextContent(result as AIMessage), usage };
   }
   return { response: result as AIMessage, usage };
 }

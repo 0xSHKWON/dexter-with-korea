@@ -10,7 +10,7 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { PROVIDERS as DESKTOP_PROVIDERS } from './providers.js';
 import { PROVIDERS as CORE_PROVIDERS } from '../../../src/providers.js';
-import { getModelIdsForProvider, getDefaultModelForProvider } from '../../../src/utils/model.js';
+import { getModelsForProvider, getDefaultModelForProvider } from '../../../src/utils/model.js';
 
 /** Providers whose model ids are free-form (no core catalog to check against). */
 const FREE_FORM = new Set(['openrouter', 'ollama', 'ollama-cloud']);
@@ -25,16 +25,17 @@ describe('desktop provider catalog stays in sync with the core', () => {
     }
   });
 
-  it('every suggested model id exists in the core catalog', () => {
+  it('every model id and label matches the core catalog', () => {
     for (const p of catalogued) {
-      const known = getModelIdsForProvider(p.id);
-      for (const model of p.suggestedModels) {
-        expect({ provider: p.id, model, known: known.includes(model) }).toEqual({
-          provider: p.id,
-          model,
-          known: true,
-        });
-      }
+      const core = getModelsForProvider(p.id).map((m) => ({ id: m.id, label: m.displayName }));
+      expect({ provider: p.id, models: p.models }).toEqual({ provider: p.id, models: core });
+    }
+  });
+
+  it('authType matches the core registry', () => {
+    for (const p of DESKTOP_PROVIDERS) {
+      const core = CORE_PROVIDERS.find((c) => c.id === p.id);
+      expect({ id: p.id, auth: p.authType }).toEqual({ id: p.id, auth: core?.authType });
     }
   });
 

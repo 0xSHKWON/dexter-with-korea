@@ -42,7 +42,16 @@ export type SidecarRequest =
       rawData: string;
       model: string;
       modelProvider: string;
-    };
+    }
+  | {
+      /** Run a subscription (OAuth) login; credentials land in <DEXTER_DIR>/auth.json. */
+      type: 'auth_login';
+      id: string;
+      provider: 'openai-codex';
+      /** 'device' = user-code flow, for when the browser callback can't reach this machine. */
+      mode?: 'browser' | 'device';
+    }
+  | { type: 'auth_cancel'; id: string };
 
 /** One mapped account line in the converted financial statements. */
 export interface AccountMapping {
@@ -77,4 +86,13 @@ export type SidecarMessage =
       id: string;
       questionId: string;
       questions: Question[];
-    };
+    }
+  | {
+      /** The shell must open `url` (browser flow) or show `userCode` (device flow). */
+      type: 'auth_prompt';
+      id: string;
+      url: string;
+      userCode?: string;
+    }
+  | { type: 'auth_result'; id: string; ok: true; email?: string; plan?: string }
+  | { type: 'auth_result'; id: string; ok: false; error: string };
