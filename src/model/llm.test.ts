@@ -122,21 +122,22 @@ function countCacheControls(payload: Record<string, unknown>): number {
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 describe('Anthropic incremental prompt caching', () => {
-  it('attaches cache_control to the last content block of the last message (tool turn)', async () => {
+  // @langchain/anthropic >=1.5 forwards the cache_control call option as the
+  // API's top-level `cache_control`, and Anthropic places the breakpoint on the
+  // last cacheable block server-side. Nothing is written into the message blocks.
+  it('sends the conversation breakpoint as top-level cache_control (tool turn)', async () => {
     await callLlmWithMessages(makeAgentLoopMessages(), { model: ANTHROPIC_MODEL });
 
     expect(anthropicPayload).toBeDefined();
+    expect(anthropicPayload!.cache_control).toEqual(EPHEMERAL);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const wireMessages = anthropicPayload!.messages as any[];
     const last = wireMessages[wireMessages.length - 1];
-    expect(last.role).toBe('user');
-    expect(Array.isArray(last.content)).toBe(true);
     const lastBlock = last.content[last.content.length - 1];
-    // Tool results become top-level tool_result blocks — the breakpoint must sit
-    // on the tool_result block itself (nested cache_control is rejected by the API).
     expect(lastBlock.type).toBe('tool_result');
     expect(lastBlock.tool_use_id).toBe('call_1');
-    expect(lastBlock.cache_control).toEqual(EPHEMERAL);
+    // Never nested inside tool_result — the API rejects that shape.
+    expect(JSON.stringify(lastBlock.content ?? '')).not.toContain('cache_control');
   });
 
   it('keeps the system prompt cache_control breakpoint (2 breakpoints total)', async () => {
@@ -149,22 +150,21 @@ describe('Anthropic incremental prompt caching', () => {
     expect(system[0].text).toBe('You are a KR equity research agent.');
     expect(system[0].cache_control).toEqual(EPHEMERAL);
 
-    // system 1 + conversation 1 — well inside Anthropic's 4-breakpoint limit
-    expect(countCacheControls(anthropicPayload!)).toBe(2);
+    // system block 1 + top-level auto breakpoint 1 — inside Anthropic's 4-breakpoint limit
+    expect(countCacheControls(anthropicPayload!)).toBe(1);
+    expect(anthropicPayload!.cache_control).toEqual(EPHEMERAL);
   });
 
-  it('converts a string-content last message into a content block array', async () => {
+  it('leaves string-content messages unannotated (the API places the breakpoint)', async () => {
     await callLlmWithMessages(
       [new SystemMessage('sys'), new HumanMessage('삼성전자 최근 실적 요약해줘')],
       { model: ANTHROPIC_MODEL },
     );
 
+    expect(anthropicPayload!.cache_control).toEqual(EPHEMERAL);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const wireMessages = anthropicPayload!.messages as any[];
-    const last = wireMessages[wireMessages.length - 1];
-    expect(last.content).toEqual([
-      { type: 'text', text: '삼성전자 최근 실적 요약해줘', cache_control: EPHEMERAL },
-    ]);
+    expect(JSON.stringify(wireMessages)).not.toContain('cache_control');
   });
 
   it('does not mutate the caller-owned message objects', async () => {
@@ -186,13 +186,8 @@ describe('Anthropic incremental prompt caching', () => {
     }
 
     expect(anthropicPayload).toBeDefined();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const wireMessages = anthropicPayload!.messages as any[];
-    const last = wireMessages[wireMessages.length - 1];
-    const lastBlock = last.content[last.content.length - 1];
-    expect(lastBlock.type).toBe('tool_result');
-    expect(lastBlock.cache_control).toEqual(EPHEMERAL);
-    expect(countCacheControls(anthropicPayload!)).toBe(2);
+    expect(anthropicPayload!.cache_control).toEqual(EPHEMERAL);
+    expect(countCacheControls(anthropicPayload!)).toBe(1);
   });
 
   it('still threads the abort signal through to the request layer', async () => {
@@ -233,19 +228,19 @@ describe('non-Anthropic providers are unaffected', () => {
   });
 });
 
-// Upstream (virattt/dexter): GPT-5.6 family must route through the OpenAI Responses API.
+// Upstream (virattt/dexter): GPT-6 and GPT-5.6 families must route through the OpenAI Responses API.
 describe('OpenAI API routing', () => {
-  it('uses the Responses API for the GPT-5.6 family', () => {
+  it('uses the Responses API for the GPT-6 and GPT-5.6 families', () => {
     const previousApiKey = process.env.OPENAI_API_KEY;
     process.env.OPENAI_API_KEY = 'test-key';
 
     try {
-      for (const model of ['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna']) {
+      for (const model of ['gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna']) {
         const llm = getChatModel(model) as { useResponsesApi?: boolean };
         expect(llm.useResponsesApi).toBe(true);
       }
-      // The fork keeps gpt-5.5 selectable; it predates the Responses API and must
-      // stay on Chat Completions (widening the prefix check would silently reroute it).
+      // gpt-5.5 predates the Responses API. It can still arrive verbatim (cron
+      // payloads, --model), so it must stay on Chat Completions.
       expect((getChatModel('gpt-5.5') as { useResponsesApi?: boolean }).useResponsesApi).toBe(false);
     } finally {
       if (previousApiKey === undefined) {

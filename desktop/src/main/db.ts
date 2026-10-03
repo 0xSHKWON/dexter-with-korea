@@ -58,12 +58,22 @@ export function initDb(): Database.Database {
  * `../../../src/utils/model.ts` (PROVIDER_MODELS).
  */
 const MODEL_ID_UPGRADES: Record<string, string> = {
-  'gemini-3': 'gemini-3-flash-preview',
-  'grok-4-1': 'grok-4-0709',
-  // Retired with the upstream v1.0.3 catalog. gpt-5.5 is deliberately NOT here —
-  // the fork keeps it selectable (see PROVIDER_MODELS in src/utils/model.ts).
-  'gpt-5.4': 'gpt-5.6-sol',
-  'gpt-5.2': 'gpt-5.6-sol',
+  'gemini-3': 'gemini-3.8-flash',
+  'grok-4-1': 'grok-4.7',
+  // Mirrors DEPRECATED_MODEL_UPGRADES in src/utils/config.ts (upstream v1.0.6
+  // catalog). The gpt-5.6 tiers are deliberately NOT here — the fork keeps the
+  // immediately-previous generation selectable.
+  'gpt-5.5': 'gpt-6-astra',
+  'gpt-5.4': 'gpt-6-astra',
+  'gpt-5.2': 'gpt-6-astra',
+  'claude-sonnet-4-6': 'claude-sonnet-5',
+  'claude-opus-4-8': 'claude-opus-5-5',
+  'claude-fable-5': 'claude-fable-5-1',
+  'gemini-3-flash-preview': 'gemini-3.8-flash',
+  'grok-4-0709': 'grok-4.7',
+  'grok-4-1-fast-reasoning': 'grok-4.7',
+  'kimi-k2-5': 'kimi-k3',
+  'deepseek-v4-flash': 'deepseek-flash',
 };
 
 function migrateBadModelIds(database: Database.Database): void {

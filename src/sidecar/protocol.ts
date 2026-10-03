@@ -17,7 +17,7 @@ export type SidecarRequest =
       /** Correlates events/done/error back to this request. */
       id: string;
       query: string;
-      /** Model id, e.g. "gpt-5.5", "claude-sonnet-4-6", "ollama:llama3.1". */
+      /** Model id, e.g. "gpt-6-astra", "claude-sonnet-5", "ollama:llama3.1". */
       model: string;
       /** Provider slug, e.g. "openai", "anthropic". */
       modelProvider: string;
