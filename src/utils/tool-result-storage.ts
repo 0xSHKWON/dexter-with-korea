@@ -18,6 +18,16 @@ export const PREVIEW_CHARS = 2_000;
 const RESULTS_DIR = dexterPath('tool-results');
 
 /**
+ * Where persisted results live. read_file must be allowed to read here even when
+ * it sits outside the cwd sandbox — the desktop sidecar points DEXTER_DIR at the
+ * app's userData dir while its cwd is the bundled core, so without this every
+ * "Use read_file to access the full result" hint fails with a sandbox error.
+ */
+export function toolResultsDir(): string {
+  return RESULTS_DIR;
+}
+
+/**
  * Persist a large tool result to disk and return a compact preview.
  */
 export function persistLargeResult(

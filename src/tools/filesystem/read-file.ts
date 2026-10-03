@@ -3,7 +3,7 @@ import { constants } from 'node:fs';
 import { access, readFile } from 'node:fs/promises';
 import { z } from 'zod';
 import { formatToolResult } from '../types.js';
-import { MAX_TOOL_RESULT_CHARS } from '../../utils/tool-result-storage.js';
+import { MAX_TOOL_RESULT_CHARS, toolResultsDir } from '../../utils/tool-result-storage.js';
 import { assertSandboxPath } from './sandbox.js';
 import { resolveReadPath } from './utils/path-utils.js';
 import { DEFAULT_MAX_BYTES, formatSize, truncateHead } from './utils/truncate.js';
@@ -113,11 +113,17 @@ export const readFileTool = new DynamicStructuredTool({
   schema: readFileSchema,
   func: async (input) => {
     const cwd = process.cwd();
+    // Read-only exception: persisted tool results (see toolResultsDir) are
+    // readable even when DEXTER_DIR is outside the cwd sandbox.
     const { resolved: sandboxPath } = await assertSandboxPath({
       filePath: input.path,
       cwd,
       root: cwd,
-    });
+    }).catch((cwdError: unknown) =>
+      assertSandboxPath({ filePath: input.path, cwd, root: toolResultsDir() }).catch(() => {
+        throw cwdError;
+      }),
+    );
     const absolutePath = resolveReadPath(sandboxPath, cwd);
 
     await access(absolutePath, constants.R_OK);
