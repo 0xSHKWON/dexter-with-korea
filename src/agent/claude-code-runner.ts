@@ -27,6 +27,8 @@ const MCP_SERVER_NAME = 'dexter';
 
 export interface ClaudeCodeTurnParams {
   model: string;
+  /** `claude --effort` level (low | medium | high | xhigh | max); unset = Claude Code's default. */
+  effort?: string;
   systemPrompt: string;
   prompt: string;
   tools: StructuredToolInterface[];
@@ -122,6 +124,7 @@ export async function* runClaudeCodeTurn(p: ClaudeCodeTurnParams): AsyncGenerato
     // own permission prompt. Dexter's executor still applies its own approvals.
     '--allowedTools',
     `mcp__${MCP_SERVER_NAME}`,
+    ...(p.effort ? ['--effort', p.effort] : []),
   ];
 
   const child = spawn(bin, args, {

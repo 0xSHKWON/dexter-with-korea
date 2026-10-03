@@ -68,6 +68,7 @@ export const PROVIDERS: ProviderMeta[] = [
       { id: 'claude-code:claude-haiku-4-5', label: 'Haiku 4.5' },
     ],
     note: 'Claude Pro/Max — 설치된 Claude Code의 로그인을 그대로 사용',
+    effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
   },
   {
     id: 'openai-codex',
@@ -89,6 +90,7 @@ export const PROVIDERS: ProviderMeta[] = [
       { id: 'codex:gpt-5.4', label: 'GPT-5.4' },
     ],
     note: 'ChatGPT Plus/Pro 구독으로 로그인 — API 키 불필요',
+    effortLevels: ['low', 'medium', 'high', 'xhigh'],
   },
   {
     id: 'google',

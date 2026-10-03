@@ -22,6 +22,8 @@ export type SidecarRequest =
       /** Provider slug, e.g. "openai", "anthropic". */
       modelProvider: string;
       maxIterations?: number;
+      /** Reasoning effort for providers that support it (Claude Code, Codex). */
+      effort?: string;
     }
   | { type: 'cancel'; id: string }
   | {
@@ -51,7 +53,12 @@ export type SidecarRequest =
       /** 'device' = user-code flow, for when the browser callback can't reach this machine. */
       mode?: 'browser' | 'device';
     }
-  | { type: 'auth_cancel'; id: string };
+  | { type: 'auth_cancel'; id: string }
+  | {
+      /** Reuse the existing Codex CLI login (shared tokens, see auth/codex-cli.ts). */
+      type: 'auth_link_codex_cli';
+      id: string;
+    };
 
 /** One mapped account line in the converted financial statements. */
 export interface AccountMapping {

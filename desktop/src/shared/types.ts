@@ -17,6 +17,8 @@ export interface ProviderMeta {
   requiresKey: boolean;
   defaultModel: string;
   models: ModelOption[];
+  /** Reasoning-effort levels this provider accepts, lowest first. Absent = no effort control. */
+  effortLevels?: string[];
   note?: string;
 }
 
@@ -25,6 +27,11 @@ export interface OAuthStatus {
   loggedIn: boolean;
   email?: string;
   plan?: string;
+  /** 'dexter' = logged in here; 'codex-cli' = sharing the Codex CLI login. */
+  source?: 'dexter' | 'codex-cli';
+  /** An existing `codex login` (ChatGPT mode) was found and can be reused. */
+  cliAvailable?: boolean;
+  cliEmail?: string;
 }
 
 /** The local Claude Code CLI: installed, and logged in with its own `claude auth login`. */
@@ -76,6 +83,8 @@ export interface SecretExportResult {
 export interface AppSettings {
   provider?: string;
   modelId?: string;
+  /** providerId → chosen reasoning effort; a missing entry means the provider default. */
+  effort?: Record<string, string>;
   [key: string]: unknown;
 }
 
@@ -100,6 +109,22 @@ export interface AutoUpdateStatus {
 }
 
 /** API surface exposed to the renderer via contextBridge as `window.dexter`. */
+/** One answered chat turn, ready to print. `answerHtml` is already-rendered markdown. */
+export interface ChatPdfDoc {
+  title: string;
+  question: string;
+  answerHtml: string;
+  askedAt?: number;
+  answeredAt?: number;
+  /** Tool calls the agent made ("재무제표 조회 · 005930"), listed as the report's data trail. */
+  sources: string[];
+}
+
+export interface ChatPdfResult {
+  saved: boolean;
+  path?: string;
+}
+
 export interface DexterApi {
   providers: {
     list(): Promise<ProviderMeta[]>;
@@ -114,6 +139,8 @@ export interface DexterApi {
     login(mode: 'browser' | 'device'): Promise<AuthLoginResult>;
     cancel(): Promise<void>;
     logout(): Promise<void>;
+    /** Reuse the existing Codex CLI login instead of logging in again. */
+    linkCodexCli(): Promise<AuthLoginResult>;
   };
   claudeCode: {
     status(): Promise<ClaudeCodeStatus>;
@@ -145,6 +172,8 @@ export interface DexterApi {
     listConversations(): Promise<ChatConversation[]>;
     saveConversation(conv: ChatConversation): Promise<void>;
     deleteConversation(id: string): Promise<void>;
+    /** Save-dialog → A4 PDF of one answer, opened in the default viewer once written. */
+    exportPdf(doc: ChatPdfDoc): Promise<ChatPdfResult>;
   };
   work: {
     /** Convert pasted ledger data into DART standard accounts. Result arrives via chat.onEvent. */

@@ -80,7 +80,7 @@ async function codexFetch(url: RequestInfo | URL, init?: RequestInit): Promise<R
   return fetch(url, { ...init, headers, body });
 }
 
-export function createCodexChatModel(name: string): ChatOpenAI {
+export function createCodexChatModel(name: string, effort?: string): ChatOpenAI {
   return new ChatOpenAI({
     model: name.slice(name.startsWith(CODEX_MODEL_PREFIX) ? CODEX_MODEL_PREFIX.length : 0),
     // The backend only streams; LangChain's invoke() aggregates the stream when this is on.
@@ -89,6 +89,9 @@ export function createCodexChatModel(name: string): ChatOpenAI {
     // store:false on the wire, and no server-side item ids in replayed history
     // (reasoning items are replayed only via their encrypted content).
     zdrEnabled: true,
+    // Via modelKwargs, not `reasoning`: LangChain only forwards `reasoning` for
+    // models its isReasoningModel() knows (o*, gpt-5*), which drops it for gpt-6-*.
+    ...(effort ? { modelKwargs: { reasoning: { effort } } } : {}),
     // Required by the SDK constructor; codexFetch replaces the Authorization header.
     apiKey: 'chatgpt-oauth',
     configuration: {

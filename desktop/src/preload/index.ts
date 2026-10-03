@@ -14,6 +14,7 @@ const api: DexterApi = {
     login: (mode) => ipcRenderer.invoke('auth:login', mode),
     cancel: () => ipcRenderer.invoke('auth:cancel'),
     logout: () => ipcRenderer.invoke('auth:logout'),
+    linkCodexCli: () => ipcRenderer.invoke('auth:linkCodexCli'),
   },
   claudeCode: {
     status: () => ipcRenderer.invoke('claudeCode:status'),
@@ -45,6 +46,7 @@ const api: DexterApi = {
     listConversations: () => ipcRenderer.invoke('chat:listConv'),
     saveConversation: (conv) => ipcRenderer.invoke('chat:saveConv', conv),
     deleteConversation: (id) => ipcRenderer.invoke('chat:deleteConv', id),
+    exportPdf: (doc) => ipcRenderer.invoke('chat:exportPdf', doc),
   },
   work: {
     convert: (rawData) => ipcRenderer.invoke('work:convert', rawData),

@@ -7,6 +7,8 @@ export interface OAuthCredentials {
   email?: string;
   /** ChatGPT plan type from the token claims (plus, pro, team, …). */
   plan?: string;
+  /** 'codex-cli' = tokens live in Codex CLI's auth.json and are shared with it (see auth/codex-cli.ts). */
+  source?: 'dexter' | 'codex-cli';
 }
 
 export interface OAuthAuthPrompt {

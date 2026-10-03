@@ -116,6 +116,23 @@ describe('agent turn via Claude Code + in-process MCP', () => {
     expect(args).toContain('--strict-mcp-config');
   });
 
+  it('passes the agent effort to claude --effort', async () => {
+    const getPrice = tool(async () => '1', { name: 'get_price', description: 'p', schema: z.object({ ticker: z.string() }) });
+    process.env.FAKE_CLAUDE_TOOL = 'get_price';
+    const agent = await Agent.create({
+      model: 'claude-code:claude-opus-5-5',
+      effort: 'xhigh',
+      memoryEnabled: false,
+      systemPromptOverride: 'x',
+      transformTools: () => [getPrice],
+    });
+    for await (const _ of agent.run('q')) {
+      // drain
+    }
+    const { args } = invocations()[0];
+    expect(args[args.indexOf('--effort') + 1]).toBe('xhigh');
+  });
+
   it('reports a missing install as a done-with-error answer, not a crash', async () => {
     process.env.CLAUDE_CODE_PATH = join(dir, 'nope');
     const prevPath = process.env.PATH;

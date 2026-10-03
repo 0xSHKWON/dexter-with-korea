@@ -8,9 +8,17 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'n
 import { dirname } from 'node:path';
 import { dexterPath } from '../utils/paths.js';
 import { loginCodexBrowser, loginCodexDevice, refreshCodexToken } from './openai-codex.js';
+import { readCodexCliCredentials, writeCodexCliCredentials } from './codex-cli.js';
 import type { OAuthCredentials, OAuthLoginCallbacks, OAuthProviderId } from './types.js';
 
-type AuthFile = Partial<Record<OAuthProviderId, OAuthCredentials>>;
+/** A login linked to Codex CLI stores no tokens here — only a pointer plus cached identity. */
+interface LinkedEntry {
+  source: 'codex-cli';
+  email?: string;
+  plan?: string;
+}
+
+type AuthFile = Partial<Record<OAuthProviderId, OAuthCredentials | LinkedEntry>>;
 
 /** Refresh this long before the real expiry so a long agent turn doesn't straddle it. */
 const REFRESH_SKEW_MS = 5 * 60 * 1000;
@@ -38,7 +46,12 @@ function writeAuthFile(data: AuthFile): void {
 }
 
 export function getStoredCredentials(provider: OAuthProviderId): OAuthCredentials | undefined {
-  const creds = readAuthFile()[provider];
+  const entry = readAuthFile()[provider];
+  if (entry?.source === 'codex-cli') {
+    const shared = readCodexCliCredentials();
+    return shared ? { ...shared, source: 'codex-cli' } : undefined;
+  }
+  const creds = entry as OAuthCredentials | undefined;
   return creds?.access && creds.refresh ? creds : undefined;
 }
 
@@ -75,9 +88,15 @@ export async function getValidCredentials(provider: OAuthProviderId): Promise<OA
   let pending = inflightRefresh.get(provider);
   if (!pending) {
     pending = (async () => {
+      if (creds.source === 'codex-cli') {
+        // Codex CLI may have refreshed the shared file since we read it.
+        const latest = readCodexCliCredentials();
+        if (latest && latest.expires - REFRESH_SKEW_MS > Date.now()) return { ...latest, source: 'codex-cli' as const };
+      }
       const refreshed = await refreshCodexToken(creds.refresh);
       const merged: OAuthCredentials = { ...creds, ...stripUndefined(refreshed) };
-      saveCredentials(provider, merged);
+      if (creds.source === 'codex-cli') writeCodexCliCredentials(merged);
+      else saveCredentials(provider, merged);
       return merged;
     })().finally(() => inflightRefresh.delete(provider));
     inflightRefresh.set(provider, pending);
@@ -87,6 +106,21 @@ export async function getValidCredentials(provider: OAuthProviderId): Promise<OA
 
 function stripUndefined<T extends object>(obj: T): Partial<T> {
   return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as Partial<T>;
+}
+
+/**
+ * Use the existing Codex CLI login (`codex login`, ChatGPT mode) instead of a
+ * separate Dexter login. Logging out of Dexter later only unlinks — Codex CLI
+ * stays logged in.
+ */
+export function linkCodexCli(provider: OAuthProviderId = 'openai-codex'): OAuthCredentials {
+  const shared = readCodexCliCredentials();
+  if (!shared) {
+    throw new Error('No Codex CLI ChatGPT login found. Run `codex login` first (or log in to ChatGPT here).');
+  }
+  const entry: LinkedEntry = { source: 'codex-cli', email: shared.email, plan: shared.plan };
+  writeAuthFile({ ...readAuthFile(), [provider]: entry });
+  return { ...shared, source: 'codex-cli' };
 }
 
 export type LoginMode = 'browser' | 'device';

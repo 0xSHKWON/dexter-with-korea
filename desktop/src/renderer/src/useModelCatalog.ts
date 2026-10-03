@@ -12,6 +12,8 @@ export interface ModelCatalog {
   claude: ClaudeCodeAuth;
   /** Persist provider + model as the default for new runs. */
   select(providerId: string, modelId: string): Promise<void>;
+  /** Persist the reasoning effort for a provider; undefined = provider default. */
+  setEffort(providerId: string, level: string | undefined): Promise<void>;
   reload(): Promise<void>;
 }
 
@@ -69,5 +71,17 @@ export function useModelCatalog(): ModelCatalog {
     window.dispatchEvent(new Event(MODEL_CHANGED));
   }, []);
 
-  return { loading, providers, connected, settings, codex, claude, select, reload };
+  const setEffort = useCallback(
+    async (providerId: string, level: string | undefined) => {
+      const next = { ...(settings.effort ?? {}) };
+      if (level) next[providerId] = level;
+      else delete next[providerId];
+      await window.dexter.settings.set('effort', next);
+      setSettings((s) => ({ ...s, effort: next }));
+      window.dispatchEvent(new Event(MODEL_CHANGED));
+    },
+    [settings.effort],
+  );
+
+  return { loading, providers, connected, settings, codex, claude, select, setEffort, reload };
 }

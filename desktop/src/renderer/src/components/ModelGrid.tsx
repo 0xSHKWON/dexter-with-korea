@@ -1,15 +1,15 @@
 import type { ProviderMeta } from '../../../shared/types';
-import type { CodexAuth } from '../useCodexAuth';
 import { CLAUDE_CODE_INSTALL_URL, type ClaudeCodeAuth } from '../useClaudeCode';
+import { ClaudeIcon, OpenAIIcon } from './BrandIcons';
 
 /** Providers whose ids are free-form — no fixed catalog to show as cards. */
 const FREE_FORM = new Set(['openrouter', 'ollama', 'ollama-cloud']);
-/** Always shown (with a connect action when unusable); the rest only once connected. */
+/** Always shown (greyed out until connected in Settings); the rest only once connected. */
 const PINNED = ['claude-code', 'openai-codex'];
 
-function ProviderIcon({ id }: { id: string }): JSX.Element {
-  if (id === 'claude-code' || id === 'anthropic') return <span className="mg-icon mg-icon-claude">✳</span>;
-  if (id === 'openai-codex') return <span className="mg-icon mg-icon-codex">{'>_'}</span>;
+export function ProviderIcon({ id }: { id: string }): JSX.Element {
+  if (id === 'claude-code' || id === 'anthropic') return <ClaudeIcon size={15} className="mg-brand" />;
+  if (id === 'openai-codex' || id === 'openai') return <OpenAIIcon size={15} className="mg-brand" />;
   return <span className="mg-icon">●</span>;
 }
 
@@ -18,7 +18,6 @@ interface Props {
   /** providerId → usable right now (key stored / logged in). */
   connected: Record<string, boolean>;
   selectedModelId?: string;
-  codex: CodexAuth;
   claude: ClaudeCodeAuth;
   onSelect(providerId: string, modelId: string): void;
   onOpenSettings?(): void;
@@ -29,7 +28,6 @@ export default function ModelGrid({
   providers,
   connected,
   selectedModelId,
-  codex,
   claude,
   onSelect,
   onOpenSettings,
@@ -40,7 +38,7 @@ export default function ModelGrid({
     .sort((a, b) => rank(a.id) - rank(b.id));
 
   return (
-    <div className="mg" style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(190px, 1fr))` }}>
+    <div className="mg" style={{ gridTemplateColumns: `repeat(${columns.length}, 168px)` }}>
       {columns.map((p) => {
         const usable = !!connected[p.id];
         return (
@@ -48,18 +46,8 @@ export default function ModelGrid({
             <div className="mg-head">
               <ProviderIcon id={p.id} />
               <span className="mg-title">{p.shortName ?? p.displayName}</span>
-              {!usable && <ConnectAction provider={p} codex={codex} claude={claude} onOpenSettings={onOpenSettings} />}
+              {!usable && <ConnectAction provider={p} claude={claude} onOpenSettings={onOpenSettings} />}
             </div>
-            {p.id === 'openai-codex' && codex.device && (
-              <div className="mg-device">
-                <a href={codex.device.url} target="_blank" rel="noreferrer">
-                  {codex.device.url.replace(/^https:\/\//, '')}
-                </a>
-                에서 코드 입력 <code>{codex.device.userCode}</code>
-              </div>
-            )}
-            {p.id === 'openai-codex' && codex.error && <div className="mg-error">{codex.error}</div>}
-            {p.id === 'claude-code' && claude.error && <div className="mg-error">{claude.error}</div>}
             {p.models.map((m) => {
               const selected = m.id === selectedModelId;
               return (
@@ -89,45 +77,23 @@ function rank(id: string): number {
 
 function ConnectAction({
   provider,
-  codex,
   claude,
   onOpenSettings,
 }: {
   provider: ProviderMeta;
-  codex: CodexAuth;
   claude: ClaudeCodeAuth;
   onOpenSettings?: () => void;
 }): JSX.Element | null {
+  // Subscription logins live in Settings → 에이전트, not in the picker.
   if (provider.authType === 'cli') {
-    if (!claude.status) return null;
-    if (!claude.status.installed) {
-      return (
-        <a className="mg-connect" href={CLAUDE_CODE_INSTALL_URL} target="_blank" rel="noreferrer">
-          설치 필요
-        </a>
-      );
-    }
-    return claude.busy ? (
-      <button className="mg-connect" onClick={claude.cancel}>
-        로그인 중… 취소
-      </button>
-    ) : (
-      <button className="mg-connect" onClick={() => void claude.login()}>
-        Claude 로그인
-      </button>
+    if (claude.status?.installed !== false) return null;
+    return (
+      <a className="mg-connect" href={CLAUDE_CODE_INSTALL_URL} target="_blank" rel="noreferrer">
+        설치 필요
+      </a>
     );
   }
-  if (provider.authType === 'oauth') {
-    return codex.busy ? (
-      <button className="mg-connect" onClick={codex.cancel}>
-        로그인 중… 취소
-      </button>
-    ) : (
-      <button className="mg-connect" onClick={() => void codex.login('browser')}>
-        ChatGPT 로그인
-      </button>
-    );
-  }
+  if (provider.authType === 'oauth') return null;
   if (!onOpenSettings) return <span className="mg-connect muted-only">API 키 필요</span>;
   return (
     <button className="mg-connect" onClick={onOpenSettings}>

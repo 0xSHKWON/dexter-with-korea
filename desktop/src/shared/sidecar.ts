@@ -92,6 +92,8 @@ export interface StoredMessage {
   content: string;
   /** The reasoning timeline (tool calls + thoughts) shown before the answer. */
   steps?: ChatStep[];
+  /** Epoch ms: when the question was sent / the answer finished. Absent on older rows. */
+  at?: number;
 }
 
 /** An archived chat conversation. */
@@ -115,10 +117,11 @@ export type SidecarToMain =
   | { type: 'auth_result'; id: string; ok: false; error: string };
 
 export type MainToSidecar =
-  | { type: 'run'; id: string; query: string; model: string; modelProvider: string }
+  | { type: 'run'; id: string; query: string; model: string; modelProvider: string; effort?: string }
   | { type: 'cancel'; id: string }
   | { type: 'reset' }
   | { type: 'convert'; id: string; rawData: string; model: string; modelProvider: string }
   | { type: 'answer'; questionId: string; answers: UserAnswers }
   | { type: 'auth_login'; id: string; provider: 'openai-codex'; mode?: 'browser' | 'device' }
-  | { type: 'auth_cancel'; id: string };
+  | { type: 'auth_cancel'; id: string }
+  | { type: 'auth_link_codex_cli'; id: string };

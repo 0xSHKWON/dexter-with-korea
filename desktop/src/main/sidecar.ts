@@ -148,7 +148,9 @@ class SidecarManager {
   }
 
   send(req: MainToSidecar): void {
-    if (req.type === 'run' || req.type === 'convert' || req.type === 'auth_login') this.active.add(req.id);
+    if (req.type === 'run' || req.type === 'convert' || req.type === 'auth_login' || req.type === 'auth_link_codex_cli') {
+      this.active.add(req.id);
+    }
     this.ensureProc().stdin.write(JSON.stringify(req) + '\n');
   }
 

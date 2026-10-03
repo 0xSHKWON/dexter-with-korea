@@ -1,12 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { useModelCatalog } from '../useModelCatalog';
-import ModelGrid from './ModelGrid';
+import ModelGrid, { ProviderIcon } from './ModelGrid';
 
 interface Props {
   disabled?: boolean;
   onChanged?(): void;
   onOpenSettings?(): void;
 }
+
+const EFFORT_LABEL: Record<string, string> = {
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  xhigh: 'XHigh',
+  max: 'Max',
+};
 
 /** Composer dropdown: shows the current model, opens the Claude | Codex card grid. */
 export default function ModelPicker({ disabled, onChanged, onOpenSettings }: Props): JSX.Element {
@@ -35,6 +43,9 @@ export default function ModelPicker({ disabled, onChanged, onOpenSettings }: Pro
   const modelId = catalog.settings.modelId;
   const provider = catalog.providers.find((p) => p.id === catalog.settings.provider);
   const label = provider?.models.find((m) => m.id === modelId)?.label ?? modelId ?? '모델 선택';
+  const levels = provider?.effortLevels ?? [];
+  const storedEffort = provider ? catalog.settings.effort?.[provider.id] : undefined;
+  const effort = storedEffort && levels.includes(storedEffort) ? storedEffort : undefined;
 
   return (
     <div className="mp" ref={rootRef}>
@@ -42,11 +53,14 @@ export default function ModelPicker({ disabled, onChanged, onOpenSettings }: Pro
         className={`mp-trigger${open ? ' open' : ''}`}
         disabled={disabled || catalog.loading}
         onClick={() => setOpen((o) => !o)}
-        title="모델 선택"
+        title={provider ? `${provider.displayName} · ${label}` : '모델 선택'}
       >
-        {provider && <span className="mp-provider">{provider.shortName ?? provider.displayName}</span>}
+        {provider && <ProviderIcon id={provider.id} />}
         <span className="mp-model">{label}</span>
-        <span className="mp-caret">▾</span>
+        {effort && <span className="mp-effort">{EFFORT_LABEL[effort] ?? effort}</span>}
+        <svg className="mp-caret" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
       </button>
       {open && (
         <div className="mp-pop">
@@ -54,7 +68,6 @@ export default function ModelPicker({ disabled, onChanged, onOpenSettings }: Pro
             providers={catalog.providers}
             connected={catalog.connected}
             selectedModelId={modelId}
-            codex={catalog.codex}
             claude={catalog.claude}
             onOpenSettings={
               onOpenSettings &&
@@ -70,6 +83,24 @@ export default function ModelPicker({ disabled, onChanged, onOpenSettings }: Pro
               });
             }}
           />
+          {provider && levels.length > 0 && (
+            <div className="mp-effort-row">
+              <span className="mp-effort-title">Effort</span>
+              <div className="mp-seg" role="radiogroup" aria-label="Effort">
+                {[undefined, ...levels].map((lv) => (
+                  <button
+                    key={lv ?? 'auto'}
+                    role="radio"
+                    aria-checked={effort === lv}
+                    className={`mp-seg-btn${effort === lv ? ' on' : ''}`}
+                    onClick={() => void catalog.setEffort(provider.id, lv)}
+                  >
+                    {lv ? (EFFORT_LABEL[lv] ?? lv) : '기본'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

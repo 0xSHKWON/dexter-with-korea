@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type {
   DataSource,
   DataSourceGroup,
@@ -11,13 +12,25 @@ import AgentsSection from './AgentsSection';
 import { useCodexAuth } from '../useCodexAuth';
 import { useClaudeCode } from '../useClaudeCode';
 
-export default function SettingsView({ onKeysChanged }: { onKeysChanged?: () => void }): JSX.Element {
+const GROUP_LABEL: Record<DataSourceGroup, string> = { kr: '한국 주식 데이터', search: '웹 검색', other: '기타 데이터' };
+
+type TabId = 'agents' | 'llm' | DataSourceGroup | 'export';
+
+/** `navSlot` is the app sidebar's nav container while settings is open — the tab list renders there. */
+export default function SettingsView({
+  onKeysChanged,
+  navSlot,
+}: {
+  onKeysChanged?: () => void;
+  navSlot?: HTMLElement | null;
+}): JSX.Element {
   const [providers, setProviders] = useState<ProviderMeta[]>([]);
   const [dataSources, setDataSources] = useState<DataSource[]>([]);
   const [statuses, setStatuses] = useState<Record<string, SecretStatus>>({});
   const [encAvailable, setEncAvailable] = useState(true);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
+  const [tab, setTab] = useState<TabId>('agents');
   const codex = useCodexAuth();
   const claude = useClaudeCode();
 
@@ -88,9 +101,8 @@ export default function SettingsView({ onKeysChanged }: { onKeysChanged?: () => 
     group: DataSourceGroup,
     tag?: string,
     intro?: string,
-  ): JSX.Element | null {
+  ): JSX.Element {
     const items = dataSources.filter((d) => d.group === group);
-    if (items.length === 0) return null;
     return (
       <section className="card">
         <h2>
@@ -128,6 +140,27 @@ export default function SettingsView({ onKeysChanged }: { onKeysChanged?: () => 
     );
   }
 
+  /** "configured / total" for a set of env vars — KRX_ID+KRX_PW count as one row. */
+  function keyCount(envVars: string[]): string {
+    const rows = envVars.filter((v) => v !== 'KRX_PW');
+    const set = rows.filter((v) =>
+      v === 'KRX_ID' ? statuses['KRX_ID']?.exists && statuses['KRX_PW']?.exists : statuses[v]?.exists,
+    ).length;
+    return `${set}/${rows.length}`;
+  }
+
+  const groupVars = (g: DataSourceGroup): string[] => dataSources.filter((d) => d.group === g).map((d) => d.envVar);
+  const agentOn = !!claude.status?.loggedIn || !!codex.status?.loggedIn || !!statuses['ANTHROPIC_API_KEY']?.exists || !!statuses['OPENAI_API_KEY']?.exists;
+
+  const tabs: { id: TabId; label: string; badge?: string; dot?: boolean }[] = [
+    { id: 'agents', label: '에이전트', dot: agentOn },
+    { id: 'llm', label: '기타 LLM', badge: keyCount(keyedProviders.map((p) => p.apiKeyEnvVar as string)) },
+    ...(['kr', 'search', 'other'] as const)
+      .filter((g) => groupVars(g).length > 0)
+      .map((g) => ({ id: g, label: GROUP_LABEL[g], badge: keyCount(groupVars(g)) })),
+    { id: 'export', label: '키 내보내기' },
+  ];
+
   return (
     <div className="settings">
       <header className="page-head">
@@ -135,12 +168,6 @@ export default function SettingsView({ onKeysChanged }: { onKeysChanged?: () => 
         <p className="sub">
           키는 이 컴퓨터에 암호화되어 저장됩니다. 발급 방법은 <b>도움말</b>을 참고하세요.
         </p>
-        <div className="page-head-actions">
-          <button className="btn" onClick={() => void exportEnv()}>
-            .env로 키 복사
-          </button>
-          <span className="field-hint">터미널(CLI)에서 쓰려면 복사해 .env에 붙여넣으세요.</span>
-        </div>
       </header>
 
       {!encAvailable && (
@@ -149,29 +176,62 @@ export default function SettingsView({ onKeysChanged }: { onKeysChanged?: () => 
         </div>
       )}
 
-      <AgentsSection claude={claude} codex={codex} statuses={statuses} onChanged={onKeyChanged} />
+      {navSlot &&
+        createPortal(
+          tabs.map((t) => (
+            <div key={t.id} className={`nav-row ${tab === t.id ? 'active' : ''}`}>
+              <button className="nav-item" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}>
+                <span>{t.label}</span>
+                {t.badge && <span className={`settings-nav-badge ${t.badge.startsWith('0/') ? '' : 'on'}`}>{t.badge}</span>}
+                {t.dot !== undefined && <span className={`settings-nav-dot ${t.dot ? 'on' : ''}`} />}
+              </button>
+            </div>
+          )),
+          navSlot,
+        )}
 
-      <section className="card">
-        <h2>
-          기타 LLM API 키 <span className="sec-tag">선택</span>
-        </h2>
-        <div className="provider-list">
-          {keyedProviders.map((p) => (
-            <KeyCard
-              key={p.id}
-              title={p.displayName}
-              envVar={p.apiKeyEnvVar as string}
-              note={p.note}
-              status={statuses[p.apiKeyEnvVar as string]}
-              onChanged={onKeyChanged}
-            />
-          ))}
-        </div>
-      </section>
+      <div role="tabpanel">
+        {tab === 'agents' && (
+          <AgentsSection claude={claude} codex={codex} statuses={statuses} onChanged={onKeyChanged} />
+        )}
 
-      {dataSourceSection('한국 주식 데이터', 'kr', '권장', 'DART만 있어도 재무·공시 분석이 가능합니다. 현재가·외국인 지분율은 키 없이 작동합니다.')}
-      {dataSourceSection('웹 검색', 'search', '선택', '하나만 있어도 충분합니다.')}
-      {dataSourceSection('기타', 'other', '선택')}
+        {tab === 'llm' && (
+          <section className="card">
+            <h2>
+              기타 LLM API 키 <span className="sec-tag">선택</span>
+            </h2>
+            <div className="provider-list">
+              {keyedProviders.map((p) => (
+                <KeyCard
+                  key={p.id}
+                  title={p.displayName}
+                  envVar={p.apiKeyEnvVar as string}
+                  note={p.note}
+                  status={statuses[p.apiKeyEnvVar as string]}
+                  onChanged={onKeyChanged}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {tab === 'kr' &&
+          dataSourceSection('한국 주식 데이터', 'kr', '권장', 'DART만 있어도 재무·공시 분석이 가능합니다. 현재가·외국인 지분율은 키 없이 작동합니다.')}
+        {tab === 'search' && dataSourceSection('웹 검색', 'search', '선택', '하나만 있어도 충분합니다.')}
+        {tab === 'other' && dataSourceSection('기타', 'other', '선택')}
+
+        {tab === 'export' && (
+          <section className="card">
+            <h2>키 내보내기</h2>
+            <div className="page-head-actions">
+              <button className="btn" onClick={() => void exportEnv()}>
+                .env로 키 복사
+              </button>
+              <span className="field-hint">터미널(CLI)에서 쓰려면 복사해 .env에 붙여넣으세요.</span>
+            </div>
+          </section>
+        )}
+      </div>
 
       {toast && <div className="toast">{toast}</div>}
     </div>

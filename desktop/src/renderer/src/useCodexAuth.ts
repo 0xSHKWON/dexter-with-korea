@@ -15,6 +15,8 @@ export interface CodexAuth {
   login(mode?: 'browser' | 'device'): Promise<boolean>;
   cancel(): void;
   logout(): Promise<void>;
+  /** Reuse the existing Codex CLI login. */
+  linkCli(): Promise<boolean>;
   refresh(): Promise<void>;
 }
 
@@ -77,5 +79,13 @@ export function useCodexAuth(): CodexAuth {
     window.dispatchEvent(new Event(AUTH_CHANGED));
   }, []);
 
-  return { status, busy, device, error, login, cancel, logout, refresh };
+  const linkCli = useCallback(async () => {
+    setError(null);
+    const r = await window.dexter.auth.linkCodexCli();
+    if (!r.ok) setError(r.error);
+    window.dispatchEvent(new Event(AUTH_CHANGED));
+    return r.ok;
+  }, []);
+
+  return { status, busy, device, error, login, cancel, logout, linkCli, refresh };
 }

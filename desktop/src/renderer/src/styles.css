@@ -13,7 +13,7 @@
   --warn-border: #9e6a03;
   --danger: #f85149;
   --radius: 10px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, 'Apple SD Gothic Neo',
+  font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo',
     'Malgun Gothic', sans-serif;
 }
 
@@ -291,9 +291,8 @@ code {
 }
 
 .ss-model {
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
   font-weight: 600;
-  font-size: 11px;
+  font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -913,8 +912,6 @@ code {
 
 .composer-inner {
   width: 100%;
-  max-width: 860px;
-  margin: 0 auto;
   display: flex;
   gap: 10px;
   align-items: flex-end;
@@ -924,6 +921,11 @@ code {
 .composer-done {
   align-items: center;
   justify-content: space-between;
+}
+
+.composer-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .composer-note {
@@ -969,15 +971,15 @@ code {
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 0 12px;
+  padding: 0 10px 0 12px;
   background: var(--bg-elev);
   border: 1px solid var(--border);
   border-radius: 10px;
   color: var(--text);
   font: inherit;
-  font-size: 13px;
+  font-size: 13.5px;
   cursor: pointer;
-  max-width: 220px;
+  max-width: 200px;
 }
 
 .mp-trigger:hover,
@@ -990,11 +992,6 @@ code {
   cursor: default;
 }
 
-.mp-provider {
-  color: var(--muted);
-  font-size: 12px;
-}
-
 .mp-model {
   font-weight: 600;
   white-space: nowrap;
@@ -1002,46 +999,103 @@ code {
   text-overflow: ellipsis;
 }
 
+.mp-trigger svg.mp-caret {
+  flex-shrink: 0;
+}
+
 .mp-caret {
   color: var(--muted);
   font-size: 10px;
 }
 
+.mp-effort {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.mp-effort-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px 4px 0;
+  border-top: 1px solid #262626;
+}
+
+.mp-effort-title {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.mp-seg {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+  padding: 2px;
+  background: #1c1c1c;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+}
+
+.mp-seg-btn {
+  padding: 4px 9px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.mp-seg-btn:hover {
+  color: var(--text);
+}
+
+.mp-seg-btn.on {
+  background: #2e2e2e;
+  color: var(--text);
+}
+
 .mp-pop {
   position: absolute;
   left: 0;
-  bottom: calc(100% + 10px);
+  bottom: calc(100% + 8px);
   z-index: 30;
   background: #141414;
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 18px 16px 14px;
+  padding: 12px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
-  max-height: min(70vh, 640px);
+  max-height: min(78vh, 640px);
   overflow-y: auto;
 }
 
 .mg {
   display: grid;
-  gap: 18px;
+  gap: 10px;
   align-items: start;
 }
 
 .mg-col {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 4px;
   min-width: 0;
 }
 
 .mg-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   height: 26px;
+  padding: 0 4px;
   margin-bottom: 2px;
   color: var(--muted);
-  font-size: 15px;
+  font-size: 13px;
 }
 
 .mg-icon {
@@ -1057,22 +1111,21 @@ code {
   background: #3a3f47;
 }
 
-.mg-icon-claude {
-  background: #d97757;
-}
 
-.mg-icon-codex {
-  background: #5b6cf6;
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-  font-size: 10px;
+.mg-brand {
+  flex-shrink: 0;
+  color: #e6edf3;
 }
 
 .mg-title {
   color: #c9d1d9;
+  white-space: nowrap;
 }
 
 .mg-connect {
   margin-left: auto;
+  white-space: nowrap;
+  flex-shrink: 0;
   background: none;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -1100,30 +1153,28 @@ a.btn {
 .mg-card {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  min-height: 52px;
-  padding: 0 18px;
+  height: 34px;
+  padding: 0 10px;
   background: transparent;
-  border: 1px solid #333;
-  border-radius: 8px;
+  border: 1px solid transparent;
+  border-radius: 7px;
   color: var(--text);
   font: inherit;
-  font-size: 16px;
+  font-size: 13.5px;
   text-align: left;
   cursor: pointer;
   transition: background 0.1s ease, border-color 0.1s ease;
 }
 
 .mg-card:hover:not(:disabled) {
-  background: #1d1d1d;
-  border-style: dashed;
-  border-color: #555;
+  background: #1f1f1f;
 }
 
 .mg-card.selected {
-  border-color: #555;
-  background: #1a1a1a;
+  background: #222;
+  border-color: #3a3a3a;
 }
 
 .mg-card:disabled {
@@ -1138,19 +1189,9 @@ a.btn {
 }
 
 .mg-check {
+  margin-left: auto;
   color: #9aa4ad;
-  font-size: 15px;
-}
-
-.mg-device,
-.mg-error {
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--muted);
-}
-
-.mg-error {
-  color: var(--danger);
+  font-size: 13px;
 }
 
 /* ── settings → 에이전트 (Claude Code | Codex) ─────────── */
@@ -1183,20 +1224,6 @@ a.btn {
 .agent-tab.active {
   color: var(--text);
   border-bottom-color: var(--text);
-}
-
-.agent-tab-icon {
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.agent-tab-icon.claude {
-  color: #d97757;
-}
-
-.agent-tab-icon.codex {
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-  font-size: 12px;
 }
 
 .agent-sub {
@@ -1371,6 +1398,34 @@ a.btn {
   padding: 36px 32px 60px;
 }
 
+/* settings tabs render in the app sidebar (see SettingsView navSlot) */
+.settings-side .nav-item > span:first-child {
+  flex: 1;
+}
+
+.settings-nav-badge {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-nav-badge.on {
+  color: var(--green);
+}
+
+.settings-nav-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border);
+}
+
+.settings-nav-dot.on {
+  background: var(--green);
+}
+
+
 /* shared page header */
 .page-head {
   margin-bottom: 4px;
@@ -1382,7 +1437,7 @@ a.btn {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-top: 12px;
+  margin-top: 4px;
 }
 
 .page-head-actions .field-hint {

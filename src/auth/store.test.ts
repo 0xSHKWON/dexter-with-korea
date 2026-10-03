@@ -1,8 +1,8 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { mkdtempSync, rmSync, statSync } from 'fs';
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { getStoredCredentials, getValidCredentials, isLoggedIn, logout, saveCredentials } from './store';
+import { getStoredCredentials, getValidCredentials, isLoggedIn, linkCodexCli, logout, saveCredentials } from './store';
 
 const dir = mkdtempSync(join(tmpdir(), 'dexter-auth-test-'));
 const realDir = process.env.DEXTER_DIR;
@@ -71,5 +71,92 @@ describe('auth store', () => {
 
   it('tells the user how to log in when there are no credentials', async () => {
     await expect(getValidCredentials('openai-codex')).rejects.toThrow('/login');
+  });
+});
+
+describe('linked Codex CLI login', () => {
+  const codexHome = mkdtempSync(join(tmpdir(), 'dexter-codex-home-'));
+  const codexAuth = join(codexHome, 'auth.json');
+  const realCodexHome = process.env.CODEX_HOME;
+  const jwt = (payload: object) =>
+    `${Buffer.from('{}').toString('base64url')}.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.sig`;
+  const claims = (exp: number) => ({
+    exp,
+    'https://api.openai.com/auth': { chatgpt_account_id: 'acct_cli', chatgpt_plan_type: 'pro' },
+  });
+
+  function writeCodexAuth(accessExp: number, refresh = 'cli-r1') {
+    writeFileSync(
+      codexAuth,
+      JSON.stringify({
+        OPENAI_API_KEY: null,
+        auth_mode: 'chatgpt',
+        tokens: {
+          id_token: jwt({ email: 'Me@Example.com' }),
+          access_token: jwt(claims(accessExp)),
+          refresh_token: refresh,
+          account_id: 'acct_cli',
+        },
+        last_refresh: '2026-01-01T00:00:00Z',
+      }),
+    );
+  }
+
+  beforeEach(() => {
+    process.env.CODEX_HOME = codexHome;
+    rmSync(codexAuth, { force: true });
+  });
+  afterAll(() => {
+    if (realCodexHome === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = realCodexHome;
+    rmSync(codexHome, { recursive: true, force: true });
+  });
+
+  it('refuses to link when Codex CLI has no ChatGPT login', () => {
+    expect(() => linkCodexCli()).toThrow('codex login');
+    expect(isLoggedIn('openai-codex')).toBe(false);
+  });
+
+  it('links without copying tokens and reads them live from Codex CLI', () => {
+    writeCodexAuth(Math.floor(Date.now() / 1000) + 3600);
+    const linked = linkCodexCli();
+    expect(linked).toMatchObject({ email: 'me@example.com', plan: 'pro', accountId: 'acct_cli', source: 'codex-cli' });
+
+    const stored = JSON.parse(readFileSync(join(dir, 'auth.json'), 'utf-8'));
+    expect(stored['openai-codex']).toEqual({ source: 'codex-cli', email: 'me@example.com', plan: 'pro' });
+
+    // Codex CLI re-logs in → Dexter sees the new token without doing anything.
+    writeCodexAuth(Math.floor(Date.now() / 1000) + 7200, 'cli-r2');
+    expect(getStoredCredentials('openai-codex')?.refresh).toBe('cli-r2');
+  });
+
+  it('refreshes into Codex CLI’s file (shared rotation), preserving its other fields', async () => {
+    writeCodexAuth(Math.floor(Date.now() / 1000) - 60);
+    linkCodexCli();
+    const newAccess = jwt(claims(Math.floor(Date.now() / 1000) + 3600));
+    globalThis.fetch = (async (_u: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(init?.body)).toContain('refresh_token=cli-r1');
+      return Response.json({ access_token: newAccess, refresh_token: 'cli-r2', expires_in: 3600 });
+    }) as typeof fetch;
+
+    const creds = await getValidCredentials('openai-codex');
+    expect(creds.access).toBe(newAccess);
+
+    const file = JSON.parse(readFileSync(codexAuth, 'utf-8'));
+    expect(file.tokens.access_token).toBe(newAccess);
+    expect(file.tokens.refresh_token).toBe('cli-r2');
+    expect(file.tokens.id_token).toBeTruthy();
+    expect(file.auth_mode).toBe('chatgpt');
+    expect(file.last_refresh).not.toBe('2026-01-01T00:00:00Z');
+    // Dexter's own file still holds only the pointer.
+    expect(JSON.parse(readFileSync(join(dir, 'auth.json'), 'utf-8'))['openai-codex'].access).toBeUndefined();
+  });
+
+  it('logout only unlinks — Codex CLI stays logged in', () => {
+    writeCodexAuth(Math.floor(Date.now() / 1000) + 3600);
+    linkCodexCli();
+    expect(logout('openai-codex')).toBe(true);
+    expect(isLoggedIn('openai-codex')).toBe(false);
+    expect(JSON.parse(readFileSync(codexAuth, 'utf-8')).tokens.refresh_token).toBe('cli-r1');
   });
 });

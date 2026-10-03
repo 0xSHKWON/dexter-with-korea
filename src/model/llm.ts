@@ -55,6 +55,8 @@ async function withRetry<T>(fn: () => Promise<T>, provider: string, maxAttempts 
 // Model provider configuration
 interface ModelOpts {
   streaming: boolean;
+  /** Reasoning effort; only providers that support it read this (see AgentConfig.effort). */
+  effort?: string;
 }
 
 type ModelFactory = (name: string, opts: ModelOpts) => BaseChatModel;
@@ -79,7 +81,7 @@ const MODEL_FACTORIES: Record<string, ModelFactory> = {
   // loop hands whole turns to Claude Code (agent/claude-code-runner.ts).
   'claude-code': (name) => new ChatClaudeCode({ model: name }),
   // ChatGPT subscription via OAuth — always streams on the wire (see model/codex.ts).
-  'openai-codex': (name) => createCodexChatModel(name),
+  'openai-codex': (name, opts) => createCodexChatModel(name, opts.effort),
   google: (name, opts) =>
     new ChatGoogleGenerativeAI({
       model: name,
@@ -163,9 +165,10 @@ const DEFAULT_FACTORY: ModelFactory = (name, opts) =>
 
 export function getChatModel(
   modelName: string = DEFAULT_MODEL,
-  streaming: boolean = false
+  streaming: boolean = false,
+  effort?: string,
 ): BaseChatModel {
-  const opts: ModelOpts = { streaming };
+  const opts: ModelOpts = { streaming, effort };
   const provider = resolveProvider(modelName);
   const factory = MODEL_FACTORIES[provider.id] ?? DEFAULT_FACTORY;
   return factory(modelName, opts);
@@ -315,6 +318,7 @@ interface CallLlmWithMessagesOptions {
   model?: string;
   tools?: StructuredToolInterface[];
   signal?: AbortSignal;
+  effort?: string;
 }
 
 interface InvokeOptions {
@@ -371,9 +375,9 @@ export async function callLlmWithMessages(
   messages: BaseMessage[],
   options: CallLlmWithMessagesOptions = {},
 ): Promise<LlmResult> {
-  const { model = DEFAULT_MODEL, tools, signal } = options;
+  const { model = DEFAULT_MODEL, tools, signal, effort } = options;
 
-  const llm = getChatModel(model, false);
+  const llm = getChatModel(model, false, effort);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let runnable: Runnable<any, any> = llm;
@@ -409,9 +413,9 @@ export async function* streamLlmWithMessages(
   messages: BaseMessage[],
   options: CallLlmWithMessagesOptions = {},
 ): AsyncGenerator<AIMessageChunk, void> {
-  const { model = DEFAULT_MODEL, tools, signal } = options;
+  const { model = DEFAULT_MODEL, tools, signal, effort } = options;
 
-  const llm = getChatModel(model, true);
+  const llm = getChatModel(model, true, effort);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let runnable: Runnable<any, any> = llm;

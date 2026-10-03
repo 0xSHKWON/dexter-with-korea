@@ -17,7 +17,7 @@ import { callLlm } from '../model/llm.js';
 import type { DoneEvent } from '../agent/types.js';
 import type { SidecarRequest, SidecarMessage, ConvertResult } from './protocol.js';
 import { createUserInputBridge } from './user-input-bridge.js';
-import { login } from '../auth/store.js';
+import { linkCodexCli, login } from '../auth/store.js';
 
 // stdout is the protocol channel — keep stray logging off it.
 console.log = (...args: unknown[]) => process.stderr.write(args.map(String).join(' ') + '\n');
@@ -59,6 +59,7 @@ async function handleRun(req: Extract<SidecarRequest, { type: 'run' }>): Promise
       model: req.model,
       modelProvider: req.modelProvider,
       maxIterations: req.maxIterations,
+      effort: req.effort,
       signal: controller.signal,
       // Answers render as markdown in an app window, not on a terminal. Without
       // this the agent fell back to the CLI profile and was told to keep responses
@@ -195,6 +196,13 @@ rl.on('line', (line) => {
     void handleConvert(req);
   } else if (req.type === 'auth_login') {
     void handleAuthLogin(req);
+  } else if (req.type === 'auth_link_codex_cli') {
+    try {
+      const creds = linkCodexCli();
+      send({ type: 'auth_result', id: req.id, ok: true, email: creds.email, plan: creds.plan });
+    } catch (e) {
+      send({ type: 'auth_result', id: req.id, ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
   } else if (req.type === 'auth_cancel') {
     activeLogins.get(req.id)?.abort();
   } else if (req.type === 'reset') {

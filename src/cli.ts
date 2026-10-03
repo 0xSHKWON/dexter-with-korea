@@ -13,7 +13,7 @@ import {
   getSearchProviderDisplayName,
 } from './utils/env.js';
 import { dexterPath } from './utils/paths.js';
-import { login, logout, type LoginMode } from './auth/store.js';
+import { linkCodexCli, login, logout, type LoginMode } from './auth/store.js';
 import { openBrowser } from './auth/open-browser.js';
 import { loginClaudeCode } from './claude-code/cli.js';
 import { defaultQueue } from './utils/message-queue.js';
@@ -490,6 +490,7 @@ export async function runCli() {
   /model       Switch LLM provider and model
   /login       Log in with your ChatGPT plan (Codex); /login device for headless
   /login claude  Connect your Claude Code login (Pro/Max)
+  /login codex-cli  Reuse your existing Codex CLI login (codex login)
   /logout      Log out of ChatGPT (Codex)
   /search      Choose preferred web search provider
   /rules       Show research rules
@@ -518,7 +519,14 @@ export async function runCli() {
         break;
       case 'login':
         if (arg === 'claude') await runClaudeCodeLogin();
-        else await runCodexLogin(arg === 'device' ? 'device' : 'browser');
+        else if (arg === 'codex-cli') {
+          try {
+            const creds = linkCodexCli();
+            note(theme.success(`✓ Using your Codex CLI login${creds.email ? ` (${creds.email})` : ''} — tokens stay shared with Codex CLI.`));
+          } catch (e) {
+            onError(e instanceof Error ? e.message : String(e));
+          }
+        } else await runCodexLogin(arg === 'device' ? 'device' : 'browser');
         break;
       case 'logout':
         note(

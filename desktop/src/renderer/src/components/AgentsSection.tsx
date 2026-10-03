@@ -3,6 +3,7 @@ import type { SecretStatus } from '../../../shared/types';
 import { CLAUDE_CODE_INSTALL_URL, type ClaudeCodeAuth } from '../useClaudeCode';
 import type { CodexAuth } from '../useCodexAuth';
 import KeyCard from './KeyCard';
+import { ClaudeIcon, OpenAIIcon } from './BrandIcons';
 
 type AgentId = 'claude-code' | 'codex';
 type AuthMode = 'login' | 'apiKey';
@@ -26,10 +27,10 @@ export default function AgentsSection({ claude, codex, statuses, onChanged }: Pr
       <h2>에이전트</h2>
       <div className="agent-tabs" role="tablist">
         <button role="tab" className={`agent-tab ${agent === 'claude-code' ? 'active' : ''}`} onClick={() => setAgent('claude-code')}>
-          <span className="agent-tab-icon claude">✳</span> Claude Code
+          <ClaudeIcon /> Claude Code
         </button>
         <button role="tab" className={`agent-tab ${agent === 'codex' ? 'active' : ''}`} onClick={() => setAgent('codex')}>
-          <span className="agent-tab-icon codex">{'>_'}</span> Codex
+          <OpenAIIcon /> Codex
         </button>
       </div>
       {agent === 'claude-code' ? (
@@ -52,7 +53,7 @@ function AuthCards({
   mode: AuthMode;
   onMode: (m: AuthMode) => void;
   loginLabel: string;
-  loginIcon: string;
+  loginIcon: React.ReactNode;
   loginOn: boolean;
   keyOn: boolean;
 }): JSX.Element {
@@ -203,10 +204,6 @@ function ClaudeCodePanel({
             )}
           </div>
           {claude.error && <p className="key-error">{claude.error}</p>}
-          <p className="agent-note">
-            Dexter는 이 컴퓨터의 Claude Code를 그대로 실행합니다 — Claude Pro/Max 구독 한도 안에서 쓰이고, 로그인 정보는
-            Dexter에 저장되지 않습니다. 로그아웃은 터미널에서 <code>claude auth logout</code>.
-          </p>
           <ClaudePathSetting onSaved={() => void claude.refresh().then(() => onChanged('실행 경로 저장됨'))} />
         </>
       ) : (
@@ -274,7 +271,7 @@ function CodexPanel({
 
   return (
     <>
-      <AuthCards mode={mode} onMode={setMode} loginLabel="ChatGPT 로그인" loginIcon="◎" loginOn={!!s?.loggedIn} keyOn={!!keyStatus?.exists} />
+      <AuthCards mode={mode} onMode={setMode} loginLabel="ChatGPT 로그인" loginIcon={<OpenAIIcon size={20} />} loginOn={!!s?.loggedIn} keyOn={!!keyStatus?.exists} />
       {mode === 'login' ? (
         <>
           <StatusRow
@@ -285,7 +282,12 @@ function CodexPanel({
           />
           <InfoTable
             rows={[
-              ['로그인 방식', s?.loggedIn ? `ChatGPT ${s.plan ? s.plan.charAt(0).toUpperCase() + s.plan.slice(1) : ''} 계정`.replace('  ', ' ') : undefined],
+              [
+                '로그인 방식',
+                s?.loggedIn
+                  ? `${s.source === 'codex-cli' ? 'Codex CLI 로그인 공유 · ' : ''}ChatGPT${s.plan ? ` ${s.plan.charAt(0).toUpperCase()}${s.plan.slice(1)}` : ''} 계정`
+                  : undefined,
+              ],
               ['이메일', s?.email],
             ]}
           />
@@ -306,11 +308,26 @@ function CodexPanel({
                 </button>
               </>
             ) : s?.loggedIn ? (
-              <button className="btn ghost danger" onClick={() => void codex.logout().then(() => onChanged('ChatGPT 로그아웃됨'))}>
-                로그아웃
+              <button
+                className="btn ghost danger"
+                onClick={() =>
+                  void codex
+                    .logout()
+                    .then(() => onChanged(s.source === 'codex-cli' ? 'Codex CLI 연결 해제됨' : 'ChatGPT 로그아웃됨'))
+                }
+              >
+                {s.source === 'codex-cli' ? '연결 해제' : '로그아웃'}
               </button>
             ) : (
               <>
+                {s?.cliAvailable && (
+                  <button
+                    className="btn primary"
+                    onClick={() => void codex.linkCli().then((ok) => ok && onChanged('Codex CLI 로그인 연결됨'))}
+                  >
+                    ▶ Codex CLI 로그인 사용{s.cliEmail ? ` (${s.cliEmail})` : ''}
+                  </button>
+                )}
                 <button className="btn" onClick={() => void login('browser')}>
                   ▶ ChatGPT로 로그인
                 </button>
@@ -321,7 +338,18 @@ function CodexPanel({
             )}
           </div>
           {codex.error && <p className="key-error">{codex.error}</p>}
-          <p className="agent-note">ChatGPT Plus/Pro 구독 한도 안에서 GPT 모델을 씁니다 — API 키·토큰 과금 없음.</p>
+          {s?.source === 'codex-cli' ? (
+            <p className="agent-note">
+              Codex CLI와 로그인을 공유합니다(<code>~/.codex/auth.json</code>). 연결 해제해도 Codex CLI는 로그인 상태로 남습니다.
+            </p>
+          ) : (
+            !s?.loggedIn &&
+            !s?.cliAvailable && (
+              <p className="agent-note">
+                이미 <code>codex login</code>을 했다면 새로고침하면 그 로그인을 그대로 쓸 수 있습니다.
+              </p>
+            )
+          )}
         </>
       ) : (
         <ApiKeyPanel title="OpenAI" envVar="OPENAI_API_KEY" status={keyStatus} onChanged={onChanged}>

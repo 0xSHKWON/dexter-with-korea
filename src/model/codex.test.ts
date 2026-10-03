@@ -161,6 +161,16 @@ describe('Codex chat model (mocked backend)', () => {
     expect((req.body.input as { role: string }[]).every((m) => m.role !== 'system' && m.role !== 'developer')).toBe(true);
   });
 
+  it('sends the chosen reasoning effort; omits it when unset', async () => {
+    mockBackend(() => textResponse('ok'));
+    await getChatModel('codex:gpt-6-astra', true, 'high').invoke([new HumanMessage('hi')]);
+    expect(requests[0].body.reasoning).toMatchObject({ effort: 'high' });
+
+    mockBackend(() => textResponse('ok'));
+    await getChatModel('codex:gpt-6-astra', true).invoke([new HumanMessage('hi')]);
+    expect(requests[1].body.reasoning).toBeUndefined();
+  });
+
   it('callLlm returns plain text for single-shot callers', async () => {
     mockBackend(() => textResponse('요약입니다.'));
     const { response } = await callLlm('요약해줘', { model: 'codex:gpt-6-luna', systemPrompt: 'sys' });

@@ -1,4 +1,5 @@
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { normalizeKoreanBold } from '../markdown';
@@ -22,6 +23,8 @@ interface ChatMessage {
   steps?: ChatStep[];
   pending?: boolean;
   status?: string;
+  /** Epoch ms: sent (user) / finished (assistant). */
+  at?: number;
 }
 
 interface Props {
@@ -187,6 +190,7 @@ export default function ChatView({
   const [sending, setSending] = useState(false);
   const [hasLlmKey, setHasLlmKey] = useState<boolean | null>(null);
   const [pendingQuestion, setPendingQuestion] = useState<{ questionId: string; questions: Question[] } | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   // Follow the stream only while the reader is at the bottom; scrolling up to
@@ -226,6 +230,7 @@ export default function ChatView({
             role: m.role,
             content: m.content,
             steps: m.steps,
+            at: m.at,
           }))
         : [],
     );
@@ -250,6 +255,7 @@ export default function ChatView({
         role: m.role,
         content: m.content,
         ...(m.steps && m.steps.length ? { steps: m.steps } : {}),
+        ...(m.at ? { at: m.at } : {}),
       }));
     if (stored.length < 2) return;
     const title = (stored.find((m) => m.role === 'user')?.content ?? '대화').slice(0, 40);
@@ -339,6 +345,7 @@ export default function ChatView({
         // Agent paused on ask_user_question — show the inline choice panel.
         setPendingQuestion({ questionId: msg.questionId, questions: msg.questions });
       } else if (msg.type === 'done') {
+        patch((m) => ({ ...m, at: m.at ?? Date.now() }));
         activeRef.current = null;
         setSending(false);
         setPendingQuestion(null);
@@ -404,7 +411,7 @@ export default function ChatView({
     const pendingId = crypto.randomUUID();
     setMessages((m) => [
       ...m,
-      { id: crypto.randomUUID(), role: 'user', content: text },
+      { id: crypto.randomUUID(), role: 'user', content: text, at: Date.now() },
       { id: pendingId, role: 'assistant', content: '', pending: true, status: '시작하는 중…' },
     ]);
     setSending(true);
@@ -473,6 +480,33 @@ export default function ChatView({
     setMessages([]);
     setInput('');
     onNewChat();
+  }
+
+  async function exportPdf(): Promise<void> {
+    const question = messages.find((m) => m.role === 'user');
+    const answer = [...messages].reverse().find((m) => m.role === 'assistant' && m.content.trim());
+    if (!question || !answer || exporting) return;
+    const sources = [
+      ...new Set((answer.steps ?? []).filter((s) => s.kind === 'tool' && s.state === 'done').map(stepLabel)),
+    ];
+    setExporting(true);
+    try {
+      await window.dexter.chat.exportPdf({
+        title: conversation?.title ?? question.content.slice(0, 40),
+        question: question.content,
+        answerHtml: renderToStaticMarkup(
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{normalizeKoreanBold(answer.content)}</ReactMarkdown>,
+        ),
+        askedAt: question.at,
+        // Rows saved before timestamps existed: the first save lands right after the answer.
+        answeredAt: answer.at ?? conversation?.createdAt,
+        sources,
+      });
+    } catch (e) {
+      window.alert(`PDF 저장 실패: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setExporting(false);
+    }
   }
 
   const empty = messages.length === 0;
@@ -551,9 +585,14 @@ export default function ChatView({
           // carries no prior turns (src/sidecar/index.ts).
           <div className="composer-inner composer-done">
             <span className="composer-note">답변이 끝났습니다. 다음 질문은 새 대화로 시작하세요.</span>
-            <button className="btn primary send-btn" onClick={startNewChat}>
-              새 질문하기
-            </button>
+            <div className="composer-actions">
+              <button className="btn send-btn" onClick={() => void exportPdf()} disabled={exporting}>
+                {exporting ? 'PDF 만드는 중…' : 'PDF로 저장'}
+              </button>
+              <button className="btn primary send-btn" onClick={startNewChat}>
+                새 질문하기
+              </button>
+            </div>
           </div>
         ) : (
           <div className="composer-inner">

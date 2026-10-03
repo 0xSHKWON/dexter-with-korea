@@ -54,6 +54,7 @@ const HANDLER_GATED_TOOLS: ReadonlyArray<{ tool: string; wired: (c: AgentConfig)
  */
 export class Agent {
   private readonly model: string;
+  private readonly effort?: string;
   private readonly maxIterations: number;
   private readonly tools: StructuredToolInterface[];
   private readonly toolMap: Map<string, StructuredToolInterface>;
@@ -71,6 +72,7 @@ export class Agent {
     concurrencyMap: Map<string, boolean>,
   ) {
     this.model = config.model ?? DEFAULT_MODEL;
+    this.effort = config.effort;
     this.maxIterations = config.maxIterations ?? DEFAULT_MAX_ITERATIONS;
     this.tools = tools;
     this.toolMap = new Map(tools.map(t => [t.name, t]));
@@ -386,6 +388,7 @@ export class Agent {
       model: this.model,
       tools: this.tools,
       signal: this.signal,
+      effort: this.effort,
     })) {
       accumulated = accumulated ? accumulated.concat(chunk) : chunk;
       const { charDelta, mode, text } = inspectChunkContent(chunk);
@@ -434,6 +437,7 @@ export class Agent {
       model: this.model,
       tools: this.tools,
       signal: this.signal,
+      effort: this.effort,
     });
     return { response: result.response as AIMessage, usage: result.usage };
   }
@@ -532,6 +536,7 @@ export class Agent {
     try {
       const result = yield* runClaudeCodeTurn({
         model: this.model,
+        effort: this.effort,
         systemPrompt: this.systemPrompt,
         prompt,
         tools: this.tools,
