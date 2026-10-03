@@ -40,6 +40,8 @@ export interface ClaudeCodeStatus {
   loggedIn: boolean;
   /** Resolved `claude` binary (custom path setting or auto-detected). */
   path?: string;
+  /** A custom path is set but no `claude` binary could be found there. */
+  customPathInvalid?: boolean;
   version?: string;
   email?: string;
   /** "claude.ai" (subscription) | "api_key" | … — from `claude auth status`. */
@@ -196,6 +198,8 @@ export interface DexterApi {
     open(url: string): Promise<void>;
     /** Quit and install a downloaded update (Windows auto-update). */
     install(): Promise<void>;
+    /** Latest electron-updater status (null if none yet / not Windows). */
+    autoStatus(): Promise<AutoUpdateStatus | null>;
     /** Subscribe to electron-updater progress (Windows); returns unsubscribe. */
     onStatus(cb: (s: AutoUpdateStatus) => void): () => void;
   };

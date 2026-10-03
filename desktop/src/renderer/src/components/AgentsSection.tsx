@@ -204,6 +204,9 @@ function ClaudeCodePanel({
             )}
           </div>
           {claude.error && <p className="key-error">{claude.error}</p>}
+          {s?.customPathInvalid && (
+            <p className="key-error">지정한 실행 경로에서 Claude Code를 찾지 못했습니다. 경로를 비우면 자동으로 찾습니다.</p>
+          )}
           <ClaudePathSetting onSaved={() => void claude.refresh().then(() => onChanged('실행 경로 저장됨'))} />
         </>
       ) : (

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { ipcMain, clipboard, dialog, shell, BrowserWindow } from 'electron';
 import ExcelJS from 'exceljs';
 import { checkForUpdate } from './updater';
+import { getAutoUpdateStatus } from './auto-updater';
 import { PROVIDERS, getProviderById } from './providers';
 import { DATA_SOURCES } from './data-sources';
 import { exportChatPdf } from './pdf';
@@ -81,6 +82,7 @@ export function registerIpc(): void {
   ipcMain.handle('datasources:list', () => DATA_SOURCES);
 
   ipcMain.handle('update:check', () => checkForUpdate());
+  ipcMain.handle('update:autoStatus', () => getAutoUpdateStatus());
   ipcMain.handle('update:open', (_e, url: string) => shell.openExternal(url));
 
   ipcMain.handle('auth:status', () => codexStatus());
