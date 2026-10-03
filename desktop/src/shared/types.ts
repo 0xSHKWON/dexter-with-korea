@@ -40,6 +40,8 @@ export interface ClaudeCodeStatus {
   loggedIn: boolean;
   /** Resolved `claude` binary (custom path setting or auto-detected). */
   path?: string;
+  /** A custom path is set but no `claude` binary could be found there. */
+  customPathInvalid?: boolean;
   version?: string;
   email?: string;
   /** "claude.ai" (subscription) | "api_key" | … — from `claude auth status`. */

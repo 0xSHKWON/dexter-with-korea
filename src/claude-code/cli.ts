@@ -8,9 +8,9 @@
  * plugs its finance tools in over MCP.
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync } from 'node:fs';
+import { existsSync, mkdtempSync, statSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { delimiter, join } from 'node:path';
+import { delimiter, dirname, join } from 'node:path';
 
 export const CLAUDE_CODE_PREFIX = 'claude-code:';
 
@@ -18,23 +18,53 @@ export function stripClaudeCodePrefix(model: string): string {
   return model.startsWith(CLAUDE_CODE_PREFIX) ? model.slice(CLAUDE_CODE_PREFIX.length) : model;
 }
 
+// npm's Windows install leaves only shims (claude.cmd/.ps1) on PATH; the real
+// binary sits in the package. Shims can't be spawned without a shell, and a
+// shell would mangle the multi-KB --system-prompt argv.
+const NPM_PACKAGE_EXE = join('node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe');
+
+function isFile(p: string): boolean {
+  try {
+    return statSync(p).isFile();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A user-supplied `claude` path → a spawnable binary. Users paste the npm
+ * package folder or a shim as often as the binary itself.
+ */
+export function resolveClaudePath(p: string, platform: NodeJS.Platform = process.platform): string | null {
+  if (isFile(p)) {
+    if (platform !== 'win32' || /\.exe$/i.test(p)) return p;
+    const target = join(dirname(p), NPM_PACKAGE_EXE);
+    return isFile(target) ? target : null;
+  }
+  return [join(p, 'bin', 'claude.exe'), join(p, 'claude.exe'), join(p, 'bin', 'claude'), join(p, 'claude')].find(isFile) ?? null;
+}
+
 /**
  * Locate `claude`. GUI-launched apps (the desktop sidecar) don't inherit the
  * login shell's PATH, so the installer's default locations are probed too.
  */
-export function findClaudeBinary(): string | null {
+export function findClaudeBinary(platform: NodeJS.Platform = process.platform): string | null {
   const override = process.env.CLAUDE_CODE_PATH;
-  if (override && existsSync(override)) return override;
-  const exe = process.platform === 'win32' ? 'claude.exe' : 'claude';
+  const resolved = override ? resolveClaudePath(override, platform) : null;
+  if (resolved) return resolved;
+  const win = platform === 'win32';
+  const exe = win ? 'claude.exe' : 'claude';
   const home = homedir();
+  const pathDirs = (process.env.PATH ?? '').split(delimiter).filter(Boolean);
   const candidates = [
-    ...(process.env.PATH ?? '').split(delimiter).filter(Boolean).map((dir) => join(dir, exe)),
+    ...pathDirs.map((dir) => join(dir, exe)),
     join(home, '.local', 'bin', exe),
     join(home, '.claude', 'local', exe),
-    '/opt/homebrew/bin/claude',
-    '/usr/local/bin/claude',
+    ...(win
+      ? [...pathDirs, ...(process.env.APPDATA ? [join(process.env.APPDATA, 'npm')] : [])].map((dir) => join(dir, NPM_PACKAGE_EXE))
+      : ['/opt/homebrew/bin/claude', '/usr/local/bin/claude']),
   ];
-  return candidates.find((p) => existsSync(p)) ?? null;
+  return candidates.find(isFile) ?? null;
 }
 
 export interface ClaudeCodeStatus {
