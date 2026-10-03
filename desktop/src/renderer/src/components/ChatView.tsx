@@ -1,9 +1,11 @@
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { normalizeKoreanBold } from '../markdown';
 import ThreeLogo from './ThreeLogo';
 import QuestionPrompt from './QuestionPrompt';
+import ModelPicker from './ModelPicker';
 import type {
   AgentEvent,
   ChatConversation,
@@ -21,6 +23,8 @@ interface ChatMessage {
   steps?: ChatStep[];
   pending?: boolean;
   status?: string;
+  /** Epoch ms: sent (user) / finished (assistant). */
+  at?: number;
 }
 
 interface Props {
@@ -32,6 +36,8 @@ interface Props {
   onSeedConsumed?: () => void;
   /** Start a fresh conversation — one History row holds one question and one answer. */
   onNewChat: () => void;
+  /** The default model was switched from the composer picker. */
+  onModelChanged?: () => void;
 }
 
 const EXAMPLES = [
@@ -170,14 +176,28 @@ function StepsBlock({ steps, live }: { steps: ChatStep[]; live: boolean }): JSX.
   );
 }
 
-export default function ChatView({ conversation, onSaved, onOpenSettings, seed, onSeedConsumed, onNewChat }: Props): JSX.Element {
+export default function ChatView({
+  conversation,
+  onSaved,
+  onOpenSettings,
+  seed,
+  onSeedConsumed,
+  onNewChat,
+  onModelChanged,
+}: Props): JSX.Element {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [hasLlmKey, setHasLlmKey] = useState<boolean | null>(null);
   const [pendingQuestion, setPendingQuestion] = useState<{ questionId: string; questions: Question[] } | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Follow the stream only while the reader is at the bottom; scrolling up to
+  // reread must not be yanked back down by every incoming token.
+  const pinnedRef = useRef(true);
+  const [pinned, setPinned] = useState(true);
+  const lastScrollTopRef = useRef(0);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const activeRef = useRef<{ runId: string; pendingId: string } | null>(null);
   const currentIdRef = useRef<string | null>(null);
@@ -186,12 +206,14 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
   useEffect(() => {
     (async () => {
       try {
-        const [provs, statuses] = await Promise.all([
+        const [provs, statuses, codex, claude] = await Promise.all([
           window.dexter.providers.list(),
           window.dexter.secrets.statusAll(),
+          window.dexter.auth.status(),
+          window.dexter.claudeCode.status(),
         ]);
         const llmEnvs = new Set(provs.filter((p) => p.apiKeyEnvVar).map((p) => p.apiKeyEnvVar as string));
-        setHasLlmKey(statuses.some((s) => llmEnvs.has(s.envVar) && s.exists));
+        setHasLlmKey(codex.loggedIn || claude.loggedIn || statuses.some((s) => llmEnvs.has(s.envVar) && s.exists));
       } catch {
         setHasLlmKey(false);
       }
@@ -208,6 +230,7 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
             role: m.role,
             content: m.content,
             steps: m.steps,
+            at: m.at,
           }))
         : [],
     );
@@ -232,6 +255,7 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
         role: m.role,
         content: m.content,
         ...(m.steps && m.steps.length ? { steps: m.steps } : {}),
+        ...(m.at ? { at: m.at } : {}),
       }));
     if (stored.length < 2) return;
     const title = (stored.find((m) => m.role === 'user')?.content ?? '대화').slice(0, 40);
@@ -321,6 +345,7 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
         // Agent paused on ask_user_question — show the inline choice panel.
         setPendingQuestion({ questionId: msg.questionId, questions: msg.questions });
       } else if (msg.type === 'done') {
+        patch((m) => ({ ...m, at: m.at ?? Date.now() }));
         activeRef.current = null;
         setSending(false);
         setPendingQuestion(null);
@@ -339,19 +364,54 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
     return window.dexter.chat.onEvent(handle);
   }, []);
 
-  useEffect(() => {
+  function setPin(value: boolean): void {
+    pinnedRef.current = value;
+    setPinned(value);
+  }
+
+  // Only an upward move unpins. Judging by distance-from-bottom alone misfires:
+  // by the time our own scrollTo's event fires, more tokens have grown the
+  // content, so it looks like the user left the bottom. Growth and our
+  // scroll-to-bottom never decrease scrollTop; a wheel/drag/key up does.
+  function onScroll(): void {
+    const el = scrollRef.current;
+    if (!el) return;
+    const top = el.scrollTop;
+    const movedUp = top < lastScrollTopRef.current - 2;
+    lastScrollTopRef.current = top;
+    if (movedUp) {
+      if (pinnedRef.current) setPin(false);
+    } else if (!pinnedRef.current && el.scrollHeight - top - el.clientHeight < 48) {
+      setPin(true);
+    }
+  }
+
+  function scrollToBottom(): void {
+    setPin(true);
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+  }
+
+  useEffect(() => {
+    if (pinnedRef.current) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages, pendingQuestion]);
+
+  // Opening another conversation starts at its latest message. A new chat also
+  // gets its id mid-stream (first save) — that must not re-pin a reader who
+  // scrolled up, hence the in-flight check.
+  useEffect(() => {
+    if (!activeRef.current) setPin(true);
+  }, [conversation?.id]);
 
   async function send(): Promise<void> {
     const text = input.trim();
     if (!text || sending) return;
     setInput('');
+    setPin(true);
     if (!currentIdRef.current) currentIdRef.current = crypto.randomUUID();
     const pendingId = crypto.randomUUID();
     setMessages((m) => [
       ...m,
-      { id: crypto.randomUUID(), role: 'user', content: text },
+      { id: crypto.randomUUID(), role: 'user', content: text, at: Date.now() },
       { id: pendingId, role: 'assistant', content: '', pending: true, status: '시작하는 중…' },
     ]);
     setSending(true);
@@ -422,6 +482,33 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
     onNewChat();
   }
 
+  async function exportPdf(): Promise<void> {
+    const question = messages.find((m) => m.role === 'user');
+    const answer = [...messages].reverse().find((m) => m.role === 'assistant' && m.content.trim());
+    if (!question || !answer || exporting) return;
+    const sources = [
+      ...new Set((answer.steps ?? []).filter((s) => s.kind === 'tool' && s.state === 'done').map(stepLabel)),
+    ];
+    setExporting(true);
+    try {
+      await window.dexter.chat.exportPdf({
+        title: conversation?.title ?? question.content.slice(0, 40),
+        question: question.content,
+        answerHtml: renderToStaticMarkup(
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{normalizeKoreanBold(answer.content)}</ReactMarkdown>,
+        ),
+        askedAt: question.at,
+        // Rows saved before timestamps existed: the first save lands right after the answer.
+        answeredAt: answer.at ?? conversation?.createdAt,
+        sources,
+      });
+    } catch (e) {
+      window.alert(`PDF 저장 실패: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const empty = messages.length === 0;
   // This thread has had its answer — a settled assistant turn with content. Covers
   // errors and cancellations too: both land as non-pending assistant text, and
@@ -431,7 +518,7 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
 
   return (
     <div className="chat">
-      <div className="chat-messages" ref={scrollRef}>
+      <div className="chat-messages" ref={scrollRef} onScroll={onScroll}>
         {empty ? (
           <div className="chat-empty">
             <ThreeLogo />
@@ -439,7 +526,7 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
             <p className="muted">DART·KRX에 직접 가지 않아도, 질문하면 데이터를 모아 정리해 드립니다.</p>
             {hasLlmKey === false ? (
               <div className="empty-cta">
-                <p className="muted">시작하려면 LLM API 키가 필요합니다.</p>
+                <p className="muted">시작하려면 Claude·ChatGPT 로그인 또는 LLM API 키가 필요합니다.</p>
                 <button className="btn primary" onClick={onOpenSettings}>
                   설정 열기
                 </button>
@@ -486,6 +573,11 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
       </div>
 
       <div className="composer">
+        {!pinned && !empty && (
+          <button className="jump-latest" onClick={scrollToBottom}>
+            ↓ {sending ? '최신 내용' : '맨 아래로'}
+          </button>
+        )}
         {answered ? (
           // One History row is one question and one answer: the row's title is its
           // first question, so a follow-up here would be filed under an unrelated
@@ -493,12 +585,18 @@ export default function ChatView({ conversation, onSaved, onOpenSettings, seed, 
           // carries no prior turns (src/sidecar/index.ts).
           <div className="composer-inner composer-done">
             <span className="composer-note">답변이 끝났습니다. 다음 질문은 새 대화로 시작하세요.</span>
-            <button className="btn primary send-btn" onClick={startNewChat}>
-              새 질문하기
-            </button>
+            <div className="composer-actions">
+              <button className="btn send-btn" onClick={() => void exportPdf()} disabled={exporting}>
+                {exporting ? 'PDF 만드는 중…' : 'PDF로 저장'}
+              </button>
+              <button className="btn primary send-btn" onClick={startNewChat}>
+                새 질문하기
+              </button>
+            </div>
           </div>
         ) : (
           <div className="composer-inner">
+            <ModelPicker disabled={sending} onChanged={onModelChanged} onOpenSettings={onOpenSettings} />
             <textarea
               ref={taRef}
               rows={1}

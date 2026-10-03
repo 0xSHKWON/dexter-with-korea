@@ -17,17 +17,27 @@ const MODEL_TO_PROVIDER_MAP: Record<string, string> = {
 };
 
 // Deprecated model IDs to upgrade on load.
-// Fork policy: gpt-5.5 is the immediately-previous generation and stays
-// selectable (see PROVIDER_MODELS in utils/model.ts), so it is deliberately
-// absent here — upstream upgrades it, we do not. Only older tiers migrate.
+// Fork policy: the GPT-5.6 tiers are the immediately-previous OpenAI generation
+// and stay selectable (see PROVIDER_MODELS in utils/model.ts), so they are
+// deliberately absent here — upstream upgrades them, we do not. Older OpenAI
+// tiers and the other providers' superseded ids migrate as upstream does.
 const DEPRECATED_MODEL_UPGRADES: Record<string, string> = {
-  'gpt-5.4': 'gpt-5.6-sol',
-  'gpt-5.2': 'gpt-5.6-sol',
+  'gpt-5.5': 'gpt-6-astra',
+  'gpt-5.4': 'gpt-6-astra',
+  'gpt-5.2': 'gpt-6-astra',
+  'claude-sonnet-4-6': 'claude-sonnet-5',
+  'claude-opus-4-8': 'claude-opus-5-5',
+  'claude-fable-5': 'claude-fable-5-1',
+  'gemini-3-flash-preview': 'gemini-3.8-flash',
+  'grok-4-0709': 'grok-4.7',
+  'grok-4-1-fast-reasoning': 'grok-4.7',
+  'kimi-k2-5': 'kimi-k3',
+  'deepseek-v4-flash': 'deepseek-flash',
 };
 
 interface Config {
   provider?: string;
-  modelId?: string;  // Selected model ID (e.g., "gpt-5.6-sol", "ollama:llama3.1")
+  modelId?: string;  // Selected model ID (e.g., "gpt-6-astra", "ollama:llama3.1")
   model?: string;    // Legacy key, kept for migration
   webSearchPreferredProvider?: 'exa' | 'perplexity' | 'tavily';
   memory?: {
@@ -55,7 +65,7 @@ export function loadConfig(): Config {
     const content = readFileSync(SETTINGS_FILE, 'utf-8');
     let config = JSON.parse(content) as Config;
 
-    // Upgrade deprecated model IDs (e.g. gpt-5.5 -> gpt-5.6-sol)
+    // Upgrade deprecated model IDs (e.g. gpt-5.5 -> gpt-6-astra)
     if (config.modelId && DEPRECATED_MODEL_UPGRADES[config.modelId]) {
       config.modelId = DEPRECATED_MODEL_UPGRADES[config.modelId];
       saveConfig(config);

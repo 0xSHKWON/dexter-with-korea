@@ -42,12 +42,19 @@ export type ApprovalDecision = 'allow-once' | 'allow-session' | 'allow-always' |
  * Agent configuration
  */
 export interface AgentConfig {
-  /** Model to use for LLM calls (e.g., 'gpt-5.6-sol', 'claude-sonnet-4-20250514') */
+  /** Model to use for LLM calls (e.g., 'gpt-6-astra', 'claude-sonnet-5') */
   model?: string;
   /** Model provider (e.g., 'openai', 'anthropic', 'google', 'ollama') */
   modelProvider?: string;
   /** Maximum agent loop iterations (default: 10) */
   maxIterations?: number;
+  /**
+   * Reasoning effort for the main agent model (e.g. 'low' | 'medium' | 'high' |
+   * 'xhigh' | 'max'). Applied by providers that support it — Claude Code
+   * (`--effort`) and ChatGPT/Codex (`reasoning.effort`); ignored elsewhere and
+   * for tool-internal fast-model calls. Unset = the provider's default.
+   */
+  effort?: string;
   /** AbortSignal for cancelling agent execution */
   signal?: AbortSignal;
   /** Delivery channel (e.g., 'whatsapp', 'cli') — affects response formatting */
@@ -269,6 +276,8 @@ export interface QueueDrainEvent {
   messageCount: number;
   /** The merged text injected as a HumanMessage. */
   mergedText: string;
+  /** Each drained message, in the order they were merged. */
+  texts: string[];
 }
 
 /**

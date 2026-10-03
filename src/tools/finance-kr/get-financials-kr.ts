@@ -5,8 +5,12 @@ import { z } from 'zod';
 import { callLlm } from '../../model/llm.js';
 import { formatToolResult } from '../types.js';
 import { getCurrentDate } from '../../agent/prompts.js';
-import { withTimeout, SUB_TOOL_TIMEOUT_MS } from '../finance/utils.js';
+import { withTimeout } from '../finance/utils.js';
 import { getBusinessReport } from './sub-tools/get-business-report.js';
+
+// The shared SUB_TOOL_TIMEOUT_MS was raised to 60s for Financial Datasets cursor
+// pagination. DART answers in a single request, so keep the original 15s budget.
+const DART_SUB_TOOL_TIMEOUT_MS = 15_000;
 
 export const GET_FINANCIALS_KR_DESCRIPTION = `
 Intelligent meta-tool for retrieving Korean (KOSPI/KOSDAQ) listed company financial data from DART (Korea's official disclosure system). Takes a natural language query and routes to DART data sources.
@@ -109,7 +113,7 @@ export function createGetFinancialsKr(model: string): DynamicStructuredTool {
             if (!tool) {
               throw new Error(`Tool '${tc.name}' not found`);
             }
-            const rawResult = await withTimeout(tool.invoke(tc.args), SUB_TOOL_TIMEOUT_MS, tc.name);
+            const rawResult = await withTimeout(tool.invoke(tc.args), DART_SUB_TOOL_TIMEOUT_MS, tc.name);
             const result = typeof rawResult === 'string' ? rawResult : JSON.stringify(rawResult);
             const parsed = JSON.parse(result);
             return {

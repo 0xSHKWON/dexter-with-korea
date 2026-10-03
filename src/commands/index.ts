@@ -5,6 +5,8 @@ export interface SlashCommand {
 
 export const SLASH_COMMANDS: SlashCommand[] = [
   { name: 'model', description: 'Switch LLM provider and model' },
+  { name: 'login', description: 'Log in: ChatGPT (Codex) · "device" headless · "codex-cli" reuse Codex CLI · "claude" Claude Code' },
+  { name: 'logout', description: 'Log out of ChatGPT (Codex)' },
   { name: 'search', description: 'Choose preferred web search provider' },
   { name: 'rules', description: 'Show your research rules' },
   { name: 'clear', description: 'Clear the conversation' },

@@ -9,6 +9,18 @@ const api: DexterApi = {
   datasources: {
     list: () => ipcRenderer.invoke('datasources:list'),
   },
+  auth: {
+    status: () => ipcRenderer.invoke('auth:status'),
+    login: (mode) => ipcRenderer.invoke('auth:login', mode),
+    cancel: () => ipcRenderer.invoke('auth:cancel'),
+    logout: () => ipcRenderer.invoke('auth:logout'),
+    linkCodexCli: () => ipcRenderer.invoke('auth:linkCodexCli'),
+  },
+  claudeCode: {
+    status: () => ipcRenderer.invoke('claudeCode:status'),
+    login: () => ipcRenderer.invoke('claudeCode:login'),
+    cancel: () => ipcRenderer.invoke('claudeCode:cancel'),
+  },
   settings: {
     getAll: () => ipcRenderer.invoke('settings:getAll'),
     set: (key, value) => ipcRenderer.invoke('settings:set', key, value),
@@ -34,6 +46,7 @@ const api: DexterApi = {
     listConversations: () => ipcRenderer.invoke('chat:listConv'),
     saveConversation: (conv) => ipcRenderer.invoke('chat:saveConv', conv),
     deleteConversation: (id) => ipcRenderer.invoke('chat:deleteConv', id),
+    exportPdf: (doc) => ipcRenderer.invoke('chat:exportPdf', doc),
   },
   work: {
     convert: (rawData) => ipcRenderer.invoke('work:convert', rawData),

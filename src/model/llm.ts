@@ -12,11 +12,14 @@ import { z } from 'zod';
 import { DEFAULT_SYSTEM_PROMPT } from '@/agent/prompts';
 import type { TokenUsage } from '@/agent/types';
 import { logger } from '@/utils';
+import { extractTextContent } from '@/utils/ai-message';
 import { classifyError, isNonRetryableError } from '@/utils/errors';
 import { resolveProvider, getProviderById } from '@/providers';
+import { createCodexChatModel } from '@/model/codex';
+import { ChatClaudeCode } from '@/model/claude-code';
 
 export const DEFAULT_PROVIDER = 'openai';
-export const DEFAULT_MODEL = 'gpt-5.6-sol';
+export const DEFAULT_MODEL = 'gpt-6-astra';
 
 /**
  * Gets the fast model variant for the given provider.
@@ -52,6 +55,8 @@ async function withRetry<T>(fn: () => Promise<T>, provider: string, maxAttempts 
 // Model provider configuration
 interface ModelOpts {
   streaming: boolean;
+  /** Reasoning effort; only providers that support it read this (see AgentConfig.effort). */
+  effort?: string;
 }
 
 type ModelFactory = (name: string, opts: ModelOpts) => BaseChatModel;
@@ -72,6 +77,11 @@ const MODEL_FACTORIES: Record<string, ModelFactory> = {
       ...opts,
       apiKey: getApiKey('ANTHROPIC_API_KEY'),
     }),
+  // The user's Claude Code CLI login. Only non-agentic calls land here; the agent
+  // loop hands whole turns to Claude Code (agent/claude-code-runner.ts).
+  'claude-code': (name) => new ChatClaudeCode({ model: name }),
+  // ChatGPT subscription via OAuth — always streams on the wire (see model/codex.ts).
+  'openai-codex': (name, opts) => createCodexChatModel(name, opts.effort),
   google: (name, opts) =>
     new ChatGoogleGenerativeAI({
       model: name,
@@ -106,9 +116,10 @@ const MODEL_FACTORIES: Record<string, ModelFactory> = {
       },
     }),
   deepseek: (name, opts) => {
-    // Both deepseek-v4-pro and deepseek-v4-flash support thinking mode.
+    // V4 Pro and V4.1 Flash (plus the retired V4 Flash id) support thinking mode.
     // temperature/top_p/presence_penalty/frequency_penalty are ignored in thinking mode.
-    const isThinkingModel = name === 'deepseek-v4-pro' || name === 'deepseek-v4-flash';
+    const isThinkingModel =
+      name === 'deepseek-v4-pro' || name === 'deepseek-flash' || name === 'deepseek-v4-flash';
     return new ChatOpenAI({
       model: name,
       ...opts,
@@ -148,15 +159,16 @@ const DEFAULT_FACTORY: ModelFactory = (name, opts) =>
     model: name,
     ...opts,
     apiKey: getApiKey('OPENAI_API_KEY'),
-    // GPT-5.6 requires the Responses API when reasoning and function tools are combined.
-    useResponsesApi: name.startsWith('gpt-5.6-'),
+    // GPT-5.6 and GPT-6 require the Responses API when reasoning and function tools are combined.
+    useResponsesApi: name.startsWith('gpt-5.6-') || name.startsWith('gpt-6-'),
   });
 
 export function getChatModel(
   modelName: string = DEFAULT_MODEL,
-  streaming: boolean = false
+  streaming: boolean = false,
+  effort?: string,
 ): BaseChatModel {
-  const opts: ModelOpts = { streaming };
+  const opts: ModelOpts = { streaming, effort };
   const provider = resolveProvider(modelName);
   const factory = MODEL_FACTORIES[provider.id] ?? DEFAULT_FACTORY;
   return factory(modelName, opts);
@@ -228,18 +240,22 @@ export async function callLlm(prompt: string, options: CallLlmOptions = {}): Pro
   const finalSystemPrompt = systemPrompt || DEFAULT_SYSTEM_PROMPT;
 
   const llm = getChatModel(model, false);
+  const provider = resolveProvider(model);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let runnable: Runnable<any, any> = llm;
 
   if (outputSchema) {
-    runnable = llm.withStructuredOutput(outputSchema, { strict: false });
+    // Anthropic: forced tool calling (the default method) is rejected when thinking is on,
+    // which Claude 5 models always have. Their native JSON-schema output mode has no such limit.
+    runnable = provider.id === 'anthropic'
+      ? llm.withStructuredOutput(outputSchema, { method: 'jsonSchema' })
+      : llm.withStructuredOutput(outputSchema, { strict: false });
   } else if (tools && tools.length > 0 && llm.bindTools) {
     runnable = llm.bindTools(tools);
   }
 
   const invokeOpts = signal ? { signal } : undefined;
-  const provider = resolveProvider(model);
   let result;
 
   if (provider.id === 'anthropic') {
@@ -259,8 +275,10 @@ export async function callLlm(prompt: string, options: CallLlmOptions = {}): Pro
 
   // If no outputSchema and no tools, extract content from AIMessage
   // When tools are provided, return the full AIMessage to preserve tool_calls
+  // Responses-API streams (Codex) and thinking models return content as blocks;
+  // plain-text callers expect a string.
   if (!outputSchema && !tools && result && typeof result === 'object' && 'content' in result) {
-    return { response: (result as { content: string }).content, usage };
+    return { response: extractTextContent(result as AIMessage), usage };
   }
   return { response: result as AIMessage, usage };
 }
@@ -300,6 +318,7 @@ interface CallLlmWithMessagesOptions {
   model?: string;
   tools?: StructuredToolInterface[];
   signal?: AbortSignal;
+  effort?: string;
 }
 
 interface InvokeOptions {
@@ -314,13 +333,13 @@ interface InvokeOptions {
  * (annotateSystemMessageForCaching — the pre-existing contract), and (2) a
  * history breakpoint via the call option below.
  *
- * For Anthropic, `cache_control` is a ChatAnthropic *call option*: the library
- * copies the final formatted payload and places an ephemeral cache breakpoint
- * on the last content block of the last message (string content is converted
- * to a block array; after a tool turn the breakpoint lands on the tool_result
- * block itself). Since the agent loop re-sends the whole conversation every
- * iteration, this makes each call read the prior history from cache instead of
- * re-billing it. We deliberately do NOT annotate the BaseMessages ourselves:
+ * For Anthropic, `cache_control` is a ChatAnthropic *call option*: since
+ * @langchain/anthropic 1.5 the library forwards it as the API's top-level
+ * `cache_control`, and Anthropic places the breakpoint on the last cacheable
+ * block server-side (after a tool turn, the tool_result block). Since the agent
+ * loop re-sends the whole conversation every iteration, this makes each call
+ * read the prior history from cache instead of re-billing it. We deliberately
+ * do NOT annotate the BaseMessages ourselves:
  * a cache_control put on a ToolMessage's content blocks ends up nested inside
  * tool_result.content in the wire payload, which the Anthropic API rejects.
  * Together with the system-prompt breakpoint this uses 2 of Anthropic's 4
@@ -356,9 +375,9 @@ export async function callLlmWithMessages(
   messages: BaseMessage[],
   options: CallLlmWithMessagesOptions = {},
 ): Promise<LlmResult> {
-  const { model = DEFAULT_MODEL, tools, signal } = options;
+  const { model = DEFAULT_MODEL, tools, signal, effort } = options;
 
-  const llm = getChatModel(model, false);
+  const llm = getChatModel(model, false, effort);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let runnable: Runnable<any, any> = llm;
@@ -394,9 +413,9 @@ export async function* streamLlmWithMessages(
   messages: BaseMessage[],
   options: CallLlmWithMessagesOptions = {},
 ): AsyncGenerator<AIMessageChunk, void> {
-  const { model = DEFAULT_MODEL, tools, signal } = options;
+  const { model = DEFAULT_MODEL, tools, signal, effort } = options;
 
-  const llm = getChatModel(model, true);
+  const llm = getChatModel(model, true, effort);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let runnable: Runnable<any, any> = llm;

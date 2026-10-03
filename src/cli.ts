@@ -13,6 +13,9 @@ import {
   getSearchProviderDisplayName,
 } from './utils/env.js';
 import { dexterPath } from './utils/paths.js';
+import { linkCodexCli, login, logout, type LoginMode } from './auth/store.js';
+import { openBrowser } from './auth/open-browser.js';
+import { loginClaudeCode } from './claude-code/cli.js';
 import { defaultQueue } from './utils/message-queue.js';
 import { logger } from './utils/logger.js';
 import {
@@ -247,7 +250,12 @@ function renderEvent(
     chatLog.addMicrocompact(event.cleared, event.tokensSaved);
   }
   if (event.type === 'queue_drain') {
-    chatLog.addQueueDrain(event.messageCount);
+    // Picked up mid-run: the queued text leaves the area below the working
+    // indicator and joins the log as a normal query row.
+    for (const text of event.texts) {
+      chatLog.addQuery(text);
+    }
+    chatLog.resetToolGrouping();
   }
   if (event.type === 'compaction' && event.phase === 'end') {
     chatLog.addCompaction(event.success ?? false, event.preCompactTokens, event.postCompactTokens);
@@ -268,15 +276,54 @@ export async function runCli() {
   };
 
   let agentRunner: AgentRunnerController;
-  const modelSelection = new ModelSelectionController(onError, () => {
-    intro.setModel(modelSelection.model);
-    agentRunner?.updateAgentConfig({
-      model: modelSelection.model,
-      modelProvider: modelSelection.provider,
-    });
-    renderSelectionOverlay();
+  const modelSelection = new ModelSelectionController(
+    onError,
+    () => {
+      intro.setModel(modelSelection.model);
+      agentRunner?.updateAgentConfig({
+        model: modelSelection.model,
+        modelProvider: modelSelection.provider,
+      });
+      renderSelectionOverlay();
+      tui.requestRender();
+    },
+    (providerId) => (providerId === 'claude-code' ? runClaudeCodeLogin() : runCodexLogin('browser')),
+  );
+
+  const note = (text: string) => {
+    chatLog.addChild(new Spacer(1));
+    chatLog.addChild(new Text(text, 0, 0));
     tui.requestRender();
-  });
+  };
+
+  // ChatGPT-plan (Codex) OAuth login. The URL is always printed: opening the
+  // browser can silently fail over SSH, and `/login device` exists for that case.
+  const runCodexLogin = async (mode: LoginMode): Promise<boolean> => {
+    note(theme.muted('Logging in to ChatGPT (Codex)…'));
+    try {
+      const creds = await login(
+        'openai-codex',
+        {
+          onAuth: ({ url, userCode }) => {
+            if (userCode) {
+              note(`Open ${theme.primary(url)} and enter code ${theme.primary(userCode)}`);
+            } else {
+              note(theme.muted(`If the browser didn't open, visit:\n${url}`));
+              openBrowser(url);
+            }
+          },
+          onProgress: (message) => note(theme.muted(message)),
+        },
+        mode,
+      );
+      const who = [creds.email, creds.plan].filter(Boolean).join(' · ');
+      note(theme.success(`✓ Logged in to ChatGPT${who ? ` (${who})` : ''}. Pick a model with /model → ChatGPT (Codex).`));
+      return true;
+    } catch (e) {
+      onError(`ChatGPT login failed: ${e instanceof Error ? e.message : String(e)}`);
+      return false;
+    }
+  };
   const searchSelection = new SearchSelectionController(onError, () => {
     renderSelectionOverlay();
     tui.requestRender();
@@ -392,16 +439,26 @@ export async function runCli() {
   const hintBar = new HintBarComponent();
   const debugPanel = new DebugPanelComponent(8, true);
   const spacer = new Spacer(1);
+  // Queued messages wait below the working indicator until the agent picks them up.
+  const queuedMessages = new Container();
+  defaultQueue.subscribe(() => {
+    queuedMessages.clear();
+    const queued = defaultQueue.snapshot();
+    if (queued.length > 0) {
+      queuedMessages.addChild(new Spacer(1)); // gap under the working indicator
+    }
+    for (const msg of queued) {
+      queuedMessages.addChild(new Text(theme.muted(`❯ ${msg.text}`), 0, 0));
+    }
+    tui.requestRender();
+  });
 
-  // Build the component tree ONCE — stable structure, no root.clear()
-  root.addChild(intro);
-  root.addChild(chatLog);
-  root.addChild(errorText);
-  root.addChild(workingIndicator);
-  root.addChild(spacer);
-  root.addChild(editor);
-  root.addChild(hintBar);
-  root.addChild(debugPanel);
+  // The main view, top to bottom. Built once here and again by restoreMainView()
+  // after an overlay screen closes, so both must use this one list.
+  const mainViewChildren = [intro, chatLog, errorText, workingIndicator, queuedMessages, spacer, editor, hintBar, debugPanel];
+  for (const child of mainViewChildren) {
+    root.addChild(child);
+  }
   tui.addChild(root);
   initSpinner(tui);
 
@@ -431,16 +488,52 @@ export async function runCli() {
   esc          Interrupt query / clear input
   ctrl+c       Exit Dexter
   /model       Switch LLM provider and model
+  /login       Log in with your ChatGPT plan (Codex); /login device for headless
+  /login claude  Connect your Claude Code login (Pro/Max)
+  /login codex-cli  Reuse your existing Codex CLI login (codex login)
+  /logout      Log out of ChatGPT (Codex)
   /search      Choose preferred web search provider
   /rules       Show research rules
   /clear       Clear conversation
   /exit        Exit Dexter
   ↑ / ↓        Navigate input history`;
 
-  const handleSlashCommand = async (command: string) => {
+  // Claude Code keeps its own login; we just run `claude auth login` and relay its output.
+  const runClaudeCodeLogin = async (): Promise<boolean> => {
+    note(theme.muted('Logging in to Claude Code (claude auth login)…'));
+    try {
+      const status = await loginClaudeCode({ onOutput: (line) => note(theme.muted(line)) });
+      note(theme.success(`✓ Claude Code connected${status.email ? ` (${status.email})` : ''}. Pick a model with /model → Claude Code.`));
+      return true;
+    } catch (e) {
+      onError(`Claude Code login failed: ${e instanceof Error ? e.message : String(e)}`);
+      return false;
+    }
+  };
+
+  const handleSlashCommand = async (input: string) => {
+    const [command, arg] = input.split(/\s+/);
     switch (command) {
       case 'model':
         modelSelection.startSelection();
+        break;
+      case 'login':
+        if (arg === 'claude') await runClaudeCodeLogin();
+        else if (arg === 'codex-cli') {
+          try {
+            const creds = linkCodexCli();
+            note(theme.success(`✓ Using your Codex CLI login${creds.email ? ` (${creds.email})` : ''} — tokens stay shared with Codex CLI.`));
+          } catch (e) {
+            onError(e instanceof Error ? e.message : String(e));
+          }
+        } else await runCodexLogin(arg === 'device' ? 'device' : 'browser');
+        break;
+      case 'logout':
+        note(
+          theme.muted(
+            logout('openai-codex') ? 'Logged out of ChatGPT (Codex).' : 'Not logged in to ChatGPT (Codex).',
+          ),
+        );
         break;
       case 'search':
         searchSelection.startSelection();
@@ -531,7 +624,6 @@ export async function runCli() {
         source: 'cli',
       });
       await inputHistory.saveMessage(query);
-      chatLog.addQueuedMessage(query);
       tui.requestRender();
       return;
     }
@@ -634,14 +726,9 @@ export async function runCli() {
    */
   const restoreMainView = () => {
     root.clear();
-    root.addChild(intro);
-    root.addChild(chatLog);
-    root.addChild(errorText);
-    root.addChild(workingIndicator);
-    root.addChild(spacer);
-    root.addChild(editor);
-    root.addChild(hintBar);
-    root.addChild(debugPanel);
+    for (const child of mainViewChildren) {
+      root.addChild(child);
+    }
     updateView();
   };
 
@@ -889,6 +976,8 @@ export async function runCli() {
     slashSuggestions = matchCommands(text);
     slashSelectedIndex = 0;
     slashActive = slashSuggestions.length > 0;
+    // No matches (e.g. "/compact focus on X"): let Enter submit the text as typed.
+    editor.slashActive = slashActive;
     updateView();
     tui.requestRender();
   };
@@ -910,6 +999,17 @@ export async function runCli() {
       slashSuggestions = [];
       editor.setText('');
       void handleSlashCommand(selected.name);
+    }
+    updateView();
+    tui.requestRender();
+  };
+
+  editor.onSlashComplete = () => {
+    const selected = slashSuggestions[slashSelectedIndex];
+    slashActive = false;
+    slashSuggestions = [];
+    if (selected) {
+      editor.setText(`/${selected.name} `);
     }
     updateView();
     tui.requestRender();

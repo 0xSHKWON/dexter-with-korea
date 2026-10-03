@@ -14,6 +14,7 @@ import { PROVIDERS } from './providers';
 import { DATA_SOURCES } from './data-sources';
 import { getSecret } from './db';
 import { decryptSecret } from './secrets';
+import { customClaudePath } from './claude-code';
 import type { MainToSidecar, SidecarToMain } from '../shared/sidecar';
 
 interface SidecarTarget {
@@ -40,6 +41,11 @@ function sidecarTarget(): SidecarTarget {
   return { bun: 'bun', entry: join(root, 'src', 'sidecar', 'index.ts'), cwd: root };
 }
 
+/** The core's DEXTER_DIR for the sidecar — settings, scratchpad, and auth.json live here. */
+export function coreDataDir(): string {
+  return join(app.getPath('userData'), 'core-data');
+}
+
 function collectKeyEnv(): Record<string, string> {
   const env: Record<string, string> = {};
   const envVars = [
@@ -64,14 +70,26 @@ class SidecarManager {
   // run/convert ids awaiting a terminal reply — so a crash/stop fails them
   // instead of leaving the UI spinning forever.
   private active = new Set<string>();
+  private listeners = new Set<(msg: SidecarToMain) => void>();
 
   start(onMessage: (msg: SidecarToMain) => void): void {
     this.onMessage = onMessage;
   }
 
+  /** Extra main-process listener (e.g. an IPC handler awaiting a reply); returns unsubscribe. */
+  subscribe(listener: (msg: SidecarToMain) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  private emit(msg: SidecarToMain): void {
+    this.onMessage?.(msg);
+    for (const l of this.listeners) l(msg);
+  }
+
   /** Emit an error for every in-flight run so the renderer recovers. */
   private failActive(message: string): void {
-    for (const id of this.active) this.onMessage?.({ type: 'error', id, message });
+    for (const id of this.active) this.emit({ type: 'error', id, message });
     this.active.clear();
   }
 
@@ -79,11 +97,16 @@ class SidecarManager {
     if (this.proc) return this.proc;
 
     const target = sidecarTarget();
-    const dexterDir = join(app.getPath('userData'), 'core-data');
+    const dexterDir = coreDataDir();
 
     const proc = spawn(target.bun, ['run', target.entry], {
       cwd: target.cwd,
-      env: { ...process.env, DEXTER_DIR: dexterDir, ...collectKeyEnv() },
+      env: {
+        ...process.env,
+        DEXTER_DIR: dexterDir,
+        ...collectKeyEnv(),
+        ...(customClaudePath() ? { CLAUDE_CODE_PATH: customClaudePath() } : {}),
+      },
     }) as ChildProcessWithoutNullStreams;
 
     const rl = createInterface({ input: proc.stdout });
@@ -98,12 +121,15 @@ class SidecarManager {
       }
       // terminal replies clear the run from the in-flight set
       if (
-        (msg.type === 'done' || msg.type === 'error' || msg.type === 'convert_result') &&
+        (msg.type === 'done' ||
+          msg.type === 'error' ||
+          msg.type === 'convert_result' ||
+          msg.type === 'auth_result') &&
         'id' in msg
       ) {
         this.active.delete(msg.id);
       }
-      this.onMessage?.(msg);
+      this.emit(msg);
     });
     proc.stderr.on('data', (d: Buffer) => process.stderr.write(`[sidecar] ${d.toString()}`));
     proc.on('error', (err) => {
@@ -122,7 +148,9 @@ class SidecarManager {
   }
 
   send(req: MainToSidecar): void {
-    if (req.type === 'run' || req.type === 'convert') this.active.add(req.id);
+    if (req.type === 'run' || req.type === 'convert' || req.type === 'auth_login' || req.type === 'auth_link_codex_cli') {
+      this.active.add(req.id);
+    }
     this.ensureProc().stdin.write(JSON.stringify(req) + '\n');
   }
 

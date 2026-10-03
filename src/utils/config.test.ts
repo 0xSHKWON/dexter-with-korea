@@ -40,19 +40,26 @@ function loadWith(modelId: string): { inMemory?: string; onDisk?: string } {
 
 describe('deprecated model migration', () => {
   // Fork policy: the immediately-previous generation stays usable. Upstream maps
-  // gpt-5.5 -> gpt-5.6-sol; we must not, because loadConfig persists the rewrite
+  // gpt-5.6-* -> gpt-6-*; we must not, because loadConfig persists the rewrite
   // and would silently discard a deliberate user choice.
-  it('leaves gpt-5.5 untouched in memory and on disk', () => {
-    expect(loadWith('gpt-5.5')).toEqual({ inMemory: 'gpt-5.5', onDisk: 'gpt-5.5' });
-  });
-
-  it('still upgrades older tiers and persists the rewrite', () => {
-    for (const legacy of ['gpt-5.4', 'gpt-5.2']) {
-      expect(loadWith(legacy)).toEqual({ inMemory: 'gpt-5.6-sol', onDisk: 'gpt-5.6-sol' });
+  it('leaves the GPT-5.6 tiers untouched in memory and on disk', () => {
+    for (const previous of ['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna']) {
+      expect(loadWith(previous)).toEqual({ inMemory: previous, onDisk: previous });
     }
   });
 
+  it('still upgrades older tiers and persists the rewrite', () => {
+    for (const legacy of ['gpt-5.5', 'gpt-5.4', 'gpt-5.2']) {
+      expect(loadWith(legacy)).toEqual({ inMemory: 'gpt-6-astra', onDisk: 'gpt-6-astra' });
+    }
+  });
+
+  it('upgrades superseded ids of other providers', () => {
+    expect(loadWith('claude-sonnet-4-6')).toEqual({ inMemory: 'claude-sonnet-5', onDisk: 'claude-sonnet-5' });
+    expect(loadWith('deepseek-v4-flash')).toEqual({ inMemory: 'deepseek-flash', onDisk: 'deepseek-flash' });
+  });
+
   it('leaves a current model untouched', () => {
-    expect(loadWith('gpt-5.6-sol')).toEqual({ inMemory: 'gpt-5.6-sol', onDisk: 'gpt-5.6-sol' });
+    expect(loadWith('gpt-6-astra')).toEqual({ inMemory: 'gpt-6-astra', onDisk: 'gpt-6-astra' });
   });
 });

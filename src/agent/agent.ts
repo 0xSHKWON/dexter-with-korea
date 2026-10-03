@@ -19,9 +19,10 @@ import { APPROVAL_GATED_TOOLS } from '../permissions/engine.js';
 import { MemoryManager } from '../memory/index.js';
 import { runMemoryFlush, shouldRunMemoryFlush } from '../memory/flush.js';
 import { resolveProvider } from '../providers.js';
+import { runClaudeCodeTurn } from './claude-code-runner.js';
 
 
-const DEFAULT_MODEL = 'gpt-5.6-sol';
+const DEFAULT_MODEL = 'gpt-6-astra';
 const DEFAULT_MAX_ITERATIONS = 10;
 const MAX_OVERFLOW_RETRIES = 2;
 const OVERFLOW_KEEP_ROUNDS = 3;
@@ -53,6 +54,7 @@ const HANDLER_GATED_TOOLS: ReadonlyArray<{ tool: string; wired: (c: AgentConfig)
  */
 export class Agent {
   private readonly model: string;
+  private readonly effort?: string;
   private readonly maxIterations: number;
   private readonly tools: StructuredToolInterface[];
   private readonly toolMap: Map<string, StructuredToolInterface>;
@@ -70,6 +72,7 @@ export class Agent {
     concurrencyMap: Map<string, boolean>,
   ) {
     this.model = config.model ?? DEFAULT_MODEL;
+    this.effort = config.effort;
     this.maxIterations = config.maxIterations ?? DEFAULT_MAX_ITERATIONS;
     this.tools = tools;
     this.toolMap = new Map(tools.map(t => [t.name, t]));
@@ -166,6 +169,11 @@ export class Agent {
 
     if (this.tools.length === 0) {
       yield { type: 'done', answer: 'No tools available. Please check your API key configuration.', toolCalls: [], iterations: 0, totalTime: Date.now() - startTime };
+      return;
+    }
+
+    if (resolveProvider(this.model).id === 'claude-code') {
+      yield* this.runViaClaudeCode(query, inMemoryHistory);
       return;
     }
 
@@ -307,7 +315,7 @@ export class Agent {
       const drainResult = this.drainQueue();
       if (drainResult) {
         messages.push(new HumanMessage(drainResult.text));
-        yield { type: 'queue_drain', messageCount: drainResult.count, mergedText: drainResult.text } as QueueDrainEvent;
+        yield { type: 'queue_drain', messageCount: drainResult.count, mergedText: drainResult.text, texts: drainResult.texts } as QueueDrainEvent;
       }
     }
 
@@ -380,6 +388,7 @@ export class Agent {
       model: this.model,
       tools: this.tools,
       signal: this.signal,
+      effort: this.effort,
     })) {
       accumulated = accumulated ? accumulated.concat(chunk) : chunk;
       const { charDelta, mode, text } = inspectChunkContent(chunk);
@@ -428,6 +437,7 @@ export class Agent {
       model: this.model,
       tools: this.tools,
       signal: this.signal,
+      effort: this.effort,
     });
     return { response: result.response as AIMessage, usage: result.usage };
   }
@@ -493,21 +503,55 @@ export class Agent {
    * Drain all queued messages, merge into a single text block.
    * Returns null if the queue is empty or not configured.
    */
-  private drainQueue(): { text: string; count: number } | null {
+  private drainQueue(): { text: string; count: number; texts: string[] } | null {
     if (!this.messageQueue || this.messageQueue.isEmpty()) {
       return null;
     }
     const messages = this.messageQueue.dequeueAll();
     if (messages.length === 0) return null;
+    const texts = messages.map(m => m.text);
     return {
-      text: messages.map(m => m.text).join('\n\n'),
+      text: texts.join('\n\n'),
       count: messages.length,
+      texts,
     };
   }
 
   // ---------------------------------------------------------------------------
   // Response handling
   // ---------------------------------------------------------------------------
+
+  /**
+   * Claude Code path: the whole turn (tool loop included) runs in one `claude -p`
+   * session; our tools reach it over MCP but still execute through toolExecutor.
+   * The native loop's compaction / iteration cap / queue draining don't apply.
+   */
+  private async *runViaClaudeCode(query: string, inMemoryHistory?: InMemoryChatHistory): AsyncGenerator<AgentEvent, void> {
+    const ctx = createRunContext(query);
+    const history = (inMemoryHistory?.getRecentTurnsAsMessages() ?? [])
+      .map((m) => `[${m._getType() === 'human' ? 'User' : 'Assistant'}]\n${extractTextContent(m as AIMessage)}`)
+      .join('\n\n');
+    const prompt = history ? `Earlier in this conversation:\n\n${history}\n\n[User]\n${query}` : query;
+
+    try {
+      const result = yield* runClaudeCodeTurn({
+        model: this.model,
+        effort: this.effort,
+        systemPrompt: this.systemPrompt,
+        prompt,
+        tools: this.tools,
+        signal: this.signal,
+        executeTool: (name, args, id) =>
+          this.toolExecutor.executeAll(new AIMessage({ content: '', tool_calls: [{ name, args, id, type: 'tool_call' }] }), ctx),
+      });
+      ctx.iteration = result.numTurns;
+      ctx.tokenCounter.add(result.usage);
+      yield* this.handleDirectResponse(result.isError ? `Error: [Claude Code] ${result.answer}` : result.answer, ctx);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      yield* this.handleDirectResponse(`Error: ${formatUserFacingError(message, 'Claude Code')}`, ctx);
+    }
+  }
 
   private async *handleDirectResponse(
     responseText: string,

@@ -4,6 +4,7 @@ import ExcelJS from 'exceljs';
 import { checkForUpdate } from './updater';
 import { PROVIDERS, getProviderById } from './providers';
 import { DATA_SOURCES } from './data-sources';
+import { exportChatPdf } from './pdf';
 import type {
   ConvertResult,
   AccountMapping,
@@ -29,7 +30,9 @@ import {
 } from './db';
 import { encryptSecret, decryptSecret, previewLast4, isEncryptionAvailable } from './secrets';
 import { sidecar } from './sidecar';
-import type { SecretStatus, SecretExportResult } from '../shared/types';
+import { codexCancelLogin, codexLinkCli, codexLogin, codexLogout, codexStatus } from './auth';
+import { CLAUDE_CODE_PATH_SETTING, claudeCodeCancelLogin, claudeCodeLogin, claudeCodeStatus } from './claude-code';
+import type { SecretStatus, SecretExportResult, ChatPdfDoc } from '../shared/types';
 
 function statusFor(envVar: string): SecretStatus {
   const buf = getSecret(envVar);
@@ -57,13 +60,20 @@ const DEFAULT_PROVIDER_ID = 'openai';
  * model in providers.ts left the runtime silently pointing at the old one, so the
  * Settings screen and the model actually used could disagree on a fresh install.
  */
-function resolveRun(): { provider: string; model: string } {
+function resolveRun(): { provider: string; model: string; effort?: string } {
   const provider = getSetting<string>('provider', DEFAULT_PROVIDER_ID);
   const fallback =
     getProviderById(provider)?.defaultModel ??
     getProviderById(DEFAULT_PROVIDER_ID)?.defaultModel ??
     '';
-  return { provider, model: getSetting<string>('modelId', fallback) };
+  // Only forward a level this provider accepts (a stale value from another provider is dropped).
+  const effort = getSetting<Record<string, string>>('effort', {})[provider];
+  const allowed = getProviderById(provider)?.effortLevels ?? [];
+  return {
+    provider,
+    model: getSetting<string>('modelId', fallback),
+    effort: effort && allowed.includes(effort) ? effort : undefined,
+  };
 }
 
 export function registerIpc(): void {
@@ -73,9 +83,19 @@ export function registerIpc(): void {
   ipcMain.handle('update:check', () => checkForUpdate());
   ipcMain.handle('update:open', (_e, url: string) => shell.openExternal(url));
 
+  ipcMain.handle('auth:status', () => codexStatus());
+  ipcMain.handle('auth:login', (_e, mode: 'browser' | 'device') => codexLogin(mode === 'device' ? 'device' : 'browser'));
+  ipcMain.handle('auth:cancel', () => codexCancelLogin());
+  ipcMain.handle('auth:logout', () => codexLogout());
+  ipcMain.handle('auth:linkCodexCli', () => codexLinkCli());
+  ipcMain.handle('claudeCode:status', () => claudeCodeStatus());
+  ipcMain.handle('claudeCode:login', () => claudeCodeLogin());
+  ipcMain.handle('claudeCode:cancel', () => claudeCodeCancelLogin());
+
   ipcMain.handle('settings:getAll', () => getAllSettings());
   ipcMain.handle('settings:set', (_e, key: string, value: unknown) => {
     setSetting(key, value);
+    if (key === CLAUDE_CODE_PATH_SETTING) sidecar.stop(); // respawn with the new CLAUDE_CODE_PATH
   });
 
   ipcMain.handle('secrets:statusAll', () => {
@@ -137,9 +157,9 @@ export function registerIpc(): void {
 
   // ── chat (sidecar) ────────────────────────────────────────────────────────
   ipcMain.handle('chat:send', (_e, query: string) => {
-    const { provider, model } = resolveRun();
+    const { provider, model, effort } = resolveRun();
     const runId = randomUUID();
-    sidecar.send({ type: 'run', id: runId, query, model, modelProvider: provider });
+    sidecar.send({ type: 'run', id: runId, query, model, modelProvider: provider, effort });
     return { runId };
   });
   ipcMain.handle('chat:cancel', (_e, runId: string) => {
@@ -172,6 +192,9 @@ export function registerIpc(): void {
   ipcMain.handle('chat:deleteConv', (_e, id: string) => {
     deleteChat(id);
   });
+  ipcMain.handle('chat:exportPdf', (e, doc: ChatPdfDoc) =>
+    exportChatPdf(BrowserWindow.fromWebContents(e.sender), doc),
+  );
 
   // ── work (ledger → DART accounts) ─────────────────────────────────────────
   ipcMain.handle('work:convert', (_e, rawData: string) => {

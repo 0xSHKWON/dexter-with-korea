@@ -12,6 +12,11 @@ export interface ProviderDef {
   modelPrefix: string;
   /** Environment variable name for API key. Omit for local providers (e.g., Ollama). */
   apiKeyEnvVar?: string;
+  /**
+   * 'oauth' = subscription login (`/login`) stored in .dexter/auth.json.
+   * 'cli'   = delegates to the user's installed, logged-in Claude Code CLI.
+   */
+  authType?: 'apiKey' | 'oauth' | 'cli';
   /** Fast model variant for lightweight tasks like summarization. */
   fastModel?: string;
   /** Default context window size in tokens. Used for model-aware compaction thresholds. */
@@ -24,7 +29,7 @@ export const PROVIDERS: ProviderDef[] = [
     displayName: 'OpenAI',
     modelPrefix: '',
     apiKeyEnvVar: 'OPENAI_API_KEY',
-    fastModel: 'gpt-5.6-luna',
+    fastModel: 'gpt-6-luna',
     contextWindow: 1_047_576,
   },
   {
@@ -33,14 +38,30 @@ export const PROVIDERS: ProviderDef[] = [
     modelPrefix: 'claude-',
     apiKeyEnvVar: 'ANTHROPIC_API_KEY',
     fastModel: 'claude-haiku-4-5',
-    contextWindow: 200_000,
+    contextWindow: 1_000_000,
+  },
+  {
+    id: 'claude-code',
+    displayName: 'Claude Code',
+    modelPrefix: 'claude-code:',
+    authType: 'cli',
+    fastModel: 'claude-code:claude-haiku-4-5',
+    contextWindow: 1_000_000,
+  },
+  {
+    id: 'openai-codex',
+    displayName: 'ChatGPT (Codex)',
+    modelPrefix: 'codex:',
+    authType: 'oauth',
+    fastModel: 'codex:gpt-6-luna',
+    contextWindow: 272_000,
   },
   {
     id: 'google',
     displayName: 'Google',
     modelPrefix: 'gemini-',
     apiKeyEnvVar: 'GOOGLE_API_KEY',
-    fastModel: 'gemini-3-flash-preview',
+    fastModel: 'gemini-3.8-flash',
     contextWindow: 1_000_000,
   },
   {
@@ -48,23 +69,23 @@ export const PROVIDERS: ProviderDef[] = [
     displayName: 'xAI',
     modelPrefix: 'grok-',
     apiKeyEnvVar: 'XAI_API_KEY',
-    fastModel: 'grok-4-1-fast-reasoning',
-    contextWindow: 131_072,
+    fastModel: 'grok-4.7',
+    contextWindow: 500_000,
   },
   {
     id: 'moonshot',
     displayName: 'Moonshot',
     modelPrefix: 'kimi-',
     apiKeyEnvVar: 'MOONSHOT_API_KEY',
-    fastModel: 'kimi-k2-5',
-    contextWindow: 131_072,
+    fastModel: 'kimi-k3',
+    contextWindow: 1_000_000,
   },
   {
     id: 'deepseek',
     displayName: 'DeepSeek',
     modelPrefix: 'deepseek-',
     apiKeyEnvVar: 'DEEPSEEK_API_KEY',
-    fastModel: 'deepseek-v4-flash',
+    fastModel: 'deepseek-flash',
     contextWindow: 1_000_000,
   },
   {
@@ -97,10 +118,14 @@ const defaultProvider = PROVIDERS.find((p) => p.id === 'openai')!;
  * Falls back to OpenAI when no prefix matches.
  */
 export function resolveProvider(modelName: string): ProviderDef {
-  return (
-    PROVIDERS.find((p) => p.modelPrefix && modelName.startsWith(p.modelPrefix)) ??
-    defaultProvider
-  );
+  // Longest prefix wins: 'claude-code:claude-…' must not fall into Anthropic's 'claude-'.
+  let match: ProviderDef | undefined;
+  for (const p of PROVIDERS) {
+    if (p.modelPrefix && modelName.startsWith(p.modelPrefix) && p.modelPrefix.length > (match?.modelPrefix.length ?? 0)) {
+      match = p;
+    }
+  }
+  return match ?? defaultProvider;
 }
 
 /**

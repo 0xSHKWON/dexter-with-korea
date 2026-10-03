@@ -17,11 +17,13 @@ export type SidecarRequest =
       /** Correlates events/done/error back to this request. */
       id: string;
       query: string;
-      /** Model id, e.g. "gpt-5.5", "claude-sonnet-4-6", "ollama:llama3.1". */
+      /** Model id, e.g. "gpt-6-astra", "claude-sonnet-5", "ollama:llama3.1". */
       model: string;
       /** Provider slug, e.g. "openai", "anthropic". */
       modelProvider: string;
       maxIterations?: number;
+      /** Reasoning effort for providers that support it (Claude Code, Codex). */
+      effort?: string;
     }
   | { type: 'cancel'; id: string }
   | {
@@ -42,6 +44,20 @@ export type SidecarRequest =
       rawData: string;
       model: string;
       modelProvider: string;
+    }
+  | {
+      /** Run a subscription (OAuth) login; credentials land in <DEXTER_DIR>/auth.json. */
+      type: 'auth_login';
+      id: string;
+      provider: 'openai-codex';
+      /** 'device' = user-code flow, for when the browser callback can't reach this machine. */
+      mode?: 'browser' | 'device';
+    }
+  | { type: 'auth_cancel'; id: string }
+  | {
+      /** Reuse the existing Codex CLI login (shared tokens, see auth/codex-cli.ts). */
+      type: 'auth_link_codex_cli';
+      id: string;
     };
 
 /** One mapped account line in the converted financial statements. */
@@ -77,4 +93,13 @@ export type SidecarMessage =
       id: string;
       questionId: string;
       questions: Question[];
-    };
+    }
+  | {
+      /** The shell must open `url` (browser flow) or show `userCode` (device flow). */
+      type: 'auth_prompt';
+      id: string;
+      url: string;
+      userCode?: string;
+    }
+  | { type: 'auth_result'; id: string; ok: true; email?: string; plan?: string }
+  | { type: 'auth_result'; id: string; ok: false; error: string };

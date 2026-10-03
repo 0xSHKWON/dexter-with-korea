@@ -18,6 +18,14 @@ const SEARCH_ENVS = [
   'LANGSEARCH_API_KEY',
 ];
 
+function BackIcon(): JSX.Element {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M15 18l-6-6 6-6" />
+    </svg>
+  );
+}
+
 function HelpIcon(): JSX.Element {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -76,6 +84,8 @@ function WorkGlyph(): JSX.Element {
 export default function App(): JSX.Element {
   const [view, setView] = useState<View>('chat');
   const [collapsed, setCollapsed] = useState(false);
+  // Sidebar nav container shown while settings is open; SettingsView portals its tabs into it.
+  const [settingsNav, setSettingsNav] = useState<HTMLElement | null>(null);
   const [status, setStatus] = useState<SideStatus | null>(null);
 
   const [chats, setChats] = useState<ChatConversation[]>([]);
@@ -90,16 +100,20 @@ export default function App(): JSX.Element {
 
   async function loadStatus(): Promise<void> {
     try {
-      const [provs, setts, secs] = await Promise.all([
+      const [provs, setts, secs, codex, claude] = await Promise.all([
         window.dexter.providers.list(),
         window.dexter.settings.getAll(),
         window.dexter.secrets.statusAll(),
+        window.dexter.auth.status(),
+        window.dexter.claudeCode.status(),
       ]);
       const sec: Record<string, boolean> = {};
       for (const s of secs) sec[s.envVar] = s.exists;
-      const llm = provs.some((p) => p.apiKeyEnvVar && sec[p.apiKeyEnvVar]);
+      const llm = codex.loggedIn || claude.loggedIn || provs.some((p) => p.apiKeyEnvVar && sec[p.apiKeyEnvVar]);
+      // Show the catalog label ("Opus 5.5"), not the routing id ("claude-code:claude-opus-5-5").
+      const modelLabel = provs.flatMap((p) => p.models).find((m) => m.id === setts.modelId)?.label;
       setStatus({
-        modelId: setts.modelId,
+        modelId: modelLabel ?? setts.modelId,
         llm,
         items: [
           { label: 'DART', connected: !!sec['DART_API_KEY'] },
@@ -198,34 +212,46 @@ export default function App(): JSX.Element {
           </button>
         </div>
 
-        <button
-          className={`hist-head ${view === 'history' ? 'active' : ''}`}
-          onClick={() => setView('history')}
-        >
-          <ClockIcon />
-          <span>History</span>
-        </button>
+        {view === 'settings' ? (
+          <>
+            <button className="hist-head" onClick={() => setView('chat')}>
+              <BackIcon />
+              <span>설정</span>
+            </button>
+            <nav className="side-nav settings-side" role="tablist" ref={setSettingsNav} />
+          </>
+        ) : (
+          <>
+          <button
+            className={`hist-head ${view === 'history' ? 'active' : ''}`}
+            onClick={() => setView('history')}
+          >
+            <ClockIcon />
+            <span>History</span>
+          </button>
 
-        <nav className="side-nav">
-          <div className={`nav-row ${view === 'chat' ? 'active' : ''}`}>
-            <button className="nav-item" onClick={() => setView('chat')}>
-              <ChatGlyph />
-              <span>Chat</span>
-            </button>
-            <button className="nav-add" onClick={newChat} title="New chat" aria-label="New chat">
-              +
-            </button>
-          </div>
-          <div className={`nav-row ${view === 'work' ? 'active' : ''}`}>
-            <button className="nav-item" onClick={() => setView('work')}>
-              <WorkGlyph />
-              <span>Work</span>
-            </button>
-            <button className="nav-add" onClick={newWork} title="New conversion" aria-label="New conversion">
-              +
-            </button>
-          </div>
-        </nav>
+          <nav className="side-nav">
+            <div className={`nav-row ${view === 'chat' ? 'active' : ''}`}>
+              <button className="nav-item" onClick={() => setView('chat')}>
+                <ChatGlyph />
+                <span>Chat</span>
+              </button>
+              <button className="nav-add" onClick={newChat} title="New chat" aria-label="New chat">
+                +
+              </button>
+            </div>
+            <div className={`nav-row ${view === 'work' ? 'active' : ''}`}>
+              <button className="nav-item" onClick={() => setView('work')}>
+                <WorkGlyph />
+                <span>Work</span>
+              </button>
+              <button className="nav-add" onClick={newWork} title="New conversion" aria-label="New conversion">
+                +
+              </button>
+            </div>
+          </nav>
+          </>
+        )}
 
         <div className="sidebar-spacer" />
 
@@ -308,6 +334,7 @@ export default function App(): JSX.Element {
             seed={chatSeed}
             onSeedConsumed={() => setChatSeed(null)}
             onNewChat={newChat}
+            onModelChanged={loadStatus}
           />
         </div>
         <div className={`view ${view === 'work' ? '' : 'hidden'}`}>
@@ -324,7 +351,7 @@ export default function App(): JSX.Element {
           />
         </div>
         <div className={`view ${view === 'settings' ? '' : 'hidden'}`}>
-          <SettingsView onKeysChanged={loadStatus} />
+          <SettingsView onKeysChanged={loadStatus} navSlot={settingsNav} />
         </div>
         <div className={`view ${view === 'help' ? '' : 'hidden'}`}>
           <HelpView onUsePrompt={usePrompt} />
