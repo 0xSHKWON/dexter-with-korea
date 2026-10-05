@@ -113,6 +113,12 @@ function summarizeToolResult(tool: string, args: Record<string, unknown>, result
             ? `β=${b} (adj, ${parsed.data.index ?? '—'})`
             : 'No beta';
         }
+        if (tool === 'get_beta') {
+          const rows = Array.isArray(parsed.data.betas) ? parsed.data.betas : [];
+          const ok = rows.filter((r: { adjustedBeta?: unknown }) => typeof r?.adjustedBeta === 'number');
+          if (rows.length === 1) return ok.length === 1 ? `β=${ok[0].adjustedBeta} (adj, S&P 500)` : 'No beta';
+          return `β for ${ok.length}/${rows.length} tickers`;
+        }
         if (tool === 'get_consensus_kr') {
           // Count BOTH blocks — with period:'both' an annual-first ?? would ignore quarter.
           const periods = [parsed.data.annual, parsed.data.quarter].flatMap(

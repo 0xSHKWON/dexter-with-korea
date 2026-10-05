@@ -29,6 +29,7 @@ import { getMacroRateKr, GET_MACRO_RATE_KR_DESCRIPTION } from './finance-kr/get-
 import { GET_MARKET_DATA_DESCRIPTION } from './finance/get-market-data.js';
 import { READ_FILINGS_DESCRIPTION } from './finance/read-filings.js';
 import { SCREEN_STOCKS_DESCRIPTION } from './finance/screen-stocks.js';
+import { getBeta, GET_BETA_DESCRIPTION } from './finance/get-beta.js';
 import { heartbeatTool, HEARTBEAT_TOOL_DESCRIPTION } from './heartbeat/heartbeat-tool.js';
 import { cronTool, CRON_TOOL_DESCRIPTION } from './cron/cron-tool.js';
 import { memoryGetTool, MEMORY_GET_DESCRIPTION, memorySearchTool, MEMORY_SEARCH_DESCRIPTION, memoryUpdateTool, MEMORY_UPDATE_DESCRIPTION } from './memory/index.js';
@@ -88,6 +89,16 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       tool: createScreenStocks(model),
       description: SCREEN_STOCKS_DESCRIPTION,
       compactDescription: 'Screen stocks by financial criteria (P/E, growth, margins, etc.).',
+      concurrencySafe: true,
+    },
+    {
+      // Keyless (Backpack public data), so unlike the Financial Datasets tools it
+      // works without FINANCIAL_DATASETS_API_KEY.
+      name: 'get_beta',
+      tool: getBeta,
+      description: GET_BETA_DESCRIPTION,
+      compactDescription:
+        'US equity β (5y monthly raw vs S&P 500 + Blume-adjusted) for DCF cost of equity and peer betas; multiple tickers per call.',
       concurrencySafe: true,
     },
     {

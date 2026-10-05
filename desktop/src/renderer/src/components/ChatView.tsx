@@ -52,6 +52,8 @@ const TOOL_LABELS: Record<string, string> = {
   get_financials_kr: '재무제표 조회',
   get_market_data: '시세 조회',
   get_market_data_kr: '시세 조회',
+  get_beta: '베타 조회',
+  get_beta_kr: '베타 산출',
   read_filings: '공시 정독',
   read_filings_kr: '공시 정독',
   get_filings_kr: '공시 검색',

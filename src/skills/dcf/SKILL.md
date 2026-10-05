@@ -88,7 +88,7 @@ DCF 분석 진행:
 
 **추출:** `sector`, `industry`, `market_cap`
 
-**용도:** [sector-wacc.md](sector-wacc.md)에서 적절한 WACC 레인지 결정
+**용도:** [sector-wacc.md](sector-wacc.md)에서 WACC 합리성 밴드 결정(Step 3)
 
 > **🇰🇷 KR override:** `get_financials_kr`는 미국식 `sector` 필드를 반환하지 않는다. 회사의 주력 사업(반도체, 자동차, 2차전지, 바이오, 금융, 통신, 유틸리티, 소비재 …)으로 섹터를 추론하고 [sector-wacc-kr.md](sector-wacc-kr.md)에서 WACC 레인지를 읽어라.
 
@@ -107,26 +107,26 @@ DCF 분석 진행:
 
 ## Step 3: 할인율(WACC) 추정
 
-**회사 정보의 `sector`를 사용**해 [sector-wacc.md](sector-wacc.md)에서 적절한 기준 WACC 레인지를 선택한다.
+**bottom-up CAPM으로 직접 계산한다.** 회사 정보의 `sector`로 [sector-wacc.md](sector-wacc.md)에서 고른 레인지는 값을 집어 쓰는 곳이 아니라 **합리성 밴드(sanity band)**다.
 
-**기본 가정(US):**
-- 무위험금리: 4%
-- 시장 위험프리미엄: 5~6%
+**US 입력값:**
+- 무위험금리(Rf): 4% (고정 가정 — 가정표에 "가정"으로 표기).
+- 시장 위험프리미엄(ERP): ERP는 분석가 판단 영역이고 Ke를 직접 움직인다(1%p 차이 ≈ β×1%p). 그러니 **계산 전에 `ask_user_question`으로 한 번 확인하라** — 단일 질문(header `ERP`), 옵션 3개: `4.23% (기본)`(Damodaran 성숙시장 implied ERP, 2026년 1월 — 시장가격에서 역산한 현재 기대치) / `5.0%`(보수적) / `5.5%`(기존 Dexter 기본 레인지 5~6%의 중간). 'Other'는 자동 추가되니 직접 넣지 마라. **단, 이미 쿼리에 ERP가 명시됐거나 `.dexter`로 핀돼 있거나 비대화형(헤드리스·서브에이전트)이면 묻지 말고** 그 값(없으면 기본 4.23%)으로 진행한다(맹목 질문 금지). 고른 값과 그 근거를 가정표 ERP 행에 표기하고(기본이 아닌 값이면 "user 선택"), 답을 받은 뒤에는 바꾸지 마라 — 보수성은 Step 6 민감도로 드러낸다.
+- **베타(β):** `get_beta`(티커 배열 가능)의 `adjustedBeta`를 쓴다 — S&P 500 대비 5y 월간 raw β(Backpack 공개 데이터)에 Blume 보정(0.67·raw + 0.33)을 얹은 값이다. `rawBeta`를 WACC에 그대로 넣지 마라(방어주 Ke가 과소평가된다). `_dataQualityWarning`이 상장 60개월 미만·극단값을 알리거나 `_error`(미지원 티커)면 [peer-beta.md](peer-beta.md)의 피어 bottom-up β를 쓰고, 그것도 불가할 때만 섹터 대용치로 폴백해 출처를 명시한다. **Cost of Equity = Rf + adjustedBeta × ERP.**
 - 부채비용: 세전 5~6% (세율 30% 기준 세후 ~4%)
-
-자본구조 가중치는 `debt_to_equity`로 WACC를 계산한다.
+- 자본구조 가중치는 `debt_to_equity`로 적용: **WACC = (E/V)·Ke + (D/V)·Kd·(1−t)**. 결과가 [sector-wacc.md](sector-wacc.md) 레인지를 크게 벗어나면 입력값(특히 β)을 재점검하라.
 
 > **🇰🇷 KR override — bottom-up CAPM으로 직접 계산 (정적 테이블에서 값을 바로 집어 쓰지 마라):**
 > WACC를 [sector-wacc-kr.md](sector-wacc-kr.md) 레인지에서 고르지 말고 아래로 계산한 뒤, 그 레인지는 **합리성 밴드(sanity band)로만** 쓴다.
 > - **무위험금리(Rf):** `get_macro_rate_kr`(series: `treasury_10y`)로 10년 국고채 수익률을 가져오고 **반환된 as-of 날짜를 표기**하라(한국은행 ECOS 공식치 — `web_search` 추론보다 우선). 이 도구가 없을 때만(ECOS 키 미설정) `web_search`로 조회·조회일 표기, 그것도 실패 시에만 **~3% 동결 가정으로 명시 라벨**(예: "Rf=3.0%(가정, 실시간 조회 실패)") — 4% 아님.
-> - **시장 위험프리미엄(ERP):** **4.87%로 고정**(출처: Damodaran 한국 Total ERP, 2026년 1월 = 성숙시장 implied 4.23% + 한국 국가위험프리미엄 0.64%, Aa2; 연 1회 갱신하고 적용연도를 가정표에 표기). 사이클 저점이라 낮게 느껴져도 **주관으로 올리지 마라** — 보수성은 Step 6 민감도 그리드(WACC ±1%)와 `.dexter` override로 표면화하지 base ERP에 숨기지 않는다. 재벌 계열·상호출자·지배구조(코리아 디스카운트)는 **base ERP에 얹지 말고** [sector-wacc-kr.md](sector-wacc-kr.md)의 WACC 조정인자로만 반영하라(이중계상 금지). 사용자가 `.dexter`로 다른 값을 핀했으면 그 값을 쓰고 출처를 "user override"로 표기.
-> - **베타(β):** β 측정법(창·주기)은 분석가 판단 영역이고 결과를 바꾼다(저R² 방어주는 방법론 차이만으로 Ke가 ±1%p까지). 그러니 **계산 전에 `ask_user_question`으로 한 번 확인하라** — 단일 질문(header `β 측정법`), 옵션 3개: `2y 주간 (권장)`(Bloomberg 표준) / `5y 월간`(장기·완만) / `1y 일간`(최근 민감). 'Other'는 자동 추가되니 직접 넣지 마라. **단, 이미 쿼리에 측정법이 명시됐거나 비대화형(헤드리스·서브에이전트)이면 묻지 말고 표준 2y weekly로 진행한다**(맹목 질문 금지). 고른 값을 `get_beta_kr`의 `years`·`frequency`에 넘겨 산출하라 — 상장시장(KOSPI/KOSDAQ) 대비 회귀 + Blume 보정의 **출처있는 실측치**(web_search 추론보다 우선). 반환된 `adjustedBeta`를 WACC에 쓰고 `rSquared`·`observations`·측정창(`window`: requestedFrom vs coveredFrom)을 가정표에 표기한다. **도구는 신뢰성 판정을 내리지 않으니** 네가 사실을 보고 판단하라 — R²가 낮으면(지수 설명력 약함: 방어주·개별주) 또는 coveredFrom이 requestedFrom보다 한참 늦으면(신규상장) 그 사실을 밝히고 섹터 대용치와 교차확인하라(맹신 금지). 도구가 없거나 실패할 때만 web_search/섹터 대용치로 폴백하고 그 출처를 명시한다. **Cost of Equity = Rf + adjustedBeta × ERP.**
+> - **시장 위험프리미엄(ERP):** ERP는 분석가 판단 영역이다 — **계산 전에 `ask_user_question`으로 확인하라.** 질문(header `ERP`), 옵션 3개: `4.87% (기본)`(Damodaran 한국 Total ERP, 2026년 1월 = 성숙시장 implied 4.23% + 한국 국가위험프리미엄 0.64%, Aa2; 연 1회 갱신) / `6.0%`(보수적) / `7.0%`(매우 보수적). 'Other'는 자동 추가되니 직접 넣지 마라. **아래 β 측정법 질문과 같은 `ask_user_question` 호출에 묶어 한 번에 묻는다**(질문 2개 — 따로 두 번 묻지 마라). **단, 이미 쿼리에 ERP가 명시됐거나 `.dexter`로 핀돼 있거나 비대화형(헤드리스·서브에이전트)이면 이 질문은 빼고** 그 값(없으면 기본 4.87%)으로 진행한다 — 각 질문의 생략 여부는 독립이다(β만 명시됐으면 ERP만 묻는다). 고른 값과 근거를 가정표 ERP 행에 표기하고(기본이 아닌 값이면 "user 선택", 기본이면 적용연도 표기), 답을 받은 뒤에는 **네 판단으로 바꾸지 마라** — 보수성은 Step 6 민감도 그리드(WACC ±1%)로 표면화한다. 재벌 계열·상호출자·지배구조(코리아 디스카운트)는 **base ERP에 얹지 말고** [sector-wacc-kr.md](sector-wacc-kr.md)의 WACC 조정인자로만 반영하라(이중계상 금지). 사용자가 `.dexter`로 다른 값을 핀했으면 그 값을 쓰고 출처를 "user override"로 표기.
+> - **베타(β):** β 측정법(창·주기)은 분석가 판단 영역이고 결과를 바꾼다(저R² 방어주는 방법론 차이만으로 Ke가 ±1%p까지). 그러니 **계산 전에 `ask_user_question`으로 한 번 확인하라** — 위 ERP 질문과 같은 호출의 질문으로(header `β 측정법`), 옵션 3개: `2y 주간 (권장)`(Bloomberg 표준) / `5y 월간`(장기·완만) / `1y 일간`(최근 민감). 'Other'는 자동 추가되니 직접 넣지 마라. **단, 이미 쿼리에 측정법이 명시됐거나 비대화형(헤드리스·서브에이전트)이면 이 질문은 빼고 표준 2y weekly로 진행한다**(맹목 질문 금지). 고른 값을 `get_beta_kr`의 `years`·`frequency`에 넘겨 산출하라 — 상장시장(KOSPI/KOSDAQ) 대비 회귀 + Blume 보정의 **출처있는 실측치**(web_search 추론보다 우선). 반환된 `adjustedBeta`를 WACC에 쓰고 `rSquared`·`observations`·측정창(`window`: requestedFrom vs coveredFrom)을 가정표에 표기한다. **도구는 신뢰성 판정을 내리지 않으니** 네가 사실을 보고 판단하라 — R²가 낮으면(지수 설명력 약함: 방어주·개별주) 또는 coveredFrom이 requestedFrom보다 한참 늦으면(신규상장) 그 사실을 밝히고 [peer-beta.md](peer-beta.md)의 피어 bottom-up β와 교차확인하라(맹신 금지). 도구가 없거나 실패하면 피어 β → web_search/섹터 대용치 순으로 폴백하고 그 출처를 명시한다. **Cost of Equity = Rf + adjustedBeta × ERP.**
 > - **부채비용:** 세전 시장금리(`get_macro_rate_kr` series `corporate_aa3y` = 회사채 AA- 3년을 IG 앵커로 쓸 수 있다), **세후는 법인세율 ~22% 적용** (K-IFRS 실효; 지방소득세 포함 marginal 최대 ~24~26%) — **30% 아님**.
 > - 자본구조 가중치는 `debt_to_equity`로 적용: **WACC = (E/V)·Ke + (D/V)·Kd·(1−t)**. 결과가 [sector-wacc-kr.md](sector-wacc-kr.md) 레인지를 크게 벗어나면 입력값을 재점검하라.
 
 **합리성 점검:** 가치 창출 기업은 WACC가 `return_on_invested_capital`보다 2~4% 낮아야 한다.
 
-**섹터 조정:** US는 [sector-wacc.md](sector-wacc.md)의 조정 인자를 기업별 특성에 따라 적용한다. **KR은 다르다 — 조정 인자를 WACC에 가산하지 않는다:** [sector-wacc-kr.md](sector-wacc-kr.md)의 리스크 플래그 규칙을 따르라(플래그는 도구 근거와 함께 서술하고, 수치 영향은 Step 6 민감도의 ±1% 열로, 수치 가산은 사용자 오버라이드로만).
+**섹터 조정:** **US·KR 모두 조정 인자를 계산된 WACC에 가산하지 않는다** — 조정 인자 상당수(고부채·경기민감)가 β와 겹쳐 이중계상이 된다. US는 [sector-wacc.md](sector-wacc.md)의 조정 인자를 계산된 WACC가 밴드에서 벗어난 이유를 설명하는 근거로만 쓰고, 수치 영향은 Step 6 민감도의 ±1% 열로 보인다. KR은 [sector-wacc-kr.md](sector-wacc-kr.md)의 리스크 플래그 규칙을 따르라(플래그는 도구 근거와 함께 서술하고, 수치 영향은 Step 6 민감도의 ±1% 열로, 수치 가산은 사용자 오버라이드로만).
 
 ## Step 4: 미래 현금흐름 투영
 
@@ -187,7 +187,7 @@ DCF 분석 진행:
 
 다음을 포함한 구조화된 요약을 제시한다:
 1. **밸류에이션 요약**: 현재가 vs 적정가치, 상승/하락 여력 퍼센트
-2. **핵심 입력값 표**: 모든 가정과 출처
+2. **핵심 입력값 표**: 모든 가정과 출처. WACC는 한 줄로 요약하지 말고 Rf·ERP·β·Kd·t를 각각 노출한다 — β 행에는 출처(`get_beta` / 피어 β / 섹터 대용치)와 방법(5y 월간·S&P 500·Blume, 소표본·극단값 경고가 있었으면 그 사실)을 적는다. 피어 β를 썼으면 [peer-beta.md](peer-beta.md)의 피어 표를 함께 싣는다
 3. **투영 FCF 표**: 5년 투영과 현재가치
 4. **민감도 행렬**: WACC(±1%)와 터미널 성장률(2.0%, 2.5%, 3.0%)을 변화시킨 3×3 그리드
 5. **주의사항**: 표준 DCF 한계 + 기업별 리스크
@@ -202,7 +202,7 @@ DCF 분석 진행:
 >   | 현재가 | ₩294,500 | get_market_data_kr | quote.asOf 2026-07-03 09:09 KST |
 >   | 발행주식수(보통주) | 59.7억주 | 시총÷현재가 도출 | 우선주(005935) 시총 155.9조 Equity에서 차감 |
 >   | Rf (무위험금리) | 2.9% | 한국은행 ECOS 10Y 국고채 | get_macro_rate_kr, 2026-06-30 |
->   | ERP | 4.87% | Damodaran 한국 (2026.1) | 핀값: 성숙 4.23% + CRP 0.64%, 연 1회 갱신 |
+>   | ERP | 4.87% | Damodaran 한국 (2026.1) | 기본값: 성숙 4.23% + CRP 0.64% (user 선택이면 "user 선택" 표기) |
 >   | β (adjusted) | 1.14 | get_beta_kr 실측 회귀 | 2y 주간/KOSPI/Blume, R²=0.66, n=106 |
 >   | Kd (세후) | 3.8% | ECOS 회사채 AA-3y × (1−0.22) | get_macro_rate_kr, 2026-06-30 |
 >   | 법인세율 t | 22% | K-IFRS 실효 | 상수 |

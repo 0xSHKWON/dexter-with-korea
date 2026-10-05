@@ -82,6 +82,10 @@ KR 분할 분석 진행:
 > summary가 비어 있으면 `rawLineItemsFile`을 `read_file`로 연다. `account_nm`은 회사·연도마다 달라
 > 정확 일치 금지 — 부분 문자열/`account_id`로 매칭한다.
 
+신설 자회사를 할인율로 평가해야 하면(자회사 DCF·IPO 공모가 적정성 등) 그 자회사는 비상장이거나 상장 이력이 짧아
+자체 회귀 β가 없거나 소표본이다. [피어 bottom-up β](../dcf/peer-beta.md) 절차로 β를 만들고(비상장이면 피어 D/E 중앙값으로
+relever), 그 피어 표를 출력에 포함하라.
+
 ## Step 6: 출력 형식
 
 다음을 제시한다:

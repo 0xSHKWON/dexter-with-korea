@@ -67,3 +67,19 @@ describe('get_short_balance_kr registration (KRX gate)', () => {
     expect(registered()).toBe(false);
   });
 });
+
+describe('get_beta registration (keyless)', () => {
+  const KEY = 'FINANCIAL_DATASETS_API_KEY';
+  const original = process.env[KEY];
+  afterEach(() => {
+    if (original === undefined) delete process.env[KEY];
+    else process.env[KEY] = original;
+  });
+
+  it('is registered and concurrency-safe without FINANCIAL_DATASETS_API_KEY', () => {
+    delete process.env[KEY];
+    const entry = getToolRegistry('gpt-5.5').find((t) => t.name === 'get_beta');
+    expect(entry).toBeDefined();
+    expect(entry?.concurrencySafe).toBe(true);
+  });
+});
