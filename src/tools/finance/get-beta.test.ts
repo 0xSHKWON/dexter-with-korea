@@ -89,6 +89,15 @@ describe('fetchBackpackStock', () => {
     expect((err as Error).message).toContain('503');
   });
 
+  it('keeps the beta when only the listing-info request fails', async () => {
+    globalThis.fetch = (async (url: string) =>
+      url.endsWith('/stats') ? respond(200, JSON.stringify({ beta: 1.085 })) : respond(503, 'down')) as unknown as typeof fetch;
+    const s = await fetchBackpackStock('AAPL');
+    expect(s.stats.beta).toBe(1.085);
+    expect(s.info).toEqual({});
+    expect(toBetaRecord('AAPL', s, NOW)._dataQualityWarning).toContain('상장일을 확인하지 못해');
+  });
+
   it('fetches /stats and the listing info for the ticker', async () => {
     const seen: string[] = [];
     globalThis.fetch = (async (url: string) => {

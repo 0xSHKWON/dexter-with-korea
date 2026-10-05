@@ -74,6 +74,9 @@ export function toBetaRecord(requested: string, stock: Pick<BackpackStock, 'stat
   if (raw === null) {
     warnings.push('Backpack 응답에 β가 없습니다 — 피어 β 또는 섹터 대용치를 쓰고 그 사실을 명시하십시오.');
   }
+  if (raw !== null && historyMonths === null) {
+    warnings.push('상장일을 확인하지 못해 5y 창 충족 여부를 모릅니다 — 최근 상장 종목이면 소표본 β일 수 있으니 피어 β와 교차확인하십시오.');
+  }
   if (historyMonths !== null && historyMonths < FULL_WINDOW_MONTHS) {
     warnings.push(
       `상장 ${historyMonths}개월(listDate ${listDate}) — 5y 월간 창(60개월) 미충족이라 관측치가 ~${historyMonths}개뿐인 소표본 β입니다. 단독으로 WACC에 쓰지 말고 피어 bottom-up β를 우선하십시오.`,

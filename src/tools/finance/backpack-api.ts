@@ -69,13 +69,16 @@ export async function fetchBackpackStock(
 
   const symbol = encodeURIComponent(ticker);
   const url = `${BASE_URL}/${symbol}/stats`;
+  // The info request only adds context (listDate/type); losing it must not throw
+  // away a beta that /stats already returned.
   const [stats, info] = await Promise.all([
     fetchBackpackJson(url, ticker),
-    fetchBackpackJson(`${BASE_URL}/${symbol}`, ticker),
+    fetchBackpackJson(`${BASE_URL}/${symbol}`, ticker).catch(() => null),
   ]);
 
-  if (options?.cacheable) {
+  // Don't cache a partial result — the next call should retry the info request.
+  if (options?.cacheable && info) {
     writeCache(endpoint, params, { stats, info }, url);
   }
-  return { stats, info, url };
+  return { stats, info: info ?? {}, url };
 }
