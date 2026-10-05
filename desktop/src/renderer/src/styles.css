@@ -2070,9 +2070,18 @@ select:focus {
   font-family: ui-monospace, 'SF Mono', Menlo, monospace;
 }
 
+/* Overlay, not in-flow: views are 100vh, so an in-flow banner pushed the chat
+   input below the fold. Sticky + zero height keeps it pinned without taking space. */
+.update-layer {
+  position: sticky;
+  top: 0;
+  height: 0;
+  display: flow-root; /* stop the banner's top margin collapsing through and re-adding 14px of flow */
+  z-index: 31; /* above the title drag strip so its buttons stay clickable */
+}
+
 .update-banner {
   position: relative;
-  z-index: 31; /* above the title drag strip so its buttons stay clickable */
   -webkit-app-region: no-drag;
   display: flex;
   align-items: center;
@@ -2084,6 +2093,7 @@ select:focus {
   border: 1px solid var(--border);
   border-radius: 10px;
   font-size: 13px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
 }
 
 .update-banner-actions {

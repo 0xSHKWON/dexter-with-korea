@@ -328,39 +328,43 @@ export default function App(): JSX.Element {
             <PanelIcon />
           </button>
         )}
-        {autoActive && autoUpdate && (
-          <div className="update-banner">
-            {autoUpdate.state === 'downloaded' ? (
-              <>
+        {(autoActive || showUpdateBanner) && (
+          <div className="update-layer">
+            {autoActive && autoUpdate && (
+              <div className="update-banner">
+                {autoUpdate.state === 'downloaded' ? (
+                  <>
+                    <span>
+                      업데이트 준비 완료{autoUpdate.version ? ` (v${autoUpdate.version})` : ''} — 재시작하면 적용됩니다.
+                    </span>
+                    <div className="update-banner-actions">
+                      <button className="btn primary sm" onClick={() => void window.dexter.update.install()}>
+                        재시작하여 설치
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <span>
+                    새 버전{autoUpdate.version ? ` v${autoUpdate.version}` : ''} 다운로드 중… {autoUpdate.percent ?? 0}%
+                  </span>
+                )}
+              </div>
+            )}
+            {showUpdateBanner && update && (
+              <div className="update-banner">
                 <span>
-                  업데이트 준비 완료{autoUpdate.version ? ` (v${autoUpdate.version})` : ''} — 재시작하면 적용됩니다.
+                  새 버전 v{update.latest}이 있습니다.
                 </span>
                 <div className="update-banner-actions">
-                  <button className="btn primary sm" onClick={() => void window.dexter.update.install()}>
-                    재시작하여 설치
+                  <button className="btn primary sm" onClick={() => void window.dexter.update.open(update.url)}>
+                    업데이트
+                  </button>
+                  <button className="btn ghost sm" onClick={() => setDismissedVersion(update.latest)}>
+                    나중에
                   </button>
                 </div>
-              </>
-            ) : (
-              <span>
-                새 버전{autoUpdate.version ? ` v${autoUpdate.version}` : ''} 다운로드 중… {autoUpdate.percent ?? 0}%
-              </span>
+              </div>
             )}
-          </div>
-        )}
-        {showUpdateBanner && update && (
-          <div className="update-banner">
-            <span>
-              새 버전 v{update.latest}이 있습니다.
-            </span>
-            <div className="update-banner-actions">
-              <button className="btn primary sm" onClick={() => void window.dexter.update.open(update.url)}>
-                업데이트
-              </button>
-              <button className="btn ghost sm" onClick={() => setDismissedVersion(update.latest)}>
-                나중에
-              </button>
-            </div>
           </div>
         )}
         <div className={`view ${view === 'chat' ? '' : 'hidden'}`}>
