@@ -1,6 +1,6 @@
 {
-  "latest": "1.3.1",
+  "latest": "1.4.0",
   "minRequired": "1.0.0",
   "url": "https://github.com/0xSHKWON/dexter-with-korea/releases/latest",
-  "notes": "버그 수정 — 앱을 켜 둔 채로도 새 버전 알림이 뜹니다(창으로 돌아올 때 확인). Windows에서 npm으로 설치한 Claude Code를 자동으로 찾고, 실행 경로에 폴더를 넣어도 동작합니다."
+  "notes": "US 종목 베타(get_beta) 추가 — US DCF가 베타 기반 할인율(CAPM)을 쓰고, 분석 전에 시장위험프리미엄(ERP)을 고를 수 있습니다. 자체 베타를 쓸 수 없으면 피어 베타로 추정합니다. 업데이트 알림이 입력란을 밀어내던 문제 수정."
 }
