@@ -53,13 +53,13 @@ async function withRetry<T>(fn: () => Promise<T>, provider: string, maxAttempts 
 }
 
 // Model provider configuration
+// Spread into provider constructors, so only fields every provider accepts belong here.
 interface ModelOpts {
   streaming: boolean;
-  /** Reasoning effort; only providers that support it read this (see AgentConfig.effort). */
-  effort?: string;
 }
 
-type ModelFactory = (name: string, opts: ModelOpts) => BaseChatModel;
+/** `effort` is passed separately: only providers that support it read it (see AgentConfig.effort). */
+type ModelFactory = (name: string, opts: ModelOpts, effort?: string) => BaseChatModel;
 
 function getApiKey(envVar: string): string {
   const apiKey = process.env[envVar];
@@ -81,7 +81,7 @@ const MODEL_FACTORIES: Record<string, ModelFactory> = {
   // loop hands whole turns to Claude Code (agent/claude-code-runner.ts).
   'claude-code': (name) => new ChatClaudeCode({ model: name }),
   // ChatGPT subscription via OAuth — always streams on the wire (see model/codex.ts).
-  'openai-codex': (name, opts) => createCodexChatModel(name, opts.effort),
+  'openai-codex': (name, _opts, effort) => createCodexChatModel(name, effort),
   google: (name, opts) =>
     new ChatGoogleGenerativeAI({
       model: name,
@@ -168,10 +168,9 @@ export function getChatModel(
   streaming: boolean = false,
   effort?: string,
 ): BaseChatModel {
-  const opts: ModelOpts = { streaming, effort };
   const provider = resolveProvider(modelName);
   const factory = MODEL_FACTORIES[provider.id] ?? DEFAULT_FACTORY;
-  return factory(modelName, opts);
+  return factory(modelName, { streaming }, effort);
 }
 
 interface CallLlmOptions {

@@ -65,11 +65,20 @@ export function useModelCatalog(): ModelCatalog {
   );
 
   const select = useCallback(async (providerId: string, modelId: string) => {
-    await window.dexter.settings.set('provider', providerId);
-    await window.dexter.settings.set('modelId', modelId);
+    // Update first so provider-dependent controls (such as Effort) react in the
+    // same click instead of waiting for two IPC writes to finish.
     setSettings((s) => ({ ...s, provider: providerId, modelId }));
-    window.dispatchEvent(new Event(MODEL_CHANGED));
-  }, []);
+    try {
+      await Promise.all([
+        window.dexter.settings.set('provider', providerId),
+        window.dexter.settings.set('modelId', modelId),
+      ]);
+      window.dispatchEvent(new Event(MODEL_CHANGED));
+    } catch (error) {
+      await reload();
+      throw error;
+    }
+  }, [reload]);
 
   const setEffort = useCallback(
     async (providerId: string, level: string | undefined) => {

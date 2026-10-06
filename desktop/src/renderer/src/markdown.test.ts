@@ -4,7 +4,7 @@
  * write them differently did not hold, so the renderer normalizes instead.
  */
 import { describe, expect, it } from 'bun:test';
-import { normalizeKoreanBold } from './markdown.js';
+import { normalizeKoreanBold, normalizeMathDelimiters } from './markdown.js';
 
 describe('normalizeKoreanBold', () => {
   it('pulls a trailing particle inside a bold that ends in %', () => {
@@ -38,5 +38,24 @@ describe('normalizeKoreanBold', () => {
 
   it('is a no-op for text with no emphasis', () => {
     expect(normalizeKoreanBold('영업이익률은 42.8%로 높았습니다')).toBe('영업이익률은 42.8%로 높았습니다');
+  });
+});
+
+describe('normalizeMathDelimiters', () => {
+  it('converts LaTeX display and inline delimiters to remark-math syntax', () => {
+    expect(normalizeMathDelimiters('값은 \\[x=1\\] 이고 \\(y=2\\)다.')).toBe(
+      '값은 \n$$\nx=1\n$$\n 이고 $y=2$다.',
+    );
+  });
+
+  it('recovers bracket-only financial equations', () => {
+    expect(normalizeMathDelimiters('[ E/V=\\frac{29.187}{29.187+3.895}=88.23% ]')).toBe(
+      '$$\nE/V=\\frac{29.187}{29.187+3.895}=88.23\\%\n$$',
+    );
+    expect(normalizeMathDelimiters('[ D/V=11.77% ]')).toBe('$$\nD/V=11.77\\%\n$$');
+  });
+
+  it('keeps an already escaped TeX percentage unchanged', () => {
+    expect(normalizeMathDelimiters('$$WACC=6.94\\%$$')).toBe('$$WACC=6.94\\%$$');
   });
 });

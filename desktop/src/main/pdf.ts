@@ -84,6 +84,7 @@ h1.title { font-size: 19pt; line-height: 1.35; margin: 18px 0 10px; letter-spaci
 .answer th { background: #f0f3f6; font-weight: 600; text-align: left; }
 .answer th, .answer td { border: 1px solid #d0d7de; padding: 5px 8px; vertical-align: top; }
 .answer tbody tr:nth-child(even) td { background: #fafbfc; }
+.answer math[display="block"] { display: block; margin: 0.9em 0; text-align: center; font-size: 1.08em; overflow-wrap: normal; }
 .sources { margin-top: 28px; padding-top: 10px; border-top: 1px solid #d0d7de; font-size: 8.5pt; color: #57606a; break-inside: avoid; }
 .sources h2 { font-size: 9pt; margin: 0 0 4px; color: #1f2328; }
 .sources ul { margin: 0; padding-left: 1.2em; columns: 2; column-gap: 24px; }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useModelCatalog } from '../useModelCatalog';
 import ModelGrid, { ProviderIcon } from './ModelGrid';
+import { DEFAULT_EFFORT } from '../../../shared/types';
 
 interface Props {
   disabled?: boolean;
@@ -9,11 +10,15 @@ interface Props {
 }
 
 const EFFORT_LABEL: Record<string, string> = {
+  off: 'Off',
+  light: 'Light',
   low: 'Low',
   medium: 'Medium',
   high: 'High',
   xhigh: 'XHigh',
   max: 'Max',
+  ultra: 'Ultra',
+  ultracode: 'UltraCode',
 };
 
 /** Composer dropdown: shows the current model, opens the Claude | Codex card grid. */
@@ -45,7 +50,12 @@ export default function ModelPicker({ disabled, onChanged, onOpenSettings }: Pro
   const label = provider?.models.find((m) => m.id === modelId)?.label ?? modelId ?? '모델 선택';
   const levels = provider?.effortLevels ?? [];
   const storedEffort = provider ? catalog.settings.effort?.[provider.id] : undefined;
-  const effort = storedEffort && levels.includes(storedEffort) ? storedEffort : undefined;
+  const effort =
+    storedEffort && levels.includes(storedEffort)
+      ? storedEffort
+      : levels.includes(DEFAULT_EFFORT)
+        ? DEFAULT_EFFORT
+        : undefined;
 
   return (
     <div className="mp" ref={rootRef}>
@@ -78,7 +88,6 @@ export default function ModelPicker({ disabled, onChanged, onOpenSettings }: Pro
             }
             onSelect={(providerId, id) => {
               void catalog.select(providerId, id).then(() => {
-                setOpen(false);
                 onChanged?.();
               });
             }}
@@ -87,15 +96,15 @@ export default function ModelPicker({ disabled, onChanged, onOpenSettings }: Pro
             <div className="mp-effort-row">
               <span className="mp-effort-title">Effort</span>
               <div className="mp-seg" role="radiogroup" aria-label="Effort">
-                {[undefined, ...levels].map((lv) => (
+                {levels.map((lv) => (
                   <button
-                    key={lv ?? 'auto'}
+                    key={lv}
                     role="radio"
                     aria-checked={effort === lv}
                     className={`mp-seg-btn${effort === lv ? ' on' : ''}`}
                     onClick={() => void catalog.setEffort(provider.id, lv)}
                   >
-                    {lv ? (EFFORT_LABEL[lv] ?? lv) : '기본'}
+                    {EFFORT_LABEL[lv] ?? lv}
                   </button>
                 ))}
               </div>

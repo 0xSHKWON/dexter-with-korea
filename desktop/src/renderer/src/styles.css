@@ -63,6 +63,13 @@ code {
   font-size: 12px;
 }
 
+.katex-display {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 0;
+}
+
 /* ── layout ───────────────────────────────────────────── */
 .app {
   display: grid;
@@ -1979,49 +1986,207 @@ select:focus {
   margin: 0 0 12px;
 }
 
-/* example prompt rows (clickable → prefill chat) */
-.ex-group {
-  margin-top: 14px;
+/* Prompt showcase: capability cards, not a documentation list. */
+.prompt-showcase {
+  padding-top: 18px;
 }
 
-.ex-group-label {
-  font-size: 12px;
+.prompt-showcase-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.prompt-showcase-head .sec-intro {
+  margin: 4px 0 0;
+}
+
+.prompt-eyebrow {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+}
+
+.prompt-click-hint {
   color: var(--muted);
-  font-weight: 600;
-  margin: 0 0 6px 2px;
+  font-size: 11px;
+  white-space: nowrap;
 }
 
-.ex-row {
+.prompt-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.prompt-card {
+  --card-accent: #8b949e;
+  --card-glow: rgba(139, 148, 158, 0.08);
+  min-width: 0;
+  overflow: hidden;
+  background: linear-gradient(145deg, var(--card-glow), transparent 58%), var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  transition: border-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.prompt-card:hover {
+  border-color: color-mix(in srgb, var(--card-accent) 55%, var(--border));
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.prompt-card.featured {
+  grid-column: 1 / -1;
+  background: linear-gradient(110deg, var(--card-glow), transparent 72%), var(--bg-elev);
+}
+
+.prompt-card.tone-blue { --card-accent: #58a6ff; --card-glow: rgba(88, 166, 255, 0.12); }
+.prompt-card.tone-violet { --card-accent: #bc8cff; --card-glow: rgba(188, 140, 255, 0.11); }
+.prompt-card.tone-cyan { --card-accent: #39c5cf; --card-glow: rgba(57, 197, 207, 0.1); }
+.prompt-card.tone-amber { --card-accent: #d29922; --card-glow: rgba(210, 153, 34, 0.11); }
+.prompt-card.tone-rose { --card-accent: #f778ba; --card-glow: rgba(247, 120, 186, 0.1); }
+
+.prompt-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid rgba(139, 148, 158, 0.13);
+}
+
+.prompt-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 24px;
+  padding: 0 6px;
+  color: var(--card-accent);
+  background: color-mix(in srgb, var(--card-accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--card-accent) 26%, transparent);
+  border-radius: 7px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+
+.prompt-card-label {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prompt-card-count {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.prompt-card-items {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+}
+
+.prompt-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
   width: 100%;
+  min-height: 118px;
+  padding: 14px 38px 14px 14px;
   text-align: left;
   background: transparent;
   border: none;
-  border-radius: 8px;
-  padding: 9px 12px;
+  color: inherit;
   cursor: pointer;
-  transition: background 0.12s ease;
 }
 
-.ex-row:hover {
-  background: var(--bg-elev-2);
+.prompt-item + .prompt-item {
+  border-top: 1px solid rgba(139, 148, 158, 0.13);
 }
 
-.ex-p {
-  font-size: 14px;
-  color: var(--text);
+.prompt-card.featured .prompt-item {
+  min-height: 126px;
+  padding: 18px 52px 18px 18px;
 }
 
-.ex-row:hover .ex-p {
-  color: var(--accent);
+.prompt-item:hover {
+  background: color-mix(in srgb, var(--card-accent) 6%, transparent);
 }
 
-.ex-why {
-  font-size: 12px;
+.prompt-item-arrow {
+  position: absolute;
+  top: 14px;
+  right: 14px;
   color: var(--muted);
-  line-height: 1.4;
+  font-size: 14px;
+  transition: color 0.14s ease, transform 0.14s ease;
+}
+
+.prompt-item:hover .prompt-item-arrow {
+  color: var(--card-accent);
+  transform: translate(2px, -2px);
+}
+
+.prompt-item-question {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.prompt-card.featured .prompt-item-question {
+  font-size: 17px;
+  letter-spacing: -0.15px;
+}
+
+.prompt-item-why {
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.prompt-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.prompt-tag {
+  padding: 2px 7px;
+  color: color-mix(in srgb, var(--card-accent) 78%, white);
+  background: color-mix(in srgb, var(--card-accent) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--card-accent) 20%, transparent);
+  border-radius: 20px;
+  font-size: 9.5px;
+  font-weight: 550;
+}
+
+@media (max-width: 760px) {
+  .prompt-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .prompt-card.featured {
+    grid-column: auto;
+  }
+
+  .prompt-click-hint {
+    display: none;
+  }
 }
 
 /* ── update gate (required) + banner (optional) ─────────────────────────── */

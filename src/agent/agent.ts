@@ -24,6 +24,7 @@ import { runClaudeCodeTurn } from './claude-code-runner.js';
 
 const DEFAULT_MODEL = 'gpt-6-astra';
 const DEFAULT_MAX_ITERATIONS = 10;
+const DEFAULT_EFFORT = 'medium';
 const MAX_OVERFLOW_RETRIES = 2;
 const OVERFLOW_KEEP_ROUNDS = 3;
 
@@ -54,7 +55,7 @@ const HANDLER_GATED_TOOLS: ReadonlyArray<{ tool: string; wired: (c: AgentConfig)
  */
 export class Agent {
   private readonly model: string;
-  private readonly effort?: string;
+  private readonly effort: string;
   private readonly maxIterations: number;
   private readonly tools: StructuredToolInterface[];
   private readonly toolMap: Map<string, StructuredToolInterface>;
@@ -72,7 +73,7 @@ export class Agent {
     concurrencyMap: Map<string, boolean>,
   ) {
     this.model = config.model ?? DEFAULT_MODEL;
-    this.effort = config.effort;
+    this.effort = config.effort ?? DEFAULT_EFFORT;
     this.maxIterations = config.maxIterations ?? DEFAULT_MAX_ITERATIONS;
     this.tools = tools;
     this.toolMap = new Map(tools.map(t => [t.name, t]));

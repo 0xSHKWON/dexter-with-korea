@@ -49,10 +49,11 @@ export interface AgentConfig {
   /** Maximum agent loop iterations (default: 10) */
   maxIterations?: number;
   /**
-   * Reasoning effort for the main agent model (e.g. 'low' | 'medium' | 'high' |
-   * 'xhigh' | 'max'). Applied by providers that support it — Claude Code
+   * Provider-specific reasoning effort for the main agent model (for example,
+   * Claude Code accepts low..ultracode while Codex accepts off..ultra). Applied by
+   * providers that support it — Claude Code
    * (`--effort`) and ChatGPT/Codex (`reasoning.effort`); ignored elsewhere and
-   * for tool-internal fast-model calls. Unset = the provider's default.
+   * for tool-internal fast-model calls. Unset = 'medium'.
    */
   effort?: string;
   /** AbortSignal for cancelling agent execution */

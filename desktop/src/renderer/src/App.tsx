@@ -94,6 +94,7 @@ export default function App(): JSX.Element {
   const [chats, setChats] = useState<ChatConversation[]>([]);
   const [chatId, setChatId] = useState<string | null>(null);
   const [chatSeed, setChatSeed] = useState<string | null>(null);
+  const [newChatRevision, setNewChatRevision] = useState(0);
   const [works, setWorks] = useState<ConversionRecord[]>([]);
   const [workId, setWorkId] = useState<string | null>(null);
 
@@ -177,6 +178,7 @@ export default function App(): JSX.Element {
   // Help example → start a fresh chat with the prompt prefilled in the composer.
   function usePrompt(text: string): void {
     setChatId(null);
+    setNewChatRevision((revision) => revision + 1);
     void window.dexter.chat.reset();
     setChatSeed(text);
     setView('chat');
@@ -185,6 +187,7 @@ export default function App(): JSX.Element {
   function newChat(): void {
     setView('chat');
     setChatId(null);
+    setNewChatRevision((revision) => revision + 1);
     void window.dexter.chat.reset();
   }
   function selectChat(id: string): void {
@@ -375,6 +378,7 @@ export default function App(): JSX.Element {
             seed={chatSeed}
             onSeedConsumed={() => setChatSeed(null)}
             onNewChat={newChat}
+            newChatRevision={newChatRevision}
             onModelChanged={loadStatus}
           />
         </div>

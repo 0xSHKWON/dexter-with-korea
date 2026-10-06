@@ -22,6 +22,9 @@ export interface ProviderMeta {
   note?: string;
 }
 
+/** Mirrors the agent's DEFAULT_EFFORT (src/agent/agent.ts) — what an unset effort runs at. */
+export const DEFAULT_EFFORT = 'medium';
+
 /** Subscription-login state, read from the core's auth.json. Never carries tokens. */
 export interface OAuthStatus {
   loggedIn: boolean;
@@ -85,7 +88,7 @@ export interface SecretExportResult {
 export interface AppSettings {
   provider?: string;
   modelId?: string;
-  /** providerId → chosen reasoning effort; a missing entry means the provider default. */
+  /** providerId → chosen reasoning effort; a missing entry means DEFAULT_EFFORT. */
   effort?: Record<string, string>;
   [key: string]: unknown;
 }

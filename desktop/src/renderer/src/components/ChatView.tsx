@@ -2,10 +2,13 @@ import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { normalizeKoreanBold } from '../markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import { normalizeMarkdown } from '../markdown';
 import ThreeLogo from './ThreeLogo';
 import QuestionPrompt from './QuestionPrompt';
 import ModelPicker from './ModelPicker';
+import { sampleMainPrompts } from '../promptExamples';
 import type {
   AgentEvent,
   ChatConversation,
@@ -36,16 +39,11 @@ interface Props {
   onSeedConsumed?: () => void;
   /** Start a fresh conversation — one History row holds one question and one answer. */
   onNewChat: () => void;
+  /** Increments for every explicit new-chat action, including null → null resets. */
+  newChatRevision: number;
   /** The default model was switched from the composer picker. */
   onModelChanged?: () => void;
 }
-
-const EXAMPLES = [
-  '삼성전자 사업보고서에서 핵심 리스크와 사업 현황 정리해줘',
-  '에코프로비엠 외국인 지분율·공매도 잔고 추이 같이 보여줘',
-  'SK하이닉스 DCF로 적정주가 계산해줘',
-  '국민연금이 보유한 현대차 지분과 5% 이상 대량보유 현황 알려줘',
-];
 
 const TOOL_LABELS: Record<string, string> = {
   get_financials: '재무제표 조회',
@@ -145,6 +143,17 @@ function stepGlyph(state?: ChatStep['state']): string {
   return '◐'; // running
 }
 
+function MarkdownContent({ children, pdf = false }: { children: string; pdf?: boolean }): JSX.Element {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm, remarkMath]}
+      rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: 'ignore', output: pdf ? 'mathml' : 'htmlAndMathml' }]]}
+    >
+      {normalizeMarkdown(children)}
+    </ReactMarkdown>
+  );
+}
+
 /**
  * Collapsible reasoning timeline. Each tool call / thought lands as its own
  * row, one by one, while the turn is live (block stays expanded). Once the
@@ -171,7 +180,7 @@ function StepsBlock({ steps, live }: { steps: ChatStep[]; live: boolean }): JSX.
           {steps.map((s, i) =>
             s.kind === 'text' ? (
               <div key={i} className="reasoning-step reasoning-text">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{normalizeKoreanBold(s.text ?? '')}</ReactMarkdown>
+                <MarkdownContent>{s.text ?? ''}</MarkdownContent>
               </div>
             ) : (
               <div key={i} className={`reasoning-step reasoning-tool state-${s.state ?? 'running'}`}>
@@ -194,6 +203,7 @@ export default function ChatView({
   seed,
   onSeedConsumed,
   onNewChat,
+  newChatRevision,
   onModelChanged,
 }: Props): JSX.Element {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -202,6 +212,7 @@ export default function ChatView({
   const [hasLlmKey, setHasLlmKey] = useState<boolean | null>(null);
   const [pendingQuestion, setPendingQuestion] = useState<{ questionId: string; questions: Question[] } | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [examples, setExamples] = useState(() => sampleMainPrompts());
 
   const scrollRef = useRef<HTMLDivElement>(null);
   // Follow the stream only while the reader is at the bottom; scrolling up to
@@ -212,6 +223,7 @@ export default function ChatView({
   const taRef = useRef<HTMLTextAreaElement>(null);
   const activeRef = useRef<{ runId: string; pendingId: string } | null>(null);
   const currentIdRef = useRef<string | null>(null);
+  const exampleRevisionRef = useRef(newChatRevision);
 
   // LLM key check (drives empty-state guidance).
   useEffect(() => {
@@ -246,6 +258,21 @@ export default function ChatView({
         : [],
     );
   }, [conversation?.id]);
+
+  // A sidebar + click can be null → null, so conversation.id alone cannot
+  // signal a fresh chat. The explicit revision resets local state and rotates
+  // to four prompts that did not appear in the immediately previous set.
+  useEffect(() => {
+    if (exampleRevisionRef.current === newChatRevision) return;
+    exampleRevisionRef.current = newChatRevision;
+    activeRef.current = null;
+    currentIdRef.current = null;
+    setMessages([]);
+    setInput('');
+    setSending(false);
+    setPendingQuestion(null);
+    setExamples((previous) => sampleMainPrompts(previous));
+  }, [newChatRevision]);
 
   // Prefill a prompt handed in from elsewhere (e.g. a Help example), then clear it.
   const seedConsumedRef = useRef(onSeedConsumed);
@@ -487,9 +514,6 @@ export default function ChatView({
    * and the "새 질문하기" button silently does nothing.
    */
   function startNewChat(): void {
-    currentIdRef.current = null;
-    setMessages([]);
-    setInput('');
     onNewChat();
   }
 
@@ -505,9 +529,7 @@ export default function ChatView({
       await window.dexter.chat.exportPdf({
         title: conversation?.title ?? question.content.slice(0, 40),
         question: question.content,
-        answerHtml: renderToStaticMarkup(
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{normalizeKoreanBold(answer.content)}</ReactMarkdown>,
-        ),
+        answerHtml: renderToStaticMarkup(<MarkdownContent pdf>{answer.content}</MarkdownContent>),
         askedAt: question.at,
         // Rows saved before timestamps existed: the first save lands right after the answer.
         answeredAt: answer.at ?? conversation?.createdAt,
@@ -544,9 +566,9 @@ export default function ChatView({
               </div>
             ) : (
               <div className="example-chips">
-                {EXAMPLES.map((ex) => (
-                  <button key={ex} className="chip" onClick={() => useExample(ex)}>
-                    {ex}
+                {examples.map((example) => (
+                  <button key={example.prompt} className="chip" onClick={() => useExample(example.prompt)}>
+                    {example.label}
                   </button>
                 ))}
               </div>
@@ -560,7 +582,7 @@ export default function ChatView({
                   <>
                     {m.steps && m.steps.length > 0 && <StepsBlock steps={m.steps} live={!!m.pending} />}
                     {m.content ? (
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{normalizeKoreanBold(m.content)}</ReactMarkdown>
+                      <MarkdownContent>{m.content}</MarkdownContent>
                     ) : (
                       m.pending &&
                       (!m.steps || m.steps.length === 0) && <span className="typing">{m.status ?? '●●●'}</span>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { PROMPT_GROUPS } from '../promptExamples';
 
 interface KeyGuide {
   label: string;
@@ -15,59 +16,6 @@ interface Section {
   items: KeyGuide[];
   footnote?: string;
 }
-
-interface PromptGroup {
-  label: string;
-  items: { p: string; why: string }[];
-}
-
-// Showcase prompts — the kind of question a generic chatbot / 기업분석 서비스 can't match,
-// because each one drives the agent loop across multiple first-party sources + KR skills.
-const PROMPT_GROUPS: PromptGroup[] = [
-  {
-    label: '한 줄로 전체 분석',
-    items: [
-      {
-        p: '삼성전자 지금 투자 관점에서 어때?',
-        why: '재무·수급·공매도·지배구조에 더해 동종 peer 비교·사업부문 이익기여도까지 스스로 끌어와 하나의 결론으로',
-      },
-    ],
-  },
-  {
-    label: '여러 종목 동시 비교 · 랭킹',
-    items: [
-      {
-        p: '삼성전자·SK하이닉스·한미반도체 투자매력 순위 매겨줘',
-        why: '종목마다 1차 출처를 각각 수집해 밸류에이션·실적·현금흐름·수급·지배구조 6개 차원으로 비교',
-      },
-    ],
-  },
-  {
-    label: '1차 출처 시계열 (뉴스 2차가 아님)',
-    items: [
-      { p: '에코프로비엠 공매도 순보유잔고 추이 보여줘', why: 'KRX 일별 잔고를 직접 조회' },
-      { p: '삼성전자 외국인 일별 순매수 추세 보여줘', why: '네이버 일별 외국인·기관·개인 수급' },
-    ],
-  },
-  {
-    label: '한국형 밸류에이션',
-    items: [
-      { p: 'SK 지주사 SOTP로 적정가치 뜯어줘', why: '지주사 할인 분해 — 전용 스킬' },
-      { p: 'SK하이닉스 DCF로 적정주가 계산하고 현재가랑 비교해줘', why: '법인세·무위험금리·KRW 한국 경로 자동 분기' },
-    ],
-  },
-  {
-    label: '지배구조 · 이벤트 (DART 본문에서 직접)',
-    items: [
-      { p: 'LG화학 물적분할이 기존 주주가치에 어떤 영향이었는지 분석해줘', why: '공시 직접 인용 + 구조 분석' },
-      { p: '삼성전자 최대주주·특수관계인·계열사 지분 사업보고서 기준으로 정리해줘', why: '추정이 아닌 1차 근거' },
-    ],
-  },
-  {
-    label: '메모로 정리',
-    items: [{ p: '삼성전자 매수 논거를 투자 메모로 작성해줘', why: '근거·리스크·트리거가 담긴 투자 메모' }],
-  },
-];
 
 // Issuance guides. Env var names match the core (src/model/llm.ts, env.ts) exactly.
 const SECTIONS: Section[] = [
@@ -146,19 +94,37 @@ export default function HelpView({ onUsePrompt }: { onUsePrompt: (text: string) 
       </div>
 
       {tab === 'prompts' ? (
-        <section className="help-sec">
-          <p className="sec-intro">다른 챗봇·분석 서비스가 따라오기 힘든 질문들 — 누르면 챗에 입력됩니다.</p>
-          {PROMPT_GROUPS.map((g) => (
-            <div className="ex-group" key={g.label}>
-              <div className="ex-group-label">{g.label}</div>
-              {g.items.map((it) => (
-                <button className="ex-row" key={it.p} onClick={() => onUsePrompt(it.p)}>
-                  <span className="ex-p">{it.p}</span>
-                  {it.why && <span className="ex-why">{it.why}</span>}
-                </button>
-              ))}
+        <section className="help-sec prompt-showcase">
+          <div className="prompt-showcase-head">
+            <div>
+              <span className="prompt-eyebrow">DEXTER PLAYBOOK</span>
+              <p className="sec-intro">여러 1차 출처를 연결해 투자 판단까지 완성하는 질문들입니다.</p>
             </div>
-          ))}
+            <span className="prompt-click-hint">카드를 눌러 바로 시작 →</span>
+          </div>
+          <div className="prompt-grid">
+            {PROMPT_GROUPS.map((g) => (
+              <article className={`prompt-card tone-${g.tone}${g.featured ? ' featured' : ''}`} key={g.label}>
+                <header className="prompt-card-head">
+                  <span className="prompt-card-icon">{g.icon}</span>
+                  <span className="prompt-card-label">{g.label}</span>
+                  <span className="prompt-card-count">{g.items.length}</span>
+                </header>
+                <div className="prompt-card-items">
+                  {g.items.map((it) => (
+                    <button className="prompt-item" key={it.p} onClick={() => onUsePrompt(it.p)}>
+                      <span className="prompt-item-arrow" aria-hidden="true">↗</span>
+                      <span className="prompt-item-question">{it.p}</span>
+                      <span className="prompt-item-why">{it.why}</span>
+                      <span className="prompt-tags" aria-label="사용 능력">
+                        {it.tags.map((tag) => <span className="prompt-tag" key={tag}>{tag}</span>)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
         </section>
       ) : (
         SECTIONS.map((section) => (
