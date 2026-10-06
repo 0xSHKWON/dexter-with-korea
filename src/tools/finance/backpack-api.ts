@@ -26,7 +26,20 @@ export interface BackpackStock {
   url: string;
 }
 
-async function fetchBackpackJson(url: string, ticker: string): Promise<Record<string, unknown>> {
+const MAX_RATE_LIMIT_RETRIES = 2;
+const MAX_RATE_LIMIT_WAIT_MS = 10_000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/** Wait before retrying a 429: Retry-After (seconds) when given, else exponential backoff. */
+export function rateLimitWaitMs(retryAfter: string | null, attempt: number): number {
+  const sec = retryAfter === null ? NaN : Number(retryAfter);
+  return Number.isFinite(sec) && sec >= 0 ? sec * 1000 : 1000 * 2 ** attempt;
+}
+
+async function fetchBackpackJson(url: string, ticker: string, attempt = 0): Promise<Record<string, unknown>> {
   let response: Response;
   try {
     response = await fetch(url, { headers: { Accept: 'application/json' } });
@@ -34,6 +47,16 @@ async function fetchBackpackJson(url: string, ticker: string): Promise<Record<st
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`[Backpack API] network error: ${ticker} — ${message}`);
     throw new Error(`[Backpack API] request failed for ${ticker}: ${message}`);
+  }
+  if (response.status === 429) {
+    // A peer-set call fans out across many tickers on a keyless API; one 429
+    // shouldn't drop a peer and push the set below the 3-peer minimum.
+    const waitMs = rateLimitWaitMs(response.headers.get('retry-after'), attempt);
+    if (attempt < MAX_RATE_LIMIT_RETRIES && waitMs <= MAX_RATE_LIMIT_WAIT_MS) {
+      await sleep(waitMs);
+      return fetchBackpackJson(url, ticker, attempt + 1);
+    }
+    throw new Error(`[Backpack API] rate limited for ${ticker} (429) — retry later`);
   }
   if (!response.ok) {
     const body = await response.text().catch(() => '');

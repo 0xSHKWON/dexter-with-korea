@@ -52,6 +52,31 @@ function round(n: number, dp = 4): number {
   return Math.round(n * f) / f;
 }
 
+/** Tickers fetched at once — each is 2 requests, so this caps Backpack at 8 in flight. */
+const MAX_CONCURRENT_TICKERS = 4;
+
+/**
+ * A Korean listing code, bare or Yahoo-suffixed: 005930, 005930.KS, 035720.KQ,
+ * or the newer alphanumeric codes (00104K, 0126Z0). US tickers don't start with a digit.
+ */
+export function isKrTicker(ticker: string): boolean {
+  return /^\d[0-9A-Z]{5}(\.K[SQ])?$/.test(ticker);
+}
+
+/** Map with at most `limit` calls in flight, preserving input order. */
+export async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 /** Whole months between an ISO date and `now` (null when unparseable). */
 export function monthsSince(iso: string | null, now: Date): number | null {
   if (!iso || !/^\d{4}-\d{2}-\d{2}/.test(iso)) return null;
@@ -113,23 +138,21 @@ export const getBeta = new DynamicStructuredTool({
     const now = new Date();
     const urls: string[] = [];
 
-    const betas = await Promise.all(
-      tickers.map(async (ticker) => {
-        if (/^\d{6}$/.test(ticker)) {
-          return { ticker, _error: `${ticker} is a Korean ticker — use get_beta_kr` };
+    const betas = await mapWithConcurrency(tickers, MAX_CONCURRENT_TICKERS, async (ticker) => {
+      if (isKrTicker(ticker)) {
+        return { ticker, _error: `${ticker} is a Korean ticker — use get_beta_kr with ${ticker.replace(/\.K[SQ]$/, '')}` };
+      }
+      try {
+        const stock = await fetchBackpackStock(ticker, { cacheable: true, ttlMs: TTL_6H });
+        urls.push(stock.url);
+        return toBetaRecord(ticker, stock, now);
+      } catch (error) {
+        if (error instanceof BackpackUnsupportedTickerError) {
+          return { ticker, _error: `${error.message} — use a peer beta or sector proxy` };
         }
-        try {
-          const stock = await fetchBackpackStock(ticker, { cacheable: true, ttlMs: TTL_6H });
-          urls.push(stock.url);
-          return toBetaRecord(ticker, stock, now);
-        } catch (error) {
-          if (error instanceof BackpackUnsupportedTickerError) {
-            return { ticker, _error: `${error.message} — use a peer beta or sector proxy` };
-          }
-          return { ticker, _error: error instanceof Error ? error.message : String(error) };
-        }
-      }),
-    );
+        return { ticker, _error: error instanceof Error ? error.message : String(error) };
+      }
+    });
 
     return formatToolResult(
       {

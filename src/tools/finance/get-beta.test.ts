@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'bun:test';
-import { getBeta, monthsSince, toBetaRecord } from './get-beta.js';
-import { BackpackUnsupportedTickerError, fetchBackpackStock } from './backpack-api.js';
+import { getBeta, isKrTicker, mapWithConcurrency, monthsSince, toBetaRecord } from './get-beta.js';
+import { BackpackUnsupportedTickerError, fetchBackpackStock, rateLimitWaitMs } from './backpack-api.js';
 
 const NOW = new Date('2026-10-05T12:00:00Z');
 
@@ -18,6 +18,40 @@ describe('monthsSince', () => {
   it('returns null for missing or malformed dates', () => {
     expect(monthsSince(null, NOW)).toBeNull();
     expect(monthsSince('n/a', NOW)).toBeNull();
+  });
+});
+
+describe('isKrTicker', () => {
+  it('matches bare, Yahoo-suffixed and alphanumeric Korean codes', () => {
+    for (const t of ['005930', '005930.KS', '035720.KQ', '00104K', '0126Z0']) expect(isKrTicker(t)).toBe(true);
+  });
+
+  it('leaves US tickers alone', () => {
+    for (const t of ['AAPL', 'BRK.B', 'TSM', 'GOOGL', 'ABCDEF']) expect(isKrTicker(t)).toBe(false);
+  });
+});
+
+describe('mapWithConcurrency', () => {
+  it('preserves input order and never exceeds the limit', async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const out = await mapWithConcurrency([5, 1, 4, 2, 3, 0], 2, async (ms) => {
+      peak = Math.max(peak, ++inFlight);
+      await new Promise((r) => setTimeout(r, ms));
+      inFlight--;
+      return ms * 10;
+    });
+    expect(out).toEqual([50, 10, 40, 20, 30, 0]);
+    expect(peak).toBe(2);
+  });
+});
+
+describe('rateLimitWaitMs', () => {
+  it('honours Retry-After seconds, else backs off exponentially', () => {
+    expect(rateLimitWaitMs('3', 0)).toBe(3000);
+    expect(rateLimitWaitMs(null, 0)).toBe(1000);
+    expect(rateLimitWaitMs(null, 1)).toBe(2000);
+    expect(rateLimitWaitMs('soon', 1)).toBe(2000);
   });
 });
 
@@ -67,8 +101,42 @@ describe('toBetaRecord', () => {
 
 describe('fetchBackpackStock', () => {
   const realFetch = globalThis.fetch;
+  const realSetTimeout = globalThis.setTimeout;
   afterEach(() => {
     globalThis.fetch = realFetch;
+    globalThis.setTimeout = realSetTimeout;
+  });
+
+  function skipWaits() {
+    // @ts-expect-error - test stub: resolve backoff sleeps instantly
+    globalThis.setTimeout = (fn: () => void) => {
+      fn();
+      return 0;
+    };
+  }
+
+  it('retries a 429 and returns the beta once Backpack recovers', async () => {
+    skipWaits();
+    let statsCalls = 0;
+    globalThis.fetch = (async (url: string) => {
+      if (!url.endsWith('/stats')) return respond(200, '{}');
+      return ++statsCalls === 1 ? respond(429, 'slow down') : respond(200, JSON.stringify({ beta: 1.2 }));
+    }) as unknown as typeof fetch;
+    const s = await fetchBackpackStock('MSFT');
+    expect(s.stats.beta).toBe(1.2);
+    expect(statsCalls).toBe(2);
+  });
+
+  it('gives up after bounded 429 retries with a rate-limit error', async () => {
+    skipWaits();
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls++;
+      return respond(429, 'slow down');
+    }) as unknown as typeof fetch;
+    const err = await fetchBackpackStock('MSFT').catch((e: unknown) => e);
+    expect((err as Error).message).toContain('rate limited');
+    expect(calls).toBeLessThanOrEqual(6); // 3 attempts × 2 endpoints
   });
 
   function respond(status: number, body: string): Response {
@@ -126,8 +194,9 @@ describe('get_beta tool', () => {
       calls++;
       return new Response('{}');
     }) as unknown as typeof fetch;
-    const out = JSON.parse(await getBeta.invoke({ tickers: ['005930'] }));
+    const out = JSON.parse(await getBeta.invoke({ tickers: ['005930', '035720.kq'] }));
     expect(calls).toBe(0);
     expect(out.data.betas[0]._error).toContain('get_beta_kr');
+    expect(out.data.betas[1]._error).toContain('get_beta_kr with 035720');
   });
 });
