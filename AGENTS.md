@@ -58,6 +58,7 @@
 - `get_market_data`: US prices, company news, insider trades, 13F holdings.
 - `read_filings`: SEC filing reader for 10-K, 10-Q, 8-K documents.
 - `stock_screener`: screen US stocks by financial criteria (P/E, growth, margins).
+- `get_beta`: US equity β (5y monthly raw vs S&P 500 + Blume-adjusted) from Backpack's public API, keyless; multiple tickers per call for peer betas.
 - Korean tools (`src/tools/finance-kr/`, all take 6-digit tickers): `get_financials_kr`, `get_filings_kr`, `get_large_holders_kr`, `get_insider_trades_kr`, `read_filings_kr` (DART, gated on `DART_API_KEY`); `get_market_data_kr`, `get_foreign_ownership_kr` (Naver, keyless); `get_short_balance_kr` (KRX login); `get_nps_holdings` (data.go.kr).
 - `web_search`: general web search; provider fallback chain Exa → Perplexity → Tavily → LangSearch (registered if ≥1 key set).
 - `browser`: Playwright-based web scraping for reading pages the agent discovers.

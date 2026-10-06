@@ -52,6 +52,8 @@ const TOOL_LABELS: Record<string, string> = {
   get_financials_kr: '재무제표 조회',
   get_market_data: '시세 조회',
   get_market_data_kr: '시세 조회',
+  get_beta: '베타 조회',
+  get_beta_kr: '베타 산출',
   read_filings: '공시 정독',
   read_filings_kr: '공시 정독',
   get_filings_kr: '공시 검색',
@@ -71,6 +73,15 @@ function argSummary(args?: Record<string, unknown>): string {
   for (const k of ['ticker', 'symbol', 'corp', 'skill', 'query', 'name']) {
     const v = args[k];
     if (typeof v === 'string' && v) return v;
+  }
+  // get_beta takes a peer set as an array.
+  const tickers = args.tickers;
+  if (Array.isArray(tickers)) {
+    const names = tickers.filter((t): t is string => typeof t === 'string' && t.length > 0);
+    if (names.length > 0) {
+      const head = names.slice(0, 3).join(', ');
+      return names.length > 3 ? `${head} 외 ${names.length - 3}개` : head;
+    }
   }
   return '';
 }

@@ -36,6 +36,11 @@ describe('getSkill', () => {
     expect(skill?.instructions).toContain('물적분할');
   });
 
+  it('references the peer-beta procedure from the dcf and kr-spinoff skills', () => {
+    expect(getSkill('dcf-valuation')?.instructions).toContain('(peer-beta.md)');
+    expect(getSkill('kr-spinoff-analysis')?.instructions).toContain('(../dcf/peer-beta.md)');
+  });
+
   it('references the KR sector WACC file from the dcf skill', () => {
     const skill = getSkill('dcf-valuation');
     expect(skill?.instructions).toContain('sector-wacc-kr.md');
