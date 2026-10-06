@@ -116,7 +116,12 @@ function summarizeToolResult(tool: string, args: Record<string, unknown>, result
         if (tool === 'get_beta') {
           const rows = Array.isArray(parsed.data.betas) ? parsed.data.betas : [];
           const ok = rows.filter((r: { adjustedBeta?: unknown }) => typeof r?.adjustedBeta === 'number');
-          if (rows.length === 1) return ok.length === 1 ? `β=${ok[0].adjustedBeta} (adj, S&P 500)` : 'No beta';
+          if (rows.length === 1) {
+            if (ok.length === 1) return `β=${ok[0].adjustedBeta} (adj, S&P 500)`;
+            // Say why — an outage, an unsupported ticker and a KR redirect all need different next steps.
+            const err = rows[0]?._error;
+            return typeof err === 'string' ? `No beta — ${truncateAtWord(err, 60)}` : 'No beta';
+          }
           return `β for ${ok.length}/${rows.length} tickers`;
         }
         if (tool === 'get_consensus_kr') {

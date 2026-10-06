@@ -74,6 +74,15 @@ function argSummary(args?: Record<string, unknown>): string {
     const v = args[k];
     if (typeof v === 'string' && v) return v;
   }
+  // get_beta takes a peer set as an array.
+  const tickers = args.tickers;
+  if (Array.isArray(tickers)) {
+    const names = tickers.filter((t): t is string => typeof t === 'string' && t.length > 0);
+    if (names.length > 0) {
+      const head = names.slice(0, 3).join(', ');
+      return names.length > 3 ? `${head} 외 ${names.length - 3}개` : head;
+    }
+  }
   return '';
 }
 
