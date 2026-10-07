@@ -1,6 +1,6 @@
 {
-  "latest": "1.4.0",
+  "latest": "1.4.1",
   "minRequired": "1.0.0",
   "url": "https://github.com/0xSHKWON/dexter-with-korea/releases/latest",
-  "notes": "US 종목 베타(get_beta) 추가 — US DCF가 베타 기반 할인율(CAPM)을 쓰고, 분석 전에 시장위험프리미엄(ERP)을 고를 수 있습니다. 자체 베타를 쓸 수 없으면 피어 베타로 추정합니다. 업데이트 알림이 입력란을 밀어내던 문제 수정."
+  "notes": "Cursor 에이전트 추가 — 설치된 Cursor CLI 로그인(또는 API 키)으로 쓸 수 있고, Free 플랜은 Auto 모델로 자동 제한됩니다. Gemini 모델은 제거됐습니다. 외국인 수급을 최근 약 3개월(60거래일)까지 가져오고, 도움말에 프롬프트 예시 카드와 작동 방식 다이어그램을 새로 넣었습니다."
 }
