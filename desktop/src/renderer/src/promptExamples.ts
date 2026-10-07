@@ -10,8 +10,6 @@ export interface PromptExample {
 export interface PromptGroup {
   label: string;
   icon: string;
-  tone: 'blue' | 'violet' | 'cyan' | 'amber' | 'rose' | 'slate';
-  featured?: boolean;
   items: PromptExample[];
 }
 
@@ -22,8 +20,6 @@ export const PROMPT_GROUPS: PromptGroup[] = [
   {
     label: '한 질문으로 투자 판단',
     icon: '360°',
-    tone: 'blue',
-    featured: true,
     items: [
       {
         mainLabel: '삼성전자, 지금 신규 매수해도 될까?',
@@ -36,7 +32,6 @@ export const PROMPT_GROUPS: PromptGroup[] = [
   {
     label: '비교 · 랭킹 · 주주환원',
     icon: 'VS',
-    tone: 'violet',
     items: [
       {
         mainLabel: '반도체 3사 투자매력 순위를 매겨줘',
@@ -55,7 +50,6 @@ export const PROMPT_GROUPS: PromptGroup[] = [
   {
     label: '이익의 질 검증',
     icon: 'CASH',
-    tone: 'cyan',
     items: [
       {
         mainLabel: '삼성전자 이익, 현금으로도 들어오고 있을까?',
@@ -68,7 +62,6 @@ export const PROMPT_GROUPS: PromptGroup[] = [
   {
     label: '수급 신호 교차검증',
     icon: 'FLOW',
-    tone: 'cyan',
     items: [
       {
         mainLabel: '에코프로비엠 수급, 상승 신호일까 경고일까?',
@@ -87,7 +80,6 @@ export const PROMPT_GROUPS: PromptGroup[] = [
   {
     label: '기업 유형에 맞춘 적정가치',
     icon: '₩',
-    tone: 'amber',
     items: [
       {
         mainLabel: 'SK 지주사 할인은 정말 과도할까?',
@@ -112,7 +104,6 @@ export const PROMPT_GROUPS: PromptGroup[] = [
   {
     label: '지배구조 · 기업 이벤트',
     icon: 'DART',
-    tone: 'rose',
     items: [
       {
         mainLabel: 'LG화학 물적분할은 기존 주주에게 득이었을까?',
@@ -131,7 +122,6 @@ export const PROMPT_GROUPS: PromptGroup[] = [
   {
     label: '의사결정용 투자 메모',
     icon: 'MEMO',
-    tone: 'slate',
     items: [
       {
         mainLabel: '삼성바이오로직스 투자 메모를 작성해줘',
