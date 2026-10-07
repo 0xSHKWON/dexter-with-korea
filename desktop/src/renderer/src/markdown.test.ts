@@ -44,8 +44,31 @@ describe('normalizeKoreanBold', () => {
 describe('normalizeMathDelimiters', () => {
   it('converts LaTeX display and inline delimiters to remark-math syntax', () => {
     expect(normalizeMathDelimiters('값은 \\[x=1\\] 이고 \\(y=2\\)다.')).toBe(
-      '값은 \n$$\nx=1\n$$\n 이고 $y=2$다.',
+      '값은 \n$$\nx=1\n$$\n 이고 $$y=2$$다.',
     );
+  });
+
+  it('turns a standalone multi-line display block into a math block', () => {
+    expect(normalizeMathDelimiters('식:\n\n\\[\n\\text{WACC} = 0.88 \\times 9.5% + 0.12 \\times 3%\n\\]\n\n끝')).toBe(
+      '식:\n\n\n$$\n\\text{WACC} = 0.88 \\times 9.5\\% + 0.12 \\times 3\\%\n$$\n\n\n끝',
+    );
+  });
+
+  it('keeps display math inline inside list items and table rows', () => {
+    expect(normalizeMathDelimiters('- WACC: \\[ 0.88 \\times 9% \\]\n- g: 2%')).toBe(
+      '- WACC: $$0.88 \\times 9\\%$$\n- g: 2%',
+    );
+    expect(normalizeMathDelimiters('| WACC | \\[x=1\\] |')).toBe('| WACC | $$x=1$$ |');
+  });
+
+  it('leaves an escaped literal bracket in prose alone', () => {
+    expect(normalizeMathDelimiters('주석 \\[1\\] 참고')).toBe('주석 \\[1\\] 참고');
+  });
+
+  it('does not touch fenced or inline code', () => {
+    const fenced = '```python\nre.sub(r"\\(", "", s)\n[x for x in y if x == 1]\nprint("$5 and 10%$")\n```';
+    expect(normalizeMathDelimiters(fenced)).toBe(fenced);
+    expect(normalizeMathDelimiters('정규식 `\\(a+b\\)` 와 \\(c+d\\)')).toBe('정규식 `\\(a+b\\)` 와 $$c+d$$');
   });
 
   it('recovers bracket-only financial equations', () => {
