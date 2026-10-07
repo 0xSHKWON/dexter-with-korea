@@ -11,6 +11,7 @@ import KrxKeyCard from './KrxKeyCard';
 import AgentsSection from './AgentsSection';
 import { useCodexAuth } from '../useCodexAuth';
 import { useClaudeCode } from '../useClaudeCode';
+import { useCursor } from '../useCursor';
 
 const GROUP_LABEL: Record<DataSourceGroup, string> = { kr: '한국 주식 데이터', search: '웹 검색', other: '기타 데이터' };
 
@@ -33,6 +34,7 @@ export default function SettingsView({
   const [tab, setTab] = useState<TabId>('agents');
   const codex = useCodexAuth();
   const claude = useClaudeCode();
+  const cursor = useCursor();
 
   function flash(msg: string): void {
     setToast(msg);
@@ -150,7 +152,7 @@ export default function SettingsView({
   }
 
   const groupVars = (g: DataSourceGroup): string[] => dataSources.filter((d) => d.group === g).map((d) => d.envVar);
-  const agentOn = !!claude.status?.loggedIn || !!codex.status?.loggedIn || !!statuses['ANTHROPIC_API_KEY']?.exists || !!statuses['OPENAI_API_KEY']?.exists;
+  const agentOn = !!claude.status?.loggedIn || !!codex.status?.loggedIn || !!cursor.status?.loggedIn || !!statuses['ANTHROPIC_API_KEY']?.exists || !!statuses['OPENAI_API_KEY']?.exists;
 
   const tabs: { id: TabId; label: string; badge?: string; dot?: boolean }[] = [
     { id: 'agents', label: '에이전트', dot: agentOn },
@@ -192,7 +194,7 @@ export default function SettingsView({
 
       <div role="tabpanel">
         {tab === 'agents' && (
-          <AgentsSection claude={claude} codex={codex} statuses={statuses} onChanged={onKeyChanged} />
+          <AgentsSection claude={claude} codex={codex} cursor={cursor} statuses={statuses} onChanged={onKeyChanged} />
         )}
 
         {tab === 'llm' && (

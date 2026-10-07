@@ -25,7 +25,7 @@ const SECTIONS: Section[] = [
     items: [
       { label: 'OpenAI', envVar: 'OPENAI_API_KEY', required: true, url: 'https://platform.openai.com/api-keys', urlLabel: 'platform.openai.com', desc: '로그인 → API keys → "Create new secret key".' },
       { label: 'Anthropic (Claude)', envVar: 'ANTHROPIC_API_KEY', url: 'https://console.anthropic.com/settings/keys', urlLabel: 'console.anthropic.com', desc: 'API Keys → "Create Key".' },
-      { label: 'Google (Gemini)', envVar: 'GOOGLE_API_KEY', url: 'https://aistudio.google.com/app/apikey', urlLabel: 'aistudio.google.com', desc: '"Get API key" → 키 생성.' },
+      { label: 'Cursor', envVar: 'CURSOR_API_KEY', url: 'https://cursor.com/dashboard?tab=integrations', urlLabel: 'cursor.com', desc: 'Dashboard → Integrations → API Keys. Cursor Agent CLI 설치가 필요합니다 (CLI 로그인으로 대신해도 됩니다).' },
       { label: 'xAI (Grok)', envVar: 'XAI_API_KEY', url: 'https://console.x.ai', urlLabel: 'console.x.ai', desc: 'API Keys에서 발급.' },
       { label: 'OpenRouter', envVar: 'OPENROUTER_API_KEY', url: 'https://openrouter.ai/keys', urlLabel: 'openrouter.ai', desc: '여러 모델을 한 키로. Keys에서 발급.' },
       { label: 'DeepSeek', envVar: 'DEEPSEEK_API_KEY', url: 'https://platform.deepseek.com', urlLabel: 'platform.deepseek.com', desc: 'API keys에서 발급.' },

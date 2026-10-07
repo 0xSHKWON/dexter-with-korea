@@ -3,6 +3,7 @@ import { config } from 'dotenv';
 import { getProviderById } from '@/providers';
 import { isLoggedIn } from '@/auth/store';
 import { getClaudeCodeStatus } from '@/claude-code/cli';
+import { getCursorStatus } from '@/cursor/cli';
 
 // Load .env on module import
 config({ quiet: true });
@@ -18,7 +19,7 @@ export function getProviderDisplayName(providerId: string): string {
 export function checkApiKeyExistsForProvider(providerId: string): boolean {
   const authType = getProviderById(providerId)?.authType;
   if (authType === 'oauth') return isLoggedIn(providerId as 'openai-codex');
-  if (authType === 'cli') return getClaudeCodeStatus().loggedIn;
+  if (authType === 'cli') return providerId === 'cursor' ? getCursorStatus().loggedIn : getClaudeCodeStatus().loggedIn;
   const apiKeyName = getApiKeyNameForProvider(providerId);
   if (!apiKeyName) return true;
   return checkApiKeyExists(apiKeyName);

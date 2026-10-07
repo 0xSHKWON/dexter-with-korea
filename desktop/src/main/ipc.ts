@@ -33,6 +33,7 @@ import { encryptSecret, decryptSecret, previewLast4, isEncryptionAvailable } fro
 import { sidecar } from './sidecar';
 import { codexCancelLogin, codexLinkCli, codexLogin, codexLogout, codexStatus } from './auth';
 import { CLAUDE_CODE_PATH_SETTING, claudeCodeCancelLogin, claudeCodeLogin, claudeCodeStatus } from './claude-code';
+import { cursorCancelLogin, cursorLogin, cursorStatus } from './cursor';
 import type { SecretStatus, SecretExportResult, ChatPdfDoc } from '../shared/types';
 
 function statusFor(envVar: string): SecretStatus {
@@ -93,6 +94,9 @@ export function registerIpc(): void {
   ipcMain.handle('claudeCode:status', () => claudeCodeStatus());
   ipcMain.handle('claudeCode:login', () => claudeCodeLogin());
   ipcMain.handle('claudeCode:cancel', () => claudeCodeCancelLogin());
+  ipcMain.handle('cursor:status', () => cursorStatus());
+  ipcMain.handle('cursor:login', () => cursorLogin());
+  ipcMain.handle('cursor:cancel', () => cursorCancelLogin());
 
   ipcMain.handle('settings:getAll', () => getAllSettings());
   ipcMain.handle('settings:set', (_e, key: string, value: unknown) => {

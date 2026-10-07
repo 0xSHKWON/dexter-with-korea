@@ -54,9 +54,17 @@ const PROVIDER_MODELS: Record<string, Model[]> = {
     { id: 'codex:gpt-5.5', displayName: 'GPT-5.5' },
     { id: 'codex:gpt-5.4', displayName: 'GPT-5.4' },
   ],
-  google: [
-    { id: 'gemini-3.8-flash', displayName: 'Gemini 3.8 Flash' },
-    { id: 'gemini-3.1-pro-preview', displayName: 'Gemini 3.1 Pro' },
+  // Through the user's Cursor Agent CLI. Ids after `cursor:` are `cursor-agent
+  // --model` values (from its "Available models" list); effort is baked into the
+  // id, so the high tier is pinned rather than exposing an effort control.
+  cursor: [
+    { id: 'cursor:auto', displayName: 'Auto' },
+    { id: 'cursor:composer-2.5', displayName: 'Composer 2.5' },
+    { id: 'cursor:claude-fable-5-1-high', displayName: 'Fable 5.1' },
+    { id: 'cursor:claude-opus-5-5-high', displayName: 'Opus 5.5' },
+    { id: 'cursor:claude-sonnet-5-5-high', displayName: 'Sonnet 5.5' },
+    { id: 'cursor:gpt-5.6-sol-high', displayName: 'GPT-5.6 Sol' },
+    { id: 'cursor:grok-4.7-high', displayName: 'Grok 4.7' },
   ],
   xai: [{ id: 'grok-4.7', displayName: 'Grok 4.7' }],
   moonshot: [{ id: 'kimi-k3', displayName: 'Kimi K3' }],

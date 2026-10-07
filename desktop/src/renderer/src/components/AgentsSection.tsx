@@ -2,15 +2,17 @@ import { useEffect, useState } from 'react';
 import type { SecretStatus } from '../../../shared/types';
 import { CLAUDE_CODE_INSTALL_URL, type ClaudeCodeAuth } from '../useClaudeCode';
 import type { CodexAuth } from '../useCodexAuth';
+import { CURSOR_INSTALL_URL, type CursorAuth } from '../useCursor';
 import KeyCard from './KeyCard';
-import { ClaudeIcon, OpenAIIcon } from './BrandIcons';
+import { ClaudeIcon, CursorIcon, OpenAIIcon } from './BrandIcons';
 
-type AgentId = 'claude-code' | 'codex';
+type AgentId = 'claude-code' | 'codex' | 'cursor';
 type AuthMode = 'login' | 'apiKey';
 
 interface Props {
   claude: ClaudeCodeAuth;
   codex: CodexAuth;
+  cursor: CursorAuth;
   statuses: Record<string, SecretStatus>;
   onChanged: (message: string) => void | Promise<void>;
 }
@@ -19,7 +21,7 @@ const SUBSCRIPTION: Record<string, string> = { pro: 'Claude Pro', max: 'Claude M
 const API_PROVIDER: Record<string, string> = { firstParty: 'Anthropic API', bedrock: 'Amazon Bedrock', vertex: 'Google Vertex AI', foundry: 'Microsoft Foundry' };
 
 /** Settings → 에이전트: one tab per subscription agent, each with login vs API-key auth. */
-export default function AgentsSection({ claude, codex, statuses, onChanged }: Props): JSX.Element {
+export default function AgentsSection({ claude, codex, cursor, statuses, onChanged }: Props): JSX.Element {
   const [agent, setAgent] = useState<AgentId>('claude-code');
 
   return (
@@ -32,11 +34,16 @@ export default function AgentsSection({ claude, codex, statuses, onChanged }: Pr
         <button role="tab" className={`agent-tab ${agent === 'codex' ? 'active' : ''}`} onClick={() => setAgent('codex')}>
           <OpenAIIcon /> Codex
         </button>
+        <button role="tab" className={`agent-tab ${agent === 'cursor' ? 'active' : ''}`} onClick={() => setAgent('cursor')}>
+          <CursorIcon /> Cursor
+        </button>
       </div>
       {agent === 'claude-code' ? (
         <ClaudeCodePanel claude={claude} keyStatus={statuses['ANTHROPIC_API_KEY']} onChanged={onChanged} />
-      ) : (
+      ) : agent === 'codex' ? (
         <CodexPanel codex={codex} keyStatus={statuses['OPENAI_API_KEY']} onChanged={onChanged} />
+      ) : (
+        <CursorPanel cursor={cursor} keyStatus={statuses['CURSOR_API_KEY']} onChanged={onChanged} />
       )}
     </section>
   );
@@ -358,6 +365,84 @@ function CodexPanel({
         <ApiKeyPanel title="OpenAI" envVar="OPENAI_API_KEY" status={keyStatus} onChanged={onChanged}>
           모델 선택에서 <b>OpenAI API</b> 열로 사용합니다. 토큰 단위로 OpenAI Platform에 과금됩니다.
         </ApiKeyPanel>
+      )}
+    </>
+  );
+}
+
+function CursorPanel({
+  cursor,
+  keyStatus,
+  onChanged,
+}: {
+  cursor: CursorAuth;
+  keyStatus?: SecretStatus;
+  onChanged: Props['onChanged'];
+}): JSX.Element {
+  const s = cursor.status;
+  const keyOn = !!keyStatus?.exists;
+  const [mode, setMode] = useInitialMode(s ? s.loggedIn : undefined, keyOn);
+  const [refreshing, refresh] = useRefreshing(cursor.refresh);
+  const notInstalled = s && !s.installed && (
+    <p className="agent-note">
+      Cursor Agent CLI가 필요합니다 — 로그인과 API 키 모두 이 CLI로 실행됩니다.{' '}
+      <a href={CURSOR_INSTALL_URL} target="_blank" rel="noreferrer">
+        설치 안내
+      </a>
+      를 따라 설치한 뒤 새로고침하세요.
+    </p>
+  );
+
+  return (
+    <>
+      <AuthCards mode={mode} onMode={setMode} loginLabel="CLI" loginIcon=">_" loginOn={!!s?.loggedIn} keyOn={keyOn} />
+      {mode === 'login' ? (
+        <>
+          <StatusRow
+            state={s?.loggedIn ? 'on' : s?.installed ? 'warn' : 'off'}
+            label={!s ? '확인 중…' : s.loggedIn ? '연결됨' : s.installed ? '로그인 필요' : '설치되지 않음'}
+            onRefresh={refresh}
+            refreshing={refreshing}
+          />
+          <InfoTable
+            rows={[
+              ['버전', s?.version],
+              ['이메일', s?.email],
+              ['실행 파일', s?.path],
+            ]}
+          />
+          <div className="agent-actions">
+            {s && !s.installed ? (
+              <a className="btn" href={CURSOR_INSTALL_URL} target="_blank" rel="noreferrer">
+                Cursor CLI 설치 ↗
+              </a>
+            ) : cursor.busy ? (
+              <>
+                <span className="agent-note">브라우저에서 Cursor 로그인을 완료하세요…</span>
+                <button className="btn" onClick={cursor.cancel}>
+                  취소
+                </button>
+              </>
+            ) : (
+              <button
+                className="btn"
+                disabled={!s || s.loggedIn}
+                onClick={() => void cursor.login().then((ok) => ok && onChanged('Cursor 연결됨'))}
+              >
+                ▶ cursor-agent login 실행
+              </button>
+            )}
+          </div>
+          {cursor.error && <p className="key-error">{cursor.error}</p>}
+          {notInstalled}
+        </>
+      ) : (
+        <>
+          <ApiKeyPanel title="Cursor" envVar="CURSOR_API_KEY" status={keyStatus} onChanged={onChanged}>
+            Cursor 대시보드 → Integrations에서 만든 키. CLI 로그인 대신 쓰며, 모델 선택의 <b>Cursor</b> 열로 사용합니다.
+          </ApiKeyPanel>
+          {notInstalled}
+        </>
       )}
     </>
   );

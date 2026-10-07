@@ -16,6 +16,7 @@ import { dexterPath } from './utils/paths.js';
 import { linkCodexCli, login, logout, type LoginMode } from './auth/store.js';
 import { openBrowser } from './auth/open-browser.js';
 import { loginClaudeCode } from './claude-code/cli.js';
+import { loginCursor } from './cursor/cli.js';
 import { defaultQueue } from './utils/message-queue.js';
 import { logger } from './utils/logger.js';
 import {
@@ -298,7 +299,12 @@ export async function runCli() {
       renderSelectionOverlay();
       tui.requestRender();
     },
-    (providerId) => (providerId === 'claude-code' ? runClaudeCodeLogin() : runCodexLogin('browser')),
+    (providerId) =>
+      providerId === 'claude-code'
+        ? runClaudeCodeLogin()
+        : providerId === 'cursor'
+          ? runCursorLogin()
+          : runCodexLogin('browser'),
   );
 
   const note = (text: string) => {
@@ -501,6 +507,7 @@ export async function runCli() {
   /model       Switch LLM provider and model
   /login       Log in with your ChatGPT plan (Codex); /login device for headless
   /login claude  Connect your Claude Code login (Pro/Max)
+  /login cursor  Connect your Cursor Agent CLI login (cursor-agent login)
   /login codex-cli  Reuse your existing Codex CLI login (codex login)
   /logout      Log out of ChatGPT (Codex)
   /search      Choose preferred web search provider
@@ -522,6 +529,19 @@ export async function runCli() {
     }
   };
 
+  // Same for Cursor: `cursor-agent login` stores its own credentials.
+  const runCursorLogin = async (): Promise<boolean> => {
+    note(theme.muted('Logging in to Cursor (cursor-agent login)…'));
+    try {
+      const status = await loginCursor({ onOutput: (line) => note(theme.muted(line)) });
+      note(theme.success(`✓ Cursor connected${status.email ? ` (${status.email})` : ''}. Pick a model with /model → Cursor.`));
+      return true;
+    } catch (e) {
+      onError(`Cursor login failed: ${e instanceof Error ? e.message : String(e)}`);
+      return false;
+    }
+  };
+
   const handleSlashCommand = async (input: string) => {
     const [command, arg] = input.split(/\s+/);
     switch (command) {
@@ -530,6 +550,7 @@ export async function runCli() {
         break;
       case 'login':
         if (arg === 'claude') await runClaudeCodeLogin();
+        else if (arg === 'cursor') await runCursorLogin();
         else if (arg === 'codex-cli') {
           try {
             const creds = linkCodexCli();

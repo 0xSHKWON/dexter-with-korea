@@ -21,7 +21,7 @@ const EFFORT_LABEL: Record<string, string> = {
   ultracode: 'UltraCode',
 };
 
-/** Composer dropdown: shows the current model, opens the Claude | Codex card grid. */
+/** Composer dropdown: shows the current model, opens the Claude | Codex | Cursor card grid. */
 export default function ModelPicker({ disabled, onChanged, onOpenSettings }: Props): JSX.Element {
   const catalog = useModelCatalog();
   const [open, setOpen] = useState(false);
@@ -79,6 +79,7 @@ export default function ModelPicker({ disabled, onChanged, onOpenSettings }: Pro
             connected={catalog.connected}
             selectedModelId={modelId}
             claude={catalog.claude}
+            cursor={catalog.cursor}
             onOpenSettings={
               onOpenSettings &&
               (() => {

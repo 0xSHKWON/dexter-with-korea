@@ -229,14 +229,15 @@ export default function ChatView({
   useEffect(() => {
     (async () => {
       try {
-        const [provs, statuses, codex, claude] = await Promise.all([
+        const [provs, statuses, codex, claude, cursor] = await Promise.all([
           window.dexter.providers.list(),
           window.dexter.secrets.statusAll(),
           window.dexter.auth.status(),
           window.dexter.claudeCode.status(),
+          window.dexter.cursor.status(),
         ]);
         const llmEnvs = new Set(provs.filter((p) => p.apiKeyEnvVar).map((p) => p.apiKeyEnvVar as string));
-        setHasLlmKey(codex.loggedIn || claude.loggedIn || statuses.some((s) => llmEnvs.has(s.envVar) && s.exists));
+        setHasLlmKey(codex.loggedIn || claude.loggedIn || cursor.loggedIn || statuses.some((s) => llmEnvs.has(s.envVar) && s.exists));
       } catch {
         setHasLlmKey(false);
       }
@@ -559,7 +560,7 @@ export default function ChatView({
             <p className="muted">DART·KRX에 직접 가지 않아도, 질문하면 데이터를 모아 정리해 드립니다.</p>
             {hasLlmKey === false ? (
               <div className="empty-cta">
-                <p className="muted">시작하려면 Claude·ChatGPT 로그인 또는 LLM API 키가 필요합니다.</p>
+                <p className="muted">시작하려면 Claude·ChatGPT·Cursor 로그인 또는 LLM API 키가 필요합니다.</p>
                 <button className="btn primary" onClick={onOpenSettings}>
                   설정 열기
                 </button>
