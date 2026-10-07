@@ -75,6 +75,30 @@ export interface CursorStatus {
   loggedIn: boolean;
   email?: string;
   authMethod?: 'login' | 'api_key';
+  /** `subscriptionTier` from `cursor-agent about` — "Free", "Pro", … */
+  plan?: string;
+}
+
+export const CURSOR_AUTO_MODEL = `${CURSOR_PREFIX}auto`;
+
+/** Free plans reject every named model ("Free plans can only use Auto"). */
+export function isCursorFreePlan(plan: string | undefined): boolean {
+  return plan?.trim().toLowerCase() === 'free';
+}
+
+/** Models the account can call; unknown plan → assume all (the CLI will say otherwise). */
+export function cursorModelAllowed(modelId: string, plan: string | undefined): boolean {
+  return !isCursorFreePlan(plan) || modelId === CURSOR_AUTO_MODEL;
+}
+
+/** `cursor-agent about --format json` → `subscriptionTier`. */
+export function parseCursorAbout(text: string): string | undefined {
+  try {
+    const tier = (JSON.parse(text.trim()) as { subscriptionTier?: unknown }).subscriptionTier;
+    return typeof tier === 'string' && tier.trim() ? tier.trim() : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 // eslint-disable-next-line no-control-regex
@@ -132,6 +156,10 @@ export function getCursorStatus(fresh = false): CursorStatus {
       : hasApiKey()
         ? { installed: true, loggedIn: true, authMethod: 'api_key' }
         : { installed: true, loggedIn: false };
+    if (value.loggedIn) {
+      const plan = parseCursorAbout(run(['about', '--format', 'json']).stdout ?? '');
+      if (plan) value.plan = plan;
+    }
   }
   statusCache = { at: Date.now(), value };
   return value;
@@ -226,7 +254,13 @@ export function runCursorOnce(opts: { model: string; prompt: string; signal?: Ab
       const msg = parseResult(out);
       if (msg) return finish(msg);
       // Failures (auth, quota, unknown model, workspace trust) are plain text with exit 1.
-      settle(() => reject(new Error(`[Cursor] exited ${code}: ${(err || out).trim().slice(0, 500)}`)));
+      const detail = (err || out).trim();
+      if (/free plans can only use auto/i.test(detail)) {
+        return settle(() =>
+          reject(new Error('[Cursor] Free plan can only use the Auto model — pick Cursor → Auto (/model), or upgrade the Cursor plan.')),
+        );
+      }
+      settle(() => reject(new Error(`[Cursor] exited ${code}: ${detail.slice(0, 500)}`)));
     });
     child.stdin.end(opts.prompt);
   });

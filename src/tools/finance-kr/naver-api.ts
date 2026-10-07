@@ -51,16 +51,20 @@ export interface NaverTrendResult {
   url: string;
 }
 
+/** Rows per trend request. Without `pageSize` Naver returns 10; above 60 it returns an error page. */
+export const NAVER_TREND_MAX_DAYS = 60;
+
 /**
  * Fetch the investor/foreign daily trend for a 6-digit ticker. The endpoint
- * returns a bare JSON array of daily rows (most recent first).
+ * returns a bare JSON array of daily rows (most recent first). `page` is
+ * ignored by Naver, so 60 trading days (~3 months) is the reachable history.
  */
 export async function fetchNaverTrend(
   ticker: string,
   options?: { cacheable?: boolean; ttlMs?: number },
 ): Promise<NaverTrendResult> {
   const endpoint = '/naver/trend';
-  const params = { ticker };
+  const params = { ticker, pageSize: NAVER_TREND_MAX_DAYS };
 
   if (options?.cacheable) {
     const cached = readCache(endpoint, params, options.ttlMs);
@@ -70,7 +74,7 @@ export async function fetchNaverTrend(
     }
   }
 
-  const url = `${BASE_URL}/${ticker}/trend`;
+  const url = `${BASE_URL}/${ticker}/trend?pageSize=${NAVER_TREND_MAX_DAYS}`;
   const json = await fetchNaverJson(url, ticker, false);
   const rows = Array.isArray(json) ? (json as Record<string, unknown>[]) : [];
 

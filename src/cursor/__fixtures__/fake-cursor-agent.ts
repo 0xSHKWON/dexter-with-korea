@@ -3,6 +3,7 @@
  * Test double for `cursor-agent`. Speaks just enough of it to exercise Dexter's
  * Cursor integration without a real install or login:
  *   - `status [--format json]`   → logged-in JSON, or the older human line (with ANSI noise)
+ *   - `about --format json`      → account info; `subscriptionTier` from FAKE_CURSOR_PLAN (default "Pro")
  *   - `-p --output-format json`  → one result for the prompt read from stdin.
  *     With a tool list in the prompt and no tool result yet, it calls the first
  *     tool (fenced JSON + prose, as real models do); after a result it answers.
@@ -37,6 +38,12 @@ if (args[0] === 'status') {
   } else {
     process.stdout.write('\x1b[2K\x1b[G ✓ Logged in as me@example.com\n');
   }
+  process.exit(0);
+}
+
+if (args[0] === 'about') {
+  log();
+  process.stdout.write(JSON.stringify({ cliVersion: 'fake', subscriptionTier: process.env.FAKE_CURSOR_PLAN ?? 'Pro' }) + '\n');
   process.exit(0);
 }
 

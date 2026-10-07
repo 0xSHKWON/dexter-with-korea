@@ -77,6 +77,16 @@ function parseStatus(text: string): { loggedIn: boolean; email?: string } {
   }
 }
 
+/** Mirrors parseCursorAbout in src/cursor/cli.ts. */
+function parsePlan(text: string): string | undefined {
+  try {
+    const tier = (JSON.parse(text.trim()) as { subscriptionTier?: unknown }).subscriptionTier;
+    return typeof tier === 'string' && tier.trim() ? tier.trim() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function cursorStatus(): CursorStatus {
   const bin = detectCursorBinary();
   if (!bin) return { installed: false, loggedIn: false };
@@ -84,7 +94,8 @@ export function cursorStatus(): CursorStatus {
   let status = run(bin, ['status', '--format', 'json']);
   if (!status.ok) status = run(bin, ['status']);
   const { loggedIn, email } = parseStatus(status.out);
-  return { installed: true, loggedIn, path: bin, version, ...(email ? { email } : {}) };
+  const plan = loggedIn ? parsePlan(run(bin, ['about', '--format', 'json']).out) : undefined;
+  return { installed: true, loggedIn, path: bin, version, ...(email ? { email } : {}), ...(plan ? { plan } : {}) };
 }
 
 let loginProc: ChildProcess | null = null;

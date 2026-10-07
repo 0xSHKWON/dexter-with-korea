@@ -64,6 +64,8 @@ export interface CursorStatus {
   path?: string;
   version?: string;
   email?: string;
+  /** `subscriptionTier` from `cursor-agent about` — "Free" can only run the Auto model. */
+  plan?: string;
 }
 
 export type AuthLoginResult = { ok: true; email?: string; plan?: string } | { ok: false; error: string };

@@ -407,6 +407,7 @@ function CursorPanel({
           <InfoTable
             rows={[
               ['버전', s?.version],
+              ['플랜', s?.plan && (s.plan.toLowerCase() === 'free' ? `${s.plan} — Auto 모델만 사용 가능` : s.plan)],
               ['이메일', s?.email],
               ['실행 파일', s?.path],
             ]}

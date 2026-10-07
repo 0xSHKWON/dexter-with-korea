@@ -1,6 +1,6 @@
 import type { ProviderMeta } from '../../../shared/types';
 import { CLAUDE_CODE_INSTALL_URL, type ClaudeCodeAuth } from '../useClaudeCode';
-import { CURSOR_INSTALL_URL, type CursorAuth } from '../useCursor';
+import { CURSOR_INSTALL_URL, cursorModelAllowed, type CursorAuth } from '../useCursor';
 import { ClaudeIcon, CursorIcon, OpenAIIcon } from './BrandIcons';
 
 /** Providers whose ids are free-form — no fixed catalog to show as cards. */
@@ -45,21 +45,24 @@ export default function ModelGrid({
     <div className="mg" style={{ gridTemplateColumns: `repeat(${columns.length}, 168px)` }}>
       {columns.map((p) => {
         const usable = !!connected[p.id];
+        const plan = p.id === 'cursor' ? cursor.status?.plan : undefined;
         return (
           <div key={p.id} className="mg-col">
             <div className="mg-head">
               <ProviderIcon id={p.id} />
               <span className="mg-title">{p.shortName ?? p.displayName}</span>
               {!usable && <ConnectAction provider={p} claude={claude} cursor={cursor} onOpenSettings={onOpenSettings} />}
+              {usable && plan && <span className="mg-connect muted-only">{plan}</span>}
             </div>
             {p.models.map((m) => {
               const selected = m.id === selectedModelId;
+              const allowed = p.id !== 'cursor' || cursorModelAllowed(m.id, plan);
               return (
                 <button
                   key={m.id}
                   className={`mg-card${selected ? ' selected' : ''}`}
-                  disabled={!usable}
-                  title={usable ? m.id : undefined}
+                  disabled={!usable || !allowed}
+                  title={!allowed ? `${plan} 플랜은 Auto만 사용할 수 있습니다` : usable ? m.id : undefined}
                   onClick={() => onSelect(p.id, m.id)}
                 >
                   <span className="mg-label">{m.label}</span>

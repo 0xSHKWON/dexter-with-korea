@@ -1,6 +1,6 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { fetchNaverTrend } from './naver-api.js';
+import { fetchNaverTrend, NAVER_TREND_MAX_DAYS } from './naver-api.js';
 import { resolveKrSecurity } from './resolve-kr.js';
 import { parseKrxNumber, toIsoDate, deadColumns } from './utils.js';
 import { formatToolResult } from '../types.js';
@@ -8,7 +8,7 @@ import { TTL_6H } from '../finance/utils.js';
 
 export const GET_FOREIGN_OWNERSHIP_KR_DESCRIPTION = `Retrieves 외국인 지분율 (foreign ownership ratio) for a Korean (KOSPI/KOSDAQ) listed company. Foreign holding is a closely watched flow signal in Korea; there is no direct US equivalent.
 
-Each daily row includes the foreign holding ratio as a % of shares (foreignHoldRatio), and the day's net-buy quantities for foreigners, institutions, and individuals (foreignNetBuyQty, orgNetBuyQty, individualNetBuyQty), plus close price and volume. Use this for "foreign ownership of X" or to track foreign accumulation/distribution. Accepts a 6-digit ticker (e.g. 005930 for Samsung Electronics). Returns the most recent day first (about a month of history).`;
+Each daily row includes the foreign holding ratio as a % of shares (foreignHoldRatio), and the day's net-buy quantities for foreigners, institutions, and individuals (foreignNetBuyQty, orgNetBuyQty, individualNetBuyQty), plus close price and volume. Use this for "foreign ownership of X" or to track foreign accumulation/distribution. Accepts a 6-digit ticker (e.g. 005930 for Samsung Electronics). Returns the most recent day first; at most 60 trading days (~3 months) of history exist — for longer windows say so rather than extrapolating.`;
 
 const InputSchema = z.object({
   ticker: z
@@ -19,9 +19,9 @@ const InputSchema = z.object({
     .number()
     .int()
     .min(1)
-    .max(100)
+    .max(NAVER_TREND_MAX_DAYS)
     .default(20)
-    .describe('Maximum number of days to return (default 20). Returns the most recent first.'),
+    .describe('Maximum number of days to return (default 20, max 60 ≈ 3 months). Returns the most recent first.'),
 });
 
 export interface ForeignOwnershipRow {

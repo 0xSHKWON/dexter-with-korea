@@ -56,6 +56,11 @@ export function useCursor(): CursorAuth {
   return { status, busy, error, login, cancel, refresh };
 }
 
+/** Free plans reject every named model; mirrors cursorModelAllowed in src/cursor/cli.ts. */
+export function cursorModelAllowed(modelId: string, plan: string | undefined): boolean {
+  return plan?.trim().toLowerCase() !== 'free' || modelId === 'cursor:auto';
+}
+
 /** Usable for a run: the CLI is installed and either logged in or given an API key. */
 export function cursorConnected(status: CursorStatus | null | undefined, apiKeyStored: boolean): boolean {
   return !!status?.installed && (status.loggedIn || apiKeyStored);

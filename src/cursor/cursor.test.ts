@@ -11,12 +11,20 @@ import { callLlm } from '@/model/llm';
 import { parseToolReply, toCursorPrompt } from '@/model/cursor';
 import { Agent } from '@/agent/agent';
 import type { AgentEvent } from '@/agent/types';
-import { CURSOR_DENY_ALL, getCursorStatus, invalidateCursorStatus, parseCursorStatusOutput } from './cli';
+import { ModelSelectionController } from '@/controllers/model-selection';
+import {
+  CURSOR_DENY_ALL,
+  cursorModelAllowed,
+  getCursorStatus,
+  invalidateCursorStatus,
+  parseCursorAbout,
+  parseCursorStatusOutput,
+} from './cli';
 
 const FAKE = fileURLToPath(new URL('./__fixtures__/fake-cursor-agent.ts', import.meta.url));
 const dir = mkdtempSync(join(tmpdir(), 'dexter-cursor-test-'));
 const log = join(dir, 'argv.jsonl');
-const ENV_KEYS = ['CURSOR_AGENT_PATH', 'FAKE_CURSOR_LOG', 'FAKE_CURSOR_FAIL', 'FAKE_CURSOR_HANG', 'CURSOR_API_KEY', 'DEXTER_DIR'] as const;
+const ENV_KEYS = ['CURSOR_AGENT_PATH', 'FAKE_CURSOR_LOG', 'FAKE_CURSOR_FAIL', 'FAKE_CURSOR_HANG', 'FAKE_CURSOR_PLAN', 'CURSOR_API_KEY', 'DEXTER_DIR'] as const;
 const saved = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
 
 beforeAll(() => {
@@ -29,6 +37,7 @@ beforeEach(() => {
   writeFileSync(log, '');
   delete process.env.FAKE_CURSOR_FAIL;
   delete process.env.FAKE_CURSOR_HANG;
+  delete process.env.FAKE_CURSOR_PLAN;
   delete process.env.CURSOR_API_KEY;
 });
 afterAll(() => {
@@ -65,7 +74,35 @@ describe('cursor-agent status parsing', () => {
   });
 
   it('getCursorStatus runs `status --format json` on the resolved binary', () => {
-    expect(getCursorStatus(true)).toEqual({ installed: true, loggedIn: true, email: 'me@example.com', authMethod: 'login' });
+    expect(getCursorStatus(true)).toEqual({ installed: true, loggedIn: true, email: 'me@example.com', authMethod: 'login', plan: 'Pro' });
+  });
+});
+
+describe('Cursor plan', () => {
+  it('reads subscriptionTier from `about --format json`', () => {
+    expect(parseCursorAbout('{"cliVersion":"x","subscriptionTier":"Free"}')).toBe('Free');
+    expect(parseCursorAbout('not json')).toBeUndefined();
+  });
+
+  it('a Free plan can only run Auto; an unknown plan is not restricted', () => {
+    expect(cursorModelAllowed('cursor:auto', 'Free')).toBe(true);
+    expect(cursorModelAllowed('cursor:composer-2.5', 'Free')).toBe(false);
+    expect(cursorModelAllowed('cursor:composer-2.5', 'Pro')).toBe(true);
+    expect(cursorModelAllowed('cursor:composer-2.5', undefined)).toBe(true);
+  });
+
+  it('/model → Cursor offers only Auto on a Free plan', async () => {
+    process.env.FAKE_CURSOR_PLAN = 'Free';
+    getCursorStatus(true);
+    const selection = new ModelSelectionController(() => {});
+    await selection.handleProviderSelect('cursor');
+    expect(selection.state.pendingModels.map((m) => m.id)).toEqual(['cursor:auto']);
+    invalidateCursorStatus();
+  });
+
+  it("turns the CLI's Free-plan rejection into an actionable error", async () => {
+    process.env.FAKE_CURSOR_FAIL = 'ActionRequiredError: Named models unavailable Free plans can only use Auto. Switch to Auto or upgrade plans to continue.';
+    await expect(callLlm('x', { model: 'cursor:composer-2.5' })).rejects.toThrow(/Free plan can only use the Auto model/);
   });
 });
 
