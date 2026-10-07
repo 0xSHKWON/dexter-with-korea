@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { PROMPT_GROUPS } from '../promptExamples';
+import AgentDiagram from './AgentDiagram';
 
 interface KeyGuide {
   label: string;
@@ -61,16 +62,18 @@ const SECTIONS: Section[] = [
 ];
 
 export default function HelpView({ onUsePrompt }: { onUsePrompt: (text: string) => void }): JSX.Element {
-  const [tab, setTab] = useState<'prompts' | 'keys'>('prompts');
+  const [tab, setTab] = useState<'how' | 'prompts' | 'keys'>('prompts');
 
   return (
     <div className="help">
       <header className="page-head">
         <h1>도움말</h1>
         <p className="sub">
-          {tab === 'prompts'
-            ? '예시를 눌러 챗에 바로 입력해 보세요.'
-            : '키 발급처와 입력 방법입니다. 키는 이 컴퓨터에 암호화 저장돼요.'}
+          {tab === 'how'
+            ? '질문 하나가 답이 되기까지의 흐름입니다.'
+            : tab === 'prompts'
+              ? '예시를 눌러 챗에 바로 입력해 보세요.'
+              : '키 발급처와 입력 방법입니다. 키는 이 컴퓨터에 암호화 저장돼요.'}
         </p>
       </header>
 
@@ -87,9 +90,14 @@ export default function HelpView({ onUsePrompt }: { onUsePrompt: (text: string) 
         >
           API 키 가이드
         </button>
+        <button className={`help-tab ${tab === 'how' ? 'active' : ''}`} onClick={() => setTab('how')}>
+          작동 방식
+        </button>
       </div>
 
-      {tab === 'prompts' ? (
+      {tab === 'how' ? (
+        <AgentDiagram />
+      ) : tab === 'prompts' ? (
         <section className="help-sec prompt-showcase">
           <div className="prompt-grid">
             {PROMPT_GROUPS.flatMap((g) =>

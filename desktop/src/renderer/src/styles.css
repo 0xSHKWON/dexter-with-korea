@@ -2107,6 +2107,280 @@ select:focus {
   }
 }
 
+/* Help → 작동 방식: the harness end to end, monochrome. */
+.ad {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding-top: 18px;
+}
+
+.ad-node {
+  padding: 14px 16px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.ad-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.ad-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.ad-title {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.ad-sub {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.ad-row2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 2.4fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.ad-harrow {
+  align-self: center;
+  color: var(--muted);
+}
+
+.ad-pairs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 14px;
+  margin: 12px 0 0 34px;
+}
+
+.ad-pairs dt {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ad-pairs dd {
+  margin: 1px 0 0;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.ad-routes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0 0 34px;
+}
+
+.ad-route {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.ad-route b {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ad-cycle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0 0 34px;
+}
+
+.ad-cycle-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 0;
+  min-width: 120px;
+}
+
+.ad-cycle-card {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.ad-cycle-title {
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.ad-cycle-sub {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.ad-loop-arrow {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.ad-loop-repeat {
+  margin-left: 4px;
+  color: var(--muted);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.ad-guards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 10px 0 0 34px;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.ad-guard {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.ad-guard b {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ad-note {
+  margin: 8px 0 6px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.ad-link {
+  align-self: center;
+  width: 1px;
+  height: 22px;
+  background: var(--border);
+}
+
+.ad-sources {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.ad-source {
+  padding: 12px 14px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+}
+
+.ad-source-title {
+  margin-bottom: 8px;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.ad-source ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ad-source li {
+  padding: 3px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.ad-source-kr {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--text) 35%, var(--border));
+  background: var(--bg-elev);
+}
+
+.ad-badge {
+  margin-left: 6px;
+  padding: 1px 7px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+.ad-source-kr dl {
+  margin: 0;
+}
+
+.ad-kr-row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 10px;
+  padding: 5px 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.ad-kr-row:first-child {
+  border-top: none;
+}
+
+.ad-kr-row dt {
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.ad-kr-row dd {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .ad-sources,
+  .ad-row2,
+  .ad-routes,
+  .ad-guards {
+    grid-template-columns: 1fr;
+  }
+
+  .ad-harrow {
+    display: none;
+  }
+}
+
 /* ── update gate (required) + banner (optional) ─────────────────────────── */
 .update-gate {
   height: 100vh;
