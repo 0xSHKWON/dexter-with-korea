@@ -12,7 +12,7 @@ export interface ProviderMeta {
   /** Short column title in the model picker (e.g. "Claude", "Codex"). */
   shortName?: string;
   apiKeyEnvVar?: string;
-  /** 'oauth' = ChatGPT-plan login; 'cli' = the user's logged-in Claude Code. */
+  /** 'oauth' = ChatGPT-plan login; 'cli' = the user's logged-in agent CLI (Claude Code, Cursor). */
   authType?: 'apiKey' | 'oauth' | 'cli';
   requiresKey: boolean;
   defaultModel: string;
@@ -21,6 +21,9 @@ export interface ProviderMeta {
   effortLevels?: string[];
   note?: string;
 }
+
+/** Mirrors the agent's DEFAULT_EFFORT (src/agent/agent.ts) — what an unset effort runs at. */
+export const DEFAULT_EFFORT = 'medium';
 
 /** Subscription-login state, read from the core's auth.json. Never carries tokens. */
 export interface OAuthStatus {
@@ -51,6 +54,18 @@ export interface ClaudeCodeStatus {
   orgName?: string;
   /** "pro" | "max" | … */
   subscriptionType?: string;
+}
+
+/** The local Cursor Agent CLI: installed, and logged in with its own `cursor-agent login`. */
+export interface CursorStatus {
+  installed: boolean;
+  /** CLI login only — a stored CURSOR_API_KEY is a separate, equally valid way in. */
+  loggedIn: boolean;
+  path?: string;
+  version?: string;
+  email?: string;
+  /** `subscriptionTier` from `cursor-agent about` — "Free" can only run the Auto model. */
+  plan?: string;
 }
 
 export type AuthLoginResult = { ok: true; email?: string; plan?: string } | { ok: false; error: string };
@@ -85,7 +100,7 @@ export interface SecretExportResult {
 export interface AppSettings {
   provider?: string;
   modelId?: string;
-  /** providerId → chosen reasoning effort; a missing entry means the provider default. */
+  /** providerId → chosen reasoning effort; a missing entry means DEFAULT_EFFORT. */
   effort?: Record<string, string>;
   [key: string]: unknown;
 }
@@ -147,6 +162,12 @@ export interface DexterApi {
   claudeCode: {
     status(): Promise<ClaudeCodeStatus>;
     /** Runs `claude auth login` (opens the browser); resolves when it exits. */
+    login(): Promise<AuthLoginResult>;
+    cancel(): Promise<void>;
+  };
+  cursor: {
+    status(): Promise<CursorStatus>;
+    /** Runs `cursor-agent login` (opens the browser); resolves when it exits. */
     login(): Promise<AuthLoginResult>;
     cancel(): Promise<void>;
   };

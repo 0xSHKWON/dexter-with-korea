@@ -21,6 +21,11 @@ const api: DexterApi = {
     login: () => ipcRenderer.invoke('claudeCode:login'),
     cancel: () => ipcRenderer.invoke('claudeCode:cancel'),
   },
+  cursor: {
+    status: () => ipcRenderer.invoke('cursor:status'),
+    login: () => ipcRenderer.invoke('cursor:login'),
+    cancel: () => ipcRenderer.invoke('cursor:cancel'),
+  },
   settings: {
     getAll: () => ipcRenderer.invoke('settings:getAll'),
     set: (key, value) => ipcRenderer.invoke('settings:set', key, value),

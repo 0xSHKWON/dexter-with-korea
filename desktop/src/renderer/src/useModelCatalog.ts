@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { AppSettings, ProviderMeta } from '../../shared/types';
 import { useCodexAuth, type CodexAuth } from './useCodexAuth';
 import { useClaudeCode, type ClaudeCodeAuth } from './useClaudeCode';
+import { cursorConnected, useCursor, type CursorAuth } from './useCursor';
 
 export interface ModelCatalog {
   loading: boolean;
@@ -10,6 +11,7 @@ export interface ModelCatalog {
   settings: AppSettings;
   codex: CodexAuth;
   claude: ClaudeCodeAuth;
+  cursor: CursorAuth;
   /** Persist provider + model as the default for new runs. */
   select(providerId: string, modelId: string): Promise<void>;
   /** Persist the reasoning effort for a provider; undefined = provider default. */
@@ -21,10 +23,11 @@ export interface ModelCatalog {
 // pick in one must tell the other.
 const MODEL_CHANGED = 'dexter:model-changed';
 
-/** Provider catalog + which providers are usable now (key stored or ChatGPT logged in). */
+/** Provider catalog + which providers are usable now (key stored or subscription login). */
 export function useModelCatalog(): ModelCatalog {
   const codex = useCodexAuth();
   const claude = useClaudeCode();
+  const cursor = useCursor();
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState<ProviderMeta[]>([]);
   const [keys, setKeys] = useState<Record<string, boolean>>({});
@@ -56,20 +59,31 @@ export function useModelCatalog(): ModelCatalog {
           p.id,
           p.authType === 'oauth'
             ? !!codex.status?.loggedIn
-            : p.authType === 'cli'
-              ? !!claude.status?.loggedIn
-              : !p.requiresKey || (!!p.apiKeyEnvVar && !!keys[p.apiKeyEnvVar]),
+            : p.id === 'cursor'
+              ? cursorConnected(cursor.status, !!p.apiKeyEnvVar && !!keys[p.apiKeyEnvVar])
+              : p.authType === 'cli'
+                ? !!claude.status?.loggedIn
+                : !p.requiresKey || (!!p.apiKeyEnvVar && !!keys[p.apiKeyEnvVar]),
         ]),
       ),
-    [providers, keys, codex.status, claude.status],
+    [providers, keys, codex.status, claude.status, cursor.status],
   );
 
   const select = useCallback(async (providerId: string, modelId: string) => {
-    await window.dexter.settings.set('provider', providerId);
-    await window.dexter.settings.set('modelId', modelId);
+    // Update first so provider-dependent controls (such as Effort) react in the
+    // same click instead of waiting for two IPC writes to finish.
     setSettings((s) => ({ ...s, provider: providerId, modelId }));
-    window.dispatchEvent(new Event(MODEL_CHANGED));
-  }, []);
+    try {
+      await Promise.all([
+        window.dexter.settings.set('provider', providerId),
+        window.dexter.settings.set('modelId', modelId),
+      ]);
+      window.dispatchEvent(new Event(MODEL_CHANGED));
+    } catch (error) {
+      await reload();
+      throw error;
+    }
+  }, [reload]);
 
   const setEffort = useCallback(
     async (providerId: string, level: string | undefined) => {
@@ -83,5 +97,5 @@ export function useModelCatalog(): ModelCatalog {
     [settings.effort],
   );
 
-  return { loading, providers, connected, settings, codex, claude, select, setEffort, reload };
+  return { loading, providers, connected, settings, codex, claude, cursor, select, setEffort, reload };
 }

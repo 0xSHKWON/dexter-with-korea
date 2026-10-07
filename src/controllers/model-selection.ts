@@ -11,6 +11,7 @@ import {
 } from '../utils/model.js';
 import { getOllamaModels, getOllamaCloudModels } from '../utils/ollama.js';
 import { getProviderById } from '../providers.js';
+import { CURSOR_AUTO_MODEL, cursorModelAllowed, getCursorStatus } from '../cursor/cli.js';
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from '../model/llm.js';
 import { InMemoryChatHistory } from '../utils/in-memory-chat-history.js';
 
@@ -126,7 +127,9 @@ export class ModelSelectionController {
       return;
     }
 
-    this.pendingModelsValue = getModelsForProvider(providerId);
+    // A Cursor Free plan can only run Auto; don't offer models that would fail at call-time.
+    const cursorPlan = providerId === 'cursor' ? getCursorStatus().plan : undefined;
+    this.pendingModelsValue = getModelsForProvider(providerId).filter((m) => cursorModelAllowed(m.id, cursorPlan));
     this.appStateValue = 'model_select';
     this.emitChange();
   }
@@ -170,7 +173,11 @@ export class ModelSelectionController {
   private async loginThenSwitch(providerId: string, modelId: string) {
     this.resetPendingState();
     const ok = (await this.onLoginRequired?.(providerId)) ?? false;
-    if (ok) {
+    if (ok && providerId === 'cursor' && !cursorModelAllowed(modelId, getCursorStatus(true).plan)) {
+      // The model list was shown before login, when the plan was still unknown.
+      this.onError('Cursor Free plan can only use Auto — switched to Cursor Auto.');
+      this.completeModelSwitch(providerId, CURSOR_AUTO_MODEL);
+    } else if (ok) {
       this.completeModelSwitch(providerId, modelId);
     } else {
       this.onError(`Not logged in to ${getProviderDisplayName(providerId)}. Model unchanged.`);

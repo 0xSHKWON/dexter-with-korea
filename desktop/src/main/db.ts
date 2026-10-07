@@ -58,7 +58,6 @@ export function initDb(): Database.Database {
  * `../../../src/utils/model.ts` (PROVIDER_MODELS).
  */
 const MODEL_ID_UPGRADES: Record<string, string> = {
-  'gemini-3': 'gemini-3.8-flash',
   'grok-4-1': 'grok-4.7',
   // Mirrors DEPRECATED_MODEL_UPGRADES in src/utils/config.ts (upstream v1.0.6
   // catalog). The gpt-5.6 tiers are deliberately NOT here — the fork keeps the
@@ -69,7 +68,6 @@ const MODEL_ID_UPGRADES: Record<string, string> = {
   'claude-sonnet-4-6': 'claude-sonnet-5',
   'claude-opus-4-8': 'claude-opus-5-5',
   'claude-fable-5': 'claude-fable-5-1',
-  'gemini-3-flash-preview': 'gemini-3.8-flash',
   'grok-4-0709': 'grok-4.7',
   'grok-4-1-fast-reasoning': 'grok-4.7',
   'kimi-k2-5': 'kimi-k3',
@@ -85,6 +83,11 @@ function migrateBadModelIds(database: Database.Database): void {
   try {
     current = JSON.parse(row.value) as string;
   } catch {
+    return;
+  }
+  // The Google (Gemini) provider was removed; fall back to the default provider.
+  if (current.startsWith('gemini-')) {
+    database.prepare("DELETE FROM settings WHERE key IN ('provider', 'modelId')").run();
     return;
   }
   const replacement = MODEL_ID_UPGRADES[current];

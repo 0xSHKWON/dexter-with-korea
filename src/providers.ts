@@ -14,7 +14,7 @@ export interface ProviderDef {
   apiKeyEnvVar?: string;
   /**
    * 'oauth' = subscription login (`/login`) stored in .dexter/auth.json.
-   * 'cli'   = delegates to the user's installed, logged-in Claude Code CLI.
+   * 'cli'   = delegates to the user's installed, logged-in agent CLI (Claude Code, Cursor).
    */
   authType?: 'apiKey' | 'oauth' | 'cli';
   /** Fast model variant for lightweight tasks like summarization. */
@@ -57,12 +57,14 @@ export const PROVIDERS: ProviderDef[] = [
     contextWindow: 272_000,
   },
   {
-    id: 'google',
-    displayName: 'Google',
-    modelPrefix: 'gemini-',
-    apiKeyEnvVar: 'GOOGLE_API_KEY',
-    fastModel: 'gemini-3.8-flash',
-    contextWindow: 1_000_000,
+    id: 'cursor',
+    displayName: 'Cursor',
+    modelPrefix: 'cursor:',
+    // Optional: `cursor-agent` reads CURSOR_API_KEY itself; its own `login` works too.
+    apiKeyEnvVar: 'CURSOR_API_KEY',
+    authType: 'cli',
+    fastModel: 'cursor:auto',
+    contextWindow: 200_000,
   },
   {
     id: 'xai',
@@ -129,7 +131,7 @@ export function resolveProvider(modelName: string): ProviderDef {
 }
 
 /**
- * Look up a provider by its slug (e.g., 'anthropic', 'google').
+ * Look up a provider by its slug (e.g., 'anthropic', 'cursor').
  */
 export function getProviderById(id: string): ProviderDef | undefined {
   return PROVIDERS.find((p) => p.id === id);

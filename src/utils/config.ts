@@ -13,7 +13,6 @@ const MODEL_TO_PROVIDER_MAP: Record<string, string> = {
   'gpt-5.4': 'openai',
   'gpt-5.2': 'openai',
   'claude-sonnet-4-5': 'anthropic',
-  'gemini-3': 'google',
 };
 
 // Deprecated model IDs to upgrade on load.
@@ -28,7 +27,6 @@ const DEPRECATED_MODEL_UPGRADES: Record<string, string> = {
   'claude-sonnet-4-6': 'claude-sonnet-5',
   'claude-opus-4-8': 'claude-opus-5-5',
   'claude-fable-5': 'claude-fable-5-1',
-  'gemini-3-flash-preview': 'gemini-3.8-flash',
   'grok-4-0709': 'grok-4.7',
   'grok-4-1-fast-reasoning': 'grok-4.7',
   'kimi-k2-5': 'kimi-k3',
@@ -68,6 +66,15 @@ export function loadConfig(): Config {
     // Upgrade deprecated model IDs (e.g. gpt-5.5 -> gpt-6-astra)
     if (config.modelId && DEPRECATED_MODEL_UPGRADES[config.modelId]) {
       config.modelId = DEPRECATED_MODEL_UPGRADES[config.modelId];
+      saveConfig(config);
+    }
+
+    // The Google (Gemini) provider was removed. Left alone, a saved `gemini-*` id
+    // would route to the OpenAI fallback and fail; drop it so the defaults apply.
+    if (config.provider === 'google' || config.modelId?.startsWith('gemini-') || config.model?.startsWith('gemini-')) {
+      delete config.provider;
+      delete config.modelId;
+      delete config.model;
       saveConfig(config);
     }
 

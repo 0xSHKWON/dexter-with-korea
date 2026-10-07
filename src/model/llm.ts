@@ -1,7 +1,6 @@
 import { AIMessage, AIMessageChunk, BaseMessage } from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatAnthropic } from '@langchain/anthropic';
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { ChatOllama } from '@langchain/ollama';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { SystemMessage, HumanMessage } from '@langchain/core/messages';
@@ -17,6 +16,7 @@ import { classifyError, isNonRetryableError } from '@/utils/errors';
 import { resolveProvider, getProviderById } from '@/providers';
 import { createCodexChatModel } from '@/model/codex';
 import { ChatClaudeCode } from '@/model/claude-code';
+import { ChatCursor } from '@/model/cursor';
 
 export const DEFAULT_PROVIDER = 'openai';
 export const DEFAULT_MODEL = 'gpt-6-astra';
@@ -53,13 +53,13 @@ async function withRetry<T>(fn: () => Promise<T>, provider: string, maxAttempts 
 }
 
 // Model provider configuration
+// Spread into provider constructors, so only fields every provider accepts belong here.
 interface ModelOpts {
   streaming: boolean;
-  /** Reasoning effort; only providers that support it read this (see AgentConfig.effort). */
-  effort?: string;
 }
 
-type ModelFactory = (name: string, opts: ModelOpts) => BaseChatModel;
+/** `effort` is passed separately: only providers that support it read it (see AgentConfig.effort). */
+type ModelFactory = (name: string, opts: ModelOpts, effort?: string) => BaseChatModel;
 
 function getApiKey(envVar: string): string {
   const apiKey = process.env[envVar];
@@ -81,13 +81,10 @@ const MODEL_FACTORIES: Record<string, ModelFactory> = {
   // loop hands whole turns to Claude Code (agent/claude-code-runner.ts).
   'claude-code': (name) => new ChatClaudeCode({ model: name }),
   // ChatGPT subscription via OAuth — always streams on the wire (see model/codex.ts).
-  'openai-codex': (name, opts) => createCodexChatModel(name, opts.effort),
-  google: (name, opts) =>
-    new ChatGoogleGenerativeAI({
-      model: name,
-      ...opts,
-      apiKey: getApiKey('GOOGLE_API_KEY'),
-    }),
+  'openai-codex': (name, _opts, effort) => createCodexChatModel(name, effort),
+  // The user's Cursor Agent CLI. Each call is one `cursor-agent -p` run with tool
+  // calls emulated as JSON (model/cursor.ts), so it rides the native agent loop.
+  cursor: (name) => new ChatCursor({ model: name }),
   xai: (name, opts) =>
     new ChatOpenAI({
       model: name,
@@ -168,10 +165,9 @@ export function getChatModel(
   streaming: boolean = false,
   effort?: string,
 ): BaseChatModel {
-  const opts: ModelOpts = { streaming, effort };
   const provider = resolveProvider(modelName);
   const factory = MODEL_FACTORIES[provider.id] ?? DEFAULT_FACTORY;
-  return factory(modelName, opts);
+  return factory(modelName, { streaming }, effort);
 }
 
 interface CallLlmOptions {
@@ -263,7 +259,7 @@ export async function callLlm(prompt: string, options: CallLlmOptions = {}): Pro
     const messages = buildAnthropicMessages(finalSystemPrompt, prompt);
     result = await withRetry(() => runnable.invoke(messages, invokeOpts), provider.displayName);
   } else {
-    // Other providers: use ChatPromptTemplate (OpenAI/Gemini have automatic caching)
+    // Other providers: use ChatPromptTemplate (OpenAI has automatic caching)
     const promptTemplate = ChatPromptTemplate.fromMessages([
       ['system', finalSystemPrompt],
       ['user', '{prompt}'],

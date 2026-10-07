@@ -55,6 +55,14 @@ describe('desktop provider catalog stays in sync with the core', () => {
     }
   });
 
+  it('exposes each subscription provider\'s own effort levels', () => {
+    const claude = DESKTOP_PROVIDERS.find((p) => p.id === 'claude-code');
+    const codex = DESKTOP_PROVIDERS.find((p) => p.id === 'openai-codex');
+
+    expect(claude?.effortLevels).toEqual(['low', 'medium', 'high', 'xhigh', 'max', 'ultracode']);
+    expect(codex?.effortLevels).toEqual(['off', 'light', 'medium', 'high', 'xhigh', 'max', 'ultra']);
+  });
+
   // ipc.ts used to hardcode `getSetting('modelId', 'gpt-5.5')`. Resyncing
   // providers.ts alone then left Settings showing one default while runs used
   // another. The fallback must be derived from the catalog, not written out again.
